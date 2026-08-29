@@ -731,12 +731,22 @@ async function downloadMyTimesheetPdf(){
 
     const projectEntries = Object.entries(empProjectDays);
     if(projectEntries.length){
-      y2 += 14;
-      doc.setFontSize(9); doc.setTextColor(90,90,90);
-      const summary = projectEntries.map(([pname, days]) => `${pname}: ${days} day${days===1?"":"s"}`).join("   •   ");
-      const wrapped = doc.splitTextToSize(`By project — ${summary}`, 515);
-      doc.text(wrapped, 40, y2);
-      y2 += (wrapped.length - 1) * 11;
+      y2 += 10;
+      doc.setFontSize(9.5); doc.setTextColor(15,53,86); doc.setFont("helvetica", "bold");
+      doc.text("Days worked by project", 40, y2 + 8);
+      doc.setFont("helvetica", "normal");
+      doc.autoTable({
+        startY: y2 + 14,
+        head: [["Project","Days worked"]],
+        body: projectEntries.map(([pname, days]) => [pname, String(days)]),
+        styles: { fontSize: 8.5, cellPadding: 3 },
+        headStyles: { fillColor: [27,90,150] },
+        theme: "grid",
+        margin: { left: 40, right: 40 },
+        columnStyles: { 0: { cellWidth: 300 }, 1: { cellWidth: 100 } },
+        pageBreak: "avoid"
+      });
+      y2 = doc.lastAutoTable.finalY;
     }
 
     y2 += 26;
@@ -819,21 +829,24 @@ async function generateCombinedPdf(){
   doc.setFontSize(10); doc.setTextColor(120,120,120);
   doc.text(`Generated ${new Date().toLocaleString()}  •  ${state.hrApproved.length} approved employee(s)`, 40, 96);
 
-  const summaryRows = Object.entries(companyProjectDays)
-    .sort((a,b)=> b[1]-a[1])
-    .map(([pname, days]) => [pname, String(days)]);
-  if(summaryRows.length){
+  const rosterRows = employeeData.map(({ emp, totals }) => [
+    emp?.name || "Employee",
+    totals.regularHours.toFixed(1),
+    totals.ot.toFixed(1),
+    totals.totalHours.toFixed(1)
+  ]);
+  if(rosterRows.length){
     doc.setFontSize(12); doc.setTextColor(15,53,86);
-    doc.text("Days worked by project (all employees)", 40, 124);
+    doc.text("Employee hours summary", 40, 124);
     doc.autoTable({
       startY: 134,
-      head: [["Project","Days worked"]],
-      body: summaryRows,
+      head: [["Employee","Reg. Hrs","OT Hrs","Total Hrs"]],
+      body: rosterRows,
       styles: { fontSize: 9, cellPadding: 4 },
       headStyles: { fillColor: [27,90,150] },
       theme: "grid",
       margin: { left: 40, right: 40 },
-      tableWidth: 300
+      columnStyles: { 0: { cellWidth: 260 }, 1: { cellWidth: 80 }, 2: { cellWidth: 80 }, 3: { cellWidth: 80 } }
     });
   }
 
@@ -880,12 +893,22 @@ async function generateCombinedPdf(){
 
     const projectEntries = Object.entries(empProjectDays);
     if(projectEntries.length){
-      y2 += 14;
-      doc.setFontSize(9); doc.setTextColor(90,90,90);
-      const summary = projectEntries.map(([pname, days]) => `${pname}: ${days} day${days===1?"":"s"}`).join("   •   ");
-      const wrapped = doc.splitTextToSize(`By project — ${summary}`, 515);
-      doc.text(wrapped, 40, y2);
-      y2 += (wrapped.length - 1) * 11;
+      y2 += 10;
+      doc.setFontSize(9.5); doc.setTextColor(15,53,86); doc.setFont("helvetica", "bold");
+      doc.text("Days worked by project", 40, y2 + 8);
+      doc.setFont("helvetica", "normal");
+      doc.autoTable({
+        startY: y2 + 14,
+        head: [["Project","Days worked"]],
+        body: projectEntries.map(([pname, days]) => [pname, String(days)]),
+        styles: { fontSize: 8.5, cellPadding: 3 },
+        headStyles: { fillColor: [27,90,150] },
+        theme: "grid",
+        margin: { left: 40, right: 40 },
+        columnStyles: { 0: { cellWidth: 300 }, 1: { cellWidth: 100 } },
+        pageBreak: "avoid"
+      });
+      y2 = doc.lastAutoTable.finalY;
     }
 
     y2 += 26;
