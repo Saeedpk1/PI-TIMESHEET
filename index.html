@@ -528,7 +528,7 @@ function render(){
   const root = document.getElementById("root");
   if(!checkConfig()) return;
 
-  if(!state.user){ root.innerHTML = renderLogin(); attachLoginEvents(); return; }
+  if(!state.user){ root.innerHTML = renderLogin(); return; }
 
   let header = renderHeader();
   let body = "";
@@ -569,11 +569,6 @@ function renderLogin(){
     ${state.error ? `<div class="error-box">${state.error}</div>` : ""}
     <button class="btn btn-primary" id="loginBtn" ${state.loading?"disabled":""}>${state.loading?'<span class="spinner"></span>Signing in…':'Sign in'}</button>
   </div>`;
-}
-function attachLoginEvents(){
-  document.getElementById("loginBtn").onclick = ()=>{
-    doLogin(document.getElementById("loginIqama").value);
-  };
 }
 
 /* ---- employee view ---- */
@@ -756,62 +751,71 @@ function renderHrView(){
   `;
 }
 
-/* ---------------- event wiring ---------------- */
+/* ---------------- event wiring (delegated — bound once, survives every re-render) ---------------- */
+function handleDelegatedClick(e){
+  const el = (id)=> e.target.closest("#"+id);
+
+  if(el("logoutBtn")){ logout(); return; }
+  if(el("loginBtn")){ doLogin(document.getElementById("loginIqama").value); return; }
+
+  const navBtn = e.target.closest("[data-nav]");
+  if(navBtn){
+    const dir = navBtn.getAttribute("data-nav");
+    state.monthDate = new Date(state.monthDate.getFullYear(), state.monthDate.getMonth() + (dir==="next"?1:-1), 1);
+    if(state.view === "employee") loadEmployeeMonth();
+    else if(state.view === "supervisor") loadSupervisorList();
+    return;
+  }
+
+  if(el("saveDraftBtn")){ saveDraft(false); return; }
+  if(el("submitBtn")){ submitForApproval(); return; }
+
+  const empEl = e.target.closest("[data-emp]");
+  if(empEl){
+    const emp = state.supervisorEmployees.find(x=>x.id===empEl.getAttribute("data-emp"));
+    if(emp) openEmployeeReview(emp);
+    return;
+  }
+
+  if(el("backToListBtn")){ state.view = "supervisor"; loadSupervisorList(); return; }
+  if(el("sigSettingsBtn")){ state.view = "supervisor-signature"; render(); return; }
+  if(el("clearSigBtn")){ clearSigPad(); return; }
+  if(el("saveSigBtn")){ saveSigPad(); return; }
+  if(el("approveBtn")){ approveTimesheet(); return; }
+  if(el("rejectBtn")){ rejectTimesheet(); return; }
+  if(el("combinedPdfBtn")){ generateCombinedPdf(); return; }
+}
+
+function handleDelegatedChange(e){
+  if(e.target.classList.contains("status-select")){
+    setEntry(e.target.getAttribute("data-date"), "status", e.target.value);
+    return;
+  }
+  if(e.target.id === "hrMonthInput"){
+    state.hrMonth = e.target.value;
+    loadHrMonth();
+    return;
+  }
+}
+
+function handleDelegatedInput(e){
+  if(e.target.classList.contains("ot-input")){
+    setEntry(e.target.getAttribute("data-date"), "overtime_hours", e.target.value);
+  }
+}
+
 function attachViewEvents(){
-  const logoutBtn = document.getElementById("logoutBtn");
-  if(logoutBtn) logoutBtn.onclick = logout;
-
-  document.querySelectorAll("[data-nav]").forEach(btn=>{
-    btn.onclick = async ()=>{
-      const dir = btn.getAttribute("data-nav");
-      state.monthDate = new Date(state.monthDate.getFullYear(), state.monthDate.getMonth() + (dir==="next"?1:-1), 1);
-      if(state.view === "employee") await loadEmployeeMonth();
-      else if(state.view === "supervisor") await loadSupervisorList();
-    };
-  });
-
-  document.querySelectorAll(".status-select").forEach(sel=>{
-    sel.onchange = ()=> setEntry(sel.getAttribute("data-date"), "status", sel.value);
-  });
-  document.querySelectorAll(".ot-input").forEach(inp=>{
-    inp.oninput = ()=> setEntry(inp.getAttribute("data-date"), "overtime_hours", inp.value);
-  });
-
-  const saveDraftBtn = document.getElementById("saveDraftBtn");
-  if(saveDraftBtn) saveDraftBtn.onclick = ()=> saveDraft(false);
-  const submitBtn = document.getElementById("submitBtn");
-  if(submitBtn) submitBtn.onclick = submitForApproval;
-
-  document.querySelectorAll("[data-emp]").forEach(el=>{
-    el.onclick = ()=>{
-      const emp = state.supervisorEmployees.find(e=>e.id===el.getAttribute("data-emp"));
-      if(emp) openEmployeeReview(emp);
-    };
-  });
-  const backBtn = document.getElementById("backToListBtn");
-  if(backBtn) backBtn.onclick = ()=>{ state.view = "supervisor"; loadSupervisorList(); };
-
-  const sigSettingsBtn = document.getElementById("sigSettingsBtn");
-  if(sigSettingsBtn) sigSettingsBtn.onclick = ()=>{ state.view = "supervisor-signature"; render(); };
-  const clearSigBtn = document.getElementById("clearSigBtn");
-  if(clearSigBtn) clearSigBtn.onclick = clearSigPad;
-  const saveSigBtn = document.getElementById("saveSigBtn");
-  if(saveSigBtn) saveSigBtn.onclick = saveSigPad;
-
-  const approveBtn = document.getElementById("approveBtn");
-  if(approveBtn) approveBtn.onclick = approveTimesheet;
-  const rejectBtn = document.getElementById("rejectBtn");
-  if(rejectBtn) rejectBtn.onclick = rejectTimesheet;
-
-  const hrMonthInput = document.getElementById("hrMonthInput");
-  if(hrMonthInput) hrMonthInput.onchange = ()=>{ state.hrMonth = hrMonthInput.value; loadHrMonth(); };
-  const combinedPdfBtn = document.getElementById("combinedPdfBtn");
-  if(combinedPdfBtn) combinedPdfBtn.onclick = generateCombinedPdf;
+  // buttons/inputs are wired via document-level delegation set up once at boot (see init()),
+  // so nothing to bind per render. Kept as a no-op entry point in case future per-render
+  // wiring is needed.
 }
 
 /* ---------------- boot ---------------- */
 (async function init(){
   if(!checkConfig()) return;
+  document.addEventListener("click", handleDelegatedClick);
+  document.addEventListener("change", handleDelegatedChange);
+  document.addEventListener("input", handleDelegatedInput);
   if(state.user){
     state.view = state.user.role === "employee" ? "employee" : (state.user.role === "supervisor" ? "supervisor" : "hr");
     if(state.view === "employee") await loadEmployeeMonth();
