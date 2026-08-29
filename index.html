@@ -296,6 +296,7 @@ let state = {
   savedSignature: null,
   hrMonth: monthKey(new Date()),
   hrApproved: [],
+  hrExcluded: new Set(), // employee_ids to leave out of the combined PDF (without deleting them)
   projects: [],           // {id, name, active}
   newProjectName: "",
   remarksDraft: "",
@@ -667,8 +668,27 @@ async function loadHrMonth(){
     .select("*, ts_employees:employee_id(name, employee_no, project_site, hourly_rate)")
     .eq("month", state.hrMonth).eq("status", "approved");
   state.hrApproved = data || [];
+  state.hrExcluded = new Set();
   state.loading = false;
   render();
+}
+
+async function deleteTimesheetSubmission(employeeId){
+  const emp = state.hrApproved.find(s => s.employee_id === employeeId);
+  const name = emp?.ts_employees?.name || "this employee";
+  if(!confirm(`Permanently delete ${name}'s timesheet for ${monthLabel(new Date(state.hrMonth + "-01"))}? This cannot be undone.`)) return;
+  state.loading = true; render();
+  const [hy, hm] = state.hrMonth.split("-").map(Number);
+  const lastDay = new Date(hy, hm, 0).getDate();
+  const startD = fmtDate(hy, hm-1, 1), endD = fmtDate(hy, hm-1, lastDay);
+  const [{ error: e1 }, { error: e2 }] = await Promise.all([
+    sb.from("ts_timesheet_submissions").delete().eq("employee_id", employeeId).eq("month", state.hrMonth),
+    sb.from("ts_timesheet_entries").delete().eq("employee_id", employeeId)
+      .gte("entry_date", startD).lte("entry_date", endD)
+  ]);
+  state.loading = false;
+  toast((e1 || e2) ? "Could not delete. Try again." : `${name}'s timesheet deleted.`);
+  await loadHrMonth();
 }
 
 function drawLetterhead(doc){
@@ -810,7 +830,8 @@ async function downloadMyTimesheetPdf(){
 }
 
 async function generateCombinedPdf(){
-  if(!state.hrApproved.length){ toast("No approved timesheets for this month yet."); return; }
+  const included = state.hrApproved.filter(s => !state.hrExcluded.has(s.employee_id));
+  if(!included.length){ toast("No employees selected for this PDF."); return; }
   state.loading = true; render();
   try{
   const [y, m] = state.hrMonth.split("-").map(Number);
@@ -821,8 +842,8 @@ async function generateCombinedPdf(){
   // ---- Pass 1: fetch every employee's data and compute the company-wide project summary ----
   const employeeData = [];
   const companyProjectDays = {}; // project name -> days worked, across everyone
-  for(let i=0; i<state.hrApproved.length; i++){
-    const sub = state.hrApproved[i];
+  for(let i=0; i<included.length; i++){
+    const sub = included[i];
     const emp = sub.ts_employees;
     const { data: entryRows } = await sb.from("ts_timesheet_entries").select("*")
       .eq("employee_id", sub.employee_id)
@@ -853,7 +874,7 @@ async function generateCombinedPdf(){
   doc.setFontSize(16); doc.setTextColor(15,53,86);
   doc.text(`Monthly Timesheets — ${monthLabel(new Date(y, m-1, 1))}`, 40, 78);
   doc.setFontSize(10); doc.setTextColor(120,120,120);
-  doc.text(`Generated ${new Date().toLocaleString()}  •  ${state.hrApproved.length} approved employee(s)`, 40, 96);
+  doc.text(`Generated ${new Date().toLocaleString()}  •  ${included.length} approved employee(s)`, 40, 96);
 
   const OT_MULTIPLIER = 1.25;
   const rosterRows = employeeData.map(({ emp, totals }) => {
@@ -1249,32 +1270,44 @@ function renderSignaturePad(){
 
 /* ---- HR view ---- */
 function renderHrView(){
-  const rows = state.hrApproved.map(s=>`
-    <div class="emp-list-item">
-      <div>
+  const includedCount = state.hrApproved.filter(s => !state.hrExcluded.has(s.employee_id)).length;
+  const rows = state.hrApproved.map(s=>{
+    const excluded = state.hrExcluded.has(s.employee_id);
+    return `
+    <div class="emp-list-item li-approved" style="${excluded ? "opacity:.55;" : ""}">
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;" title="${excluded ? "Excluded from PDF" : "Included in PDF"}">
+        <input type="checkbox" class="hr-include-check" data-emp-id="${s.employee_id}" ${excluded ? "" : "checked"} style="width:18px;height:18px;accent-color:var(--present);cursor:pointer;">
+      </label>
+      <div style="flex:1;min-width:0;">
         <div class="name">${s.ts_employees?.name || ""}</div>
         <div class="sub">${s.ts_employees?.employee_no || ""} ${s.ts_employees?.project_site ? "• " + s.ts_employees.project_site : ""}</div>
       </div>
       <span class="badge badge-approved">Approved</span>
-    </div>`).join("") || `<div class="empty-state"><div class="ic">📄</div>No approved timesheets yet for this month.</div>`;
+      <button class="link-btn" data-delete-sub="${s.employee_id}" style="color:var(--absent) !important;font-size:11px;">🗑 Delete</button>
+    </div>`;
+  }).join("") || `<div class="empty-state"><div class="ic">📄</div>No approved timesheets yet for this month.</div>`;
 
   return `
-    <div class="card" style="padding:14px 16px;margin-bottom:14px;cursor:pointer;" id="mySelfTimesheetBtn">
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;cursor:pointer;background:linear-gradient(135deg,#E7F1FC,#F3F8FD);border:2px solid var(--blue-light);" id="mySelfTimesheetBtn">
       <div class="row-between">
-        <div>
-          <div style="font-weight:700;font-size:14.5px;color:var(--ink);">My timesheet</div>
-          <div class="meta">Fill in your own hours</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:22px;">🕒</span>
+          <div>
+            <div style="font-weight:800;font-size:14.5px;color:var(--navy);">My timesheet</div>
+            <div class="meta">Fill in your own hours</div>
+          </div>
         </div>
-        <span style="color:var(--blue);font-size:18px;">›</span>
+        <span style="color:var(--blue);font-size:20px;font-weight:800;">›</span>
       </div>
     </div>
-    <div class="row-between" style="margin-bottom:10px;">
-      <label style="margin:0;">Month</label>
-      <button class="link-btn" id="manageProjectsBtn">Manage projects</button>
+    <div class="row-between" style="margin-bottom:10px;background:linear-gradient(135deg,var(--navy),var(--blue));padding:10px 12px;border-radius:10px;">
+      <label style="margin:0;color:#fff;font-weight:800;">📅 Month</label>
+      <button class="link-btn install-link" id="manageProjectsBtn" style="color:#FFE7B0 !important;">📁 Manage projects</button>
     </div>
     <input type="month" id="hrMonthInput" value="${state.hrMonth}">
-    <div class="card" style="margin-top:14px;padding:4px 12px;">${rows}</div>
-    <button class="btn btn-primary" id="combinedPdfBtn" style="margin-top:10px;">Download combined PDF (${state.hrApproved.length})</button>
+    <div class="field-note">Uncheck anyone you don't want in this download. Deleting removes their timesheet permanently.</div>
+    <div style="margin-top:10px;">${rows}</div>
+    <button class="btn btn-primary" id="combinedPdfBtn" style="margin-top:14px;">⬇ Download combined PDF (${includedCount})</button>
   `;
 }
 
@@ -1336,6 +1369,8 @@ function handleDelegatedClick(e){
     return;
   }
   if(el("manageProjectsBtn")){ state.view = "hr-projects"; render(); return; }
+  const deleteSubBtn = e.target.closest("[data-delete-sub]");
+  if(deleteSubBtn){ deleteTimesheetSubmission(deleteSubBtn.getAttribute("data-delete-sub")); return; }
   if(el("backToHrBtn")){ state.view = "hr"; loadHrMonth(); return; }
   if(el("addProjectBtn")){ addProject(); return; }
   const deactivateBtn = e.target.closest("[data-deactivate-project]");
@@ -1371,6 +1406,13 @@ function handleDelegatedChange(e){
   }
   if(e.target.id === "newProjectNameInput"){
     state.newProjectName = e.target.value;
+    return;
+  }
+  if(e.target.classList.contains("hr-include-check")){
+    const empId = e.target.getAttribute("data-emp-id");
+    if(e.target.checked) state.hrExcluded.delete(empId);
+    else state.hrExcluded.add(empId);
+    render();
     return;
   }
 }
