@@ -167,7 +167,9 @@
   .summary-item.s-total{background:#0F3556;border-color:var(--navy);} .summary-item.s-total .n{color:#fff;} .summary-item.s-total .l{color:#EAF2FA;}
 
   table.grid{width:100%;border-collapse:separate;border-spacing:0 4px;font-size:9.5px;table-layout:fixed;}
-  table.grid th{text-align:left;font-size:8px;color:var(--navy);font-weight:800;text-transform:uppercase;letter-spacing:.1px;padding:4px 3px;border-bottom:2.5px solid var(--navy);}
+  table.grid th{text-align:left;font-size:9.5px;color:#fff;background:linear-gradient(135deg,var(--navy),var(--blue));font-weight:800;text-transform:uppercase;letter-spacing:.2px;padding:6px 3px;border-bottom:2.5px solid var(--navy);}
+  table.grid th:first-child{border-radius:6px 0 0 6px;}
+  table.grid th:last-child{border-radius:0 6px 6px 0;}
   table.grid td{padding:4px 3px;vertical-align:middle;overflow:hidden;background:#fff;border-top:2px solid var(--line);border-bottom:2px solid var(--line);}
   table.grid td:first-child{border-left:2px solid var(--line);border-radius:8px 0 0 8px;}
   table.grid td:last-child{border-right:2px solid var(--line);border-radius:0 8px 8px 0;}
@@ -181,8 +183,10 @@
   select.status-select.st-Friday{color:var(--friday);border-color:var(--friday);background:#FDEEE5;}
   select.status-select.st-Holiday{color:var(--leave);border-color:var(--leave);background:#F1ECFC;}
   select.project-select{padding:3px 1px;font-size:8.5px;font-weight:600;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;border-color:var(--blue-light);color:var(--blue);background:#F3F8FD;}
-  input.ot-input{width:100%;padding:3px 2px;font-size:9px;font-weight:700;border-radius:6px;border:2px solid var(--blue-light);text-align:center;box-sizing:border-box;color:var(--blue);background:#F3F8FD;-webkit-appearance:auto;appearance:auto;}
-  input.ot-input::-webkit-inner-spin-button{opacity:1;}
+  .ot-stepper{display:flex;align-items:center;justify-content:space-between;border:2px solid var(--blue-light);border-radius:6px;background:#F3F8FD;overflow:hidden;height:22px;}
+  .ot-stepper .ot-btn{flex:0 0 auto;width:18px;height:100%;border:none;background:var(--blue-light);color:#fff;font-weight:800;font-size:12px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;}
+  .ot-stepper .ot-btn:disabled{background:#C9D6E3;opacity:.6;}
+  .ot-stepper .ot-value{flex:1;text-align:center;font-size:8.5px;font-weight:800;color:var(--blue);}
   tr.friday-row td{background:#FDF3EE;}
 
   .status-banner{padding:12px 14px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px;border:2px solid transparent;}
@@ -208,6 +212,10 @@
   .tab{flex:1;text-align:center;padding:10px 4px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;border-bottom:2.5px solid transparent;}
   .tab.active{color:var(--blue);border-color:var(--blue);}
 
+  .remarks-card{background:linear-gradient(135deg,#FFF9EC,#FFF3D9);border:2px solid #F0C766;border-radius:12px;padding:12px 14px;margin-top:16px;margin-bottom:14px;}
+  .remarks-card label{font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;}
+  .remarks-card textarea{width:100%;padding:10px 12px;border:1.5px solid #F0C766;border-radius:8px;font-size:13.5px;font-family:inherit;resize:vertical;background:#fff;color:var(--ink);box-sizing:border-box;}
+  .remarks-card textarea:disabled{background:#FDF6E8;color:var(--muted);}
   .sig-pad-wrap{border:1.5px dashed var(--line);border-radius:10px;background:#FAFBFC;}
   canvas#sigCanvas{width:100%;height:160px;display:block;touch-action:none;border-radius:10px;}
   .sig-preview{border:1.5px solid var(--line);border-radius:10px;padding:10px;background:#FAFBFC;text-align:center;}
@@ -991,7 +999,13 @@ function renderEmployeeView(){
           ${projectOptions}
         </select>
       </td>
-      <td><input class="ot-input" type="number" min="0" max="50" step="0.5" value="${v.overtime_hours||0}" data-prev="${v.overtime_hours||0}" data-date="${dstr}" data-field="overtime_hours" ${locked?"disabled":""}></td>
+      <td>
+        <div class="ot-stepper">
+          <button type="button" class="ot-btn" data-date="${dstr}" data-dir="down" ${locked?"disabled":""}>−</button>
+          <span class="ot-value">${(Number(v.overtime_hours)||0).toFixed(1)}</span>
+          <button type="button" class="ot-btn" data-date="${dstr}" data-dir="up" ${locked?"disabled":""}>+</button>
+        </div>
+      </td>
     </tr>`;
   }
 
@@ -1015,8 +1029,10 @@ function renderEmployeeView(){
         <tbody>${rows}</tbody>
       </table>
     </div>
-    <label style="margin-top:16px;">Remarks / Notes</label>
-    <textarea id="remarksInput" rows="3" placeholder="Anything extra you want to note for this month..." ${locked?"disabled":""} style="width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:13.5px;font-family:inherit;resize:vertical;">${locked ? (state.submission?.remarks || "") : (state.remarksDraft || "")}</textarea>
+    <div class="remarks-card">
+      <label style="margin-top:0;color:#966109;">📝 Remarks / Notes</label>
+      <textarea id="remarksInput" rows="3" placeholder="Anything extra you want to note for this month..." ${locked?"disabled":""}>${locked ? (state.submission?.remarks || "") : (state.remarksDraft || "")}</textarea>
+    </div>
     ${!locked ? `
     <div class="bottom-bar">
       <button class="btn btn-outline btn-sm" id="saveDraftBtn" style="flex:1;">Save draft</button>
@@ -1221,6 +1237,14 @@ function handleDelegatedClick(e){
 
   if(el("mySelfTimesheetBtn")){ state.view = "employee"; loadEmployeeMonth(); return; }
   if(el("downloadMyPdfBtn")){ downloadMyTimesheetPdf(); return; }
+  const otBtn = e.target.closest(".ot-btn");
+  if(otBtn && !otBtn.disabled){
+    const dstr = otBtn.getAttribute("data-date");
+    const dir = otBtn.getAttribute("data-dir");
+    const current = Number((state.entries[dstr] || {}).overtime_hours) || 0;
+    setEntry(dstr, "overtime_hours", stepOtValue(current, dir));
+    return;
+  }
   if(el("manageProjectsBtn")){ state.view = "hr-projects"; render(); return; }
   if(el("backToHrBtn")){ state.view = "hr"; loadHrMonth(); return; }
   if(el("addProjectBtn")){ addProject(); return; }
@@ -1281,25 +1305,20 @@ async function handleAddProjectFromEmployee(dstr, selectEl){
 
 const OT_ALLOWED = [0, 0.5, 1, 1.5, 2];
 for(let n=3; n<=50; n++) OT_ALLOWED.push(n);
-function snapOtValue(newVal, oldVal){
-  if(OT_ALLOWED.some(v => Math.abs(v - newVal) < 0.001)) return newVal; // already a valid step
-  if(newVal > oldVal){
-    const next = OT_ALLOWED.find(v => v > oldVal + 0.001);
-    return next !== undefined ? next : OT_ALLOWED[OT_ALLOWED.length-1];
+function stepOtValue(current, dir){
+  const idx = OT_ALLOWED.findIndex(v => Math.abs(v - current) < 0.001);
+  if(dir === "up"){
+    if(idx === -1) return OT_ALLOWED.find(v => v > current) ?? OT_ALLOWED[OT_ALLOWED.length-1];
+    return OT_ALLOWED[Math.min(idx+1, OT_ALLOWED.length-1)];
   }else{
-    const prevCandidates = OT_ALLOWED.filter(v => v < oldVal - 0.001);
-    return prevCandidates.length ? prevCandidates[prevCandidates.length-1] : 0;
+    if(idx === -1){
+      const lower = [...OT_ALLOWED].reverse().find(v => v < current);
+      return lower !== undefined ? lower : 0;
+    }
+    return OT_ALLOWED[Math.max(idx-1, 0)];
   }
 }
 function handleDelegatedInput(e){
-  if(e.target.classList.contains("ot-input")){
-    const newVal = parseFloat(e.target.value) || 0;
-    const oldVal = parseFloat(e.target.dataset.prev || "0");
-    const snapped = snapOtValue(newVal, oldVal);
-    if(snapped !== newVal) e.target.value = snapped;
-    e.target.dataset.prev = String(snapped);
-    setEntry(e.target.getAttribute("data-date"), "overtime_hours", snapped);
-  }
   if(e.target.id === "remarksInput"){
     state.remarksDraft = e.target.value; // no re-render here, so the cursor position isn't lost while typing
   }
