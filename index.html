@@ -225,7 +225,7 @@ let state = {
   loginRole: "employee",
   view: "login",
   monthDate: new Date(),
-  entries: {},           // date -> {status, overtime_hours}
+  entries: {},           // date -> {status, overtime_hours, project_id}
   submission: null,
   supervisorEmployees: [],
   selectedEmployee: null,
@@ -234,9 +234,44 @@ let state = {
   savedSignature: null,
   hrMonth: monthKey(new Date()),
   hrApproved: [],
+  projects: [],           // {id, name, active}
+  newProjectName: "",
   loading: false,
   error: ""
 };
+
+function projectName(id){
+  const p = state.projects.find(x=>x.id===id);
+  return p ? p.name : "";
+}
+async function loadProjects(){
+  const { data } = await sb.from("ts_projects").select("*").order("name");
+  state.projects = data || [];  // includes inactive, so historical entries still resolve names
+}
+async function addProject(){
+  const name = (state.newProjectName || "").trim();
+  if(!name){ toast("Enter a project name."); return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_projects").insert({ name });
+  state.loading = false;
+  if(error){
+    toast(error.code === "23505" ? "A project with that name already exists." : "Could not add project.");
+    render(); return;
+  }
+  state.newProjectName = "";
+  toast("Project added.");
+  await loadProjects();
+  render();
+}
+async function deactivateProject(id){
+  if(!confirm("Remove this project from the list? Past timesheet entries that used it are kept.")) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_projects").update({ active: false }).eq("id", id);
+  state.loading = false;
+  toast(error ? "Could not remove project." : "Project removed.");
+  await loadProjects();
+  render();
+}
 
 function monthKey(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0"); }
 function monthLabel(d){ return d.toLocaleDateString("en-GB",{month:"long",year:"numeric"}); }
@@ -309,6 +344,7 @@ async function doLogin(iqama){
     }
     state.user = match;
     localStorage.setItem("ts_user", JSON.stringify(match));
+    await loadProjects();
     state.view = match.role === "employee" ? "employee" : (match.role === "supervisor" ? "supervisor" : "hr");
     if(state.view === "employee") await loadEmployeeMonth();
     if(state.view === "supervisor") await loadSupervisorList();
@@ -345,8 +381,8 @@ async function loadEmployeeMonth(){
     const dstr = fmtDate(y,m,day);
     const existing = (entryRows||[]).find(r=>r.entry_date===dstr);
     entries[dstr] = existing
-      ? { status: existing.status, overtime_hours: existing.overtime_hours }
-      : { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0 };
+      ? { status: existing.status, overtime_hours: existing.overtime_hours, project_id: existing.project_id || "" }
+      : { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0, project_id: "" };
   }
   state.entries = entries;
   state.submission = sub || null;
@@ -369,6 +405,7 @@ async function saveDraft(silent){
     entry_date: dstr,
     status: v.status,
     overtime_hours: Number(v.overtime_hours) || 0,
+    project_id: v.project_id || null,
     updated_at: new Date().toISOString()
   }));
   const { error } = await sb.from("ts_timesheet_entries").upsert(rows, { onConflict: "employee_id,entry_date" });
@@ -386,12 +423,16 @@ async function submitForApproval(){
   await saveDraft(true);
   state.loading = true; render();
   const mk = monthKey(state.monthDate);
-  const { error } = await sb.from("ts_timesheet_submissions").upsert({
-    employee_id: state.user.id, month: mk, status: "submitted",
-    submitted_at: new Date().toISOString(), rejection_reason: null, updated_at: new Date().toISOString()
-  }, { onConflict: "employee_id,month" });
+  const selfSubmit = state.user.role !== "employee"; // supervisors/HR: no review needed
+  const payload = selfSubmit
+    ? { employee_id: state.user.id, month: mk, status: "approved",
+        submitted_at: new Date().toISOString(), approved_at: new Date().toISOString(),
+        approved_by: state.user.id, rejection_reason: null, updated_at: new Date().toISOString() }
+    : { employee_id: state.user.id, month: mk, status: "submitted",
+        submitted_at: new Date().toISOString(), rejection_reason: null, updated_at: new Date().toISOString() };
+  const { error } = await sb.from("ts_timesheet_submissions").upsert(payload, { onConflict: "employee_id,month" });
   state.loading = false;
-  toast(error ? "Could not submit. Try again." : "Submitted to your supervisor for approval.");
+  toast(error ? "Could not submit. Try again." : (selfSubmit ? "Timesheet submitted and recorded." : "Submitted to your supervisor for approval."));
   await loadEmployeeMonth();
 }
 
@@ -441,7 +482,7 @@ async function openEmployeeReview(emp){
   for(let day=1; day<=nd; day++){
     const dstr = fmtDate(y,m,day);
     const existing = (entryRows||[]).find(r=>r.entry_date===dstr);
-    entries[dstr] = existing ? { status: existing.status, overtime_hours: existing.overtime_hours } : { status: isFriday(y,m,day)?"Friday":"Absent", overtime_hours:0 };
+    entries[dstr] = existing ? { status: existing.status, overtime_hours: existing.overtime_hours, project_id: existing.project_id || "" } : { status: isFriday(y,m,day)?"Friday":"Absent", overtime_hours:0, project_id: "" };
   }
   state.selectedEmpEntries = entries;
   state.selectedEmpSubmission = emp.submission;
@@ -566,7 +607,7 @@ async function generateCombinedPdf(){
     for(let day=1; day<=nd; day++){
       const dstr = fmtDate(y, m-1, day);
       const ex = (entryRows||[]).find(r=>r.entry_date===dstr);
-      entries[dstr] = ex ? {status:ex.status, overtime_hours:ex.overtime_hours} : {status: isFriday(y,m-1,day)?"Friday":"Absent", overtime_hours:0};
+      entries[dstr] = ex ? {status:ex.status, overtime_hours:ex.overtime_hours, project_id: ex.project_id || ""} : {status: isFriday(y,m-1,day)?"Friday":"Absent", overtime_hours:0, project_id: ""};
     }
     const totals = computeTotals(entries);
 
@@ -580,11 +621,11 @@ async function generateCombinedPdf(){
     for(let day=1; day<=nd; day++){
       const dstr = fmtDate(y, m-1, day);
       const v = entries[dstr];
-      body.push([ String(day).padStart(2,"0"), dayName(y,m-1,day), v.status, v.status==="Present" ? "8.0" : "0.0", (Number(v.overtime_hours)||0).toFixed(1) ]);
+      body.push([ String(day).padStart(2,"0"), dayName(y,m-1,day), v.status, v.status==="Present" ? "8.0" : "0.0", (Number(v.overtime_hours)||0).toFixed(1), projectName(v.project_id) || "-" ]);
     }
     doc.autoTable({
       startY: 72,
-      head: [["Date","Day","Status","Reg. Hrs","OT Hrs"]],
+      head: [["Date","Day","Status","Reg. Hrs","OT Hrs","Project"]],
       body,
       styles: { fontSize: 8, cellPadding: 3 },
       headStyles: { fillColor: [27,90,150] },
@@ -598,7 +639,8 @@ async function generateCombinedPdf(){
 
     y2 += 26;
     doc.setFontSize(9); doc.setTextColor(90,90,90);
-    doc.text("Approved & signed by supervisor:", 40, y2);
+    const selfSubmitted = sub.approved_by === sub.employee_id;
+    doc.text(selfSubmitted ? "Self-submitted (supervisor/HR — no review required):" : "Approved & signed by supervisor:", 40, y2);
     if(sub.signature_data){
       try{ doc.addImage(sub.signature_data, "PNG", 40, y2+8, 130, 45); }catch(e){}
     }
@@ -625,6 +667,7 @@ function render(){
   else if(state.view === "supervisor-review") body = renderSupervisorReview();
   else if(state.view === "supervisor-signature") body = renderSignaturePad();
   else if(state.view === "hr") body = renderHrView();
+  else if(state.view === "hr-projects") body = renderProjectsManager();
 
   root.innerHTML = header + `<main>${body}</main>`;
   attachViewEvents();
@@ -665,18 +708,22 @@ function renderEmployeeView(){
   const totals = computeTotals(state.entries);
   const subStatus = state.submission ? state.submission.status : "draft";
   const locked = subStatus === "submitted" || subStatus === "approved";
+  const isSelfSubmit = state.user.role !== "employee";
 
   let banner = "";
   if(subStatus==="submitted") banner = `<div class="status-banner status-submitted">⏳ Submitted — waiting for supervisor approval</div>`;
-  else if(subStatus==="approved") banner = `<div class="status-banner status-approved">✅ Approved and signed by your supervisor</div>`;
+  else if(subStatus==="approved") banner = isSelfSubmit
+    ? `<div class="status-banner status-approved">✅ Submitted and recorded</div>`
+    : `<div class="status-banner status-approved">✅ Approved and signed by your supervisor</div>`;
   else if(subStatus==="rejected") banner = `<div class="status-banner status-rejected">↩️ Sent back: ${state.submission.rejection_reason || "please review and resubmit"}</div>`;
   else banner = `<div class="status-banner status-draft">📝 Draft — not yet submitted</div>`;
 
   let rows = "";
   for(let day=1; day<=nd; day++){
     const dstr = fmtDate(y,m,day);
-    const v = state.entries[dstr] || { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0 };
+    const v = state.entries[dstr] || { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0, project_id: "" };
     const fri = isFriday(y,m,day);
+    const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${v.project_id===p.id?"selected":""}>${p.name}</option>`).join("") + `<option value="__new__">+ Add new project…</option>`;
     rows += `
     <tr class="${fri?'friday-row':''}">
       <td class="date-cell">${String(day).padStart(2,"0")}<small>${dayName(y,m,day)}</small></td>
@@ -691,10 +738,20 @@ function renderEmployeeView(){
         </select>
       </td>
       <td><input class="ot-input" type="number" min="0" step="0.5" value="${v.overtime_hours||0}" data-date="${dstr}" data-field="overtime_hours" ${locked?"disabled":""}></td>
+    </tr>
+    <tr class="${fri?'friday-row':''}">
+      <td></td>
+      <td colspan="2" style="padding-top:0;">
+        <select class="status-select project-select" data-date="${dstr}" data-field="project_id" style="width:100%;color:var(--muted);" ${locked?"disabled":""}>
+          <option value="">— Select project —</option>
+          ${projectOptions}
+        </select>
+      </td>
     </tr>`;
   }
 
   return `
+    ${isSelfSubmit ? `<button class="link-btn" id="backToTeamBtn" style="margin-bottom:12px;">‹ Back</button>` : ""}
     ${renderMonthNav("employee")}
     ${banner}
     <div class="summary-grid">
@@ -714,7 +771,7 @@ function renderEmployeeView(){
     ${!locked ? `
     <div class="bottom-bar">
       <button class="btn btn-outline btn-sm" id="saveDraftBtn" style="flex:1;">Save draft</button>
-      <button class="btn btn-primary btn-sm" id="submitBtn" style="flex:1;">Submit for approval</button>
+      <button class="btn btn-primary btn-sm" id="submitBtn" style="flex:1;">${isSelfSubmit ? "Submit timesheet" : "Submit for approval"}</button>
     </div>` : (subStatus==="rejected" ? `
     <div class="bottom-bar">
       <button class="btn btn-primary" id="submitBtn" style="flex:1;">Edit &amp; resubmit</button>
@@ -749,6 +806,15 @@ function renderSupervisorList(){
 
   return `
     ${renderMonthNav("supervisor")}
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;cursor:pointer;" id="mySelfTimesheetBtn">
+      <div class="row-between">
+        <div>
+          <div style="font-weight:700;font-size:14.5px;color:var(--ink);">My timesheet</div>
+          <div class="meta">Fill in your own hours for ${monthLabel(state.monthDate)}</div>
+        </div>
+        <span style="color:var(--blue);font-size:18px;">›</span>
+      </div>
+    </div>
     <div class="row-between" style="margin-bottom:10px;">
       <div style="font-size:13px;color:var(--muted);font-weight:600;">Your team — ${monthLabel(state.monthDate)}</div>
       <button class="link-btn" id="sigSettingsBtn">${state.savedSignature ? "Update signature" : "Set up signature"}</button>
@@ -767,11 +833,12 @@ function renderSupervisorReview(){
   let rows = "";
   for(let day=1; day<=nd; day++){
     const dstr = fmtDate(y,m,day);
-    const v = state.selectedEmpEntries[dstr] || { status: isFriday(y,m,day) ? "Friday" : "Absent", overtime_hours: 0 };
+    const v = state.selectedEmpEntries[dstr] || { status: isFriday(y,m,day) ? "Friday" : "Absent", overtime_hours: 0, project_id: "" };
     rows += `<tr class="${isFriday(y,m,day)?'friday-row':''}">
       <td class="date-cell">${String(day).padStart(2,"0")}<small>${dayName(y,m,day)}</small></td>
       <td><span class="badge badge-draft" style="color:inherit;">${v.status}</span></td>
       <td>${(Number(v.overtime_hours)||0).toFixed(1)}</td>
+      <td style="font-size:11.5px;color:var(--muted);">${projectName(v.project_id) || "—"}</td>
     </tr>`;
   }
 
@@ -790,7 +857,7 @@ function renderSupervisorReview(){
       <div class="summary-item"><div class="n">${totals.totalHours.toFixed(1)}</div><div class="l">Total Hrs</div></div>
     </div>
     <div class="card" style="padding:8px 10px 4px;">
-      <table class="grid"><thead><tr><th>Date</th><th>Status</th><th>OT</th></tr></thead><tbody>${rows}</tbody></table>
+      <table class="grid"><thead><tr><th>Date</th><th>Status</th><th>OT</th><th>Project</th></tr></thead><tbody>${rows}</tbody></table>
     </div>
     ${st === "submitted" ? `
     <div class="bottom-bar">
@@ -832,10 +899,42 @@ function renderHrView(){
     </div>`).join("") || `<div class="empty-state"><div class="ic">📄</div>No approved timesheets yet for this month.</div>`;
 
   return `
-    <label>Month</label>
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;cursor:pointer;" id="mySelfTimesheetBtn">
+      <div class="row-between">
+        <div>
+          <div style="font-weight:700;font-size:14.5px;color:var(--ink);">My timesheet</div>
+          <div class="meta">Fill in your own hours</div>
+        </div>
+        <span style="color:var(--blue);font-size:18px;">›</span>
+      </div>
+    </div>
+    <div class="row-between" style="margin-bottom:10px;">
+      <label style="margin:0;">Month</label>
+      <button class="link-btn" id="manageProjectsBtn">Manage projects</button>
+    </div>
     <input type="month" id="hrMonthInput" value="${state.hrMonth}">
     <div class="card" style="margin-top:14px;padding:4px 12px;">${rows}</div>
     <button class="btn btn-primary" id="combinedPdfBtn" style="margin-top:10px;">Download combined PDF (${state.hrApproved.length})</button>
+  `;
+}
+
+function renderProjectsManager(){
+  const rows = state.projects.filter(p=>p.active).map(p=>`
+    <div class="emp-list-item">
+      <div class="name">${p.name}</div>
+      <button class="link-btn" data-deactivate-project="${p.id}" style="color:var(--absent);">Remove</button>
+    </div>`).join("") || `<div class="empty-state"><div class="ic">📁</div>No projects added yet.</div>`;
+
+  return `
+    <button class="link-btn" id="backToHrBtn" style="margin-bottom:12px;">‹ Back</button>
+    <div class="card">
+      <h3>Projects</h3>
+      <div class="meta">Employees pick from this list on their daily timesheet.</div>
+    </div>
+    <label>New project name</label>
+    <input type="text" id="newProjectNameInput" placeholder="e.g. Riyadh Site A" value="${state.newProjectName || ""}">
+    <button class="btn btn-primary btn-sm" id="addProjectBtn" style="margin-top:10px;">Add project</button>
+    <div class="card" style="margin-top:18px;padding:4px 12px;">${rows}</div>
   `;
 }
 
@@ -865,6 +964,17 @@ function handleDelegatedClick(e){
     return;
   }
 
+  if(el("mySelfTimesheetBtn")){ state.view = "employee"; loadEmployeeMonth(); return; }
+  if(el("manageProjectsBtn")){ state.view = "hr-projects"; render(); return; }
+  if(el("backToHrBtn")){ state.view = "hr"; loadHrMonth(); return; }
+  if(el("addProjectBtn")){ addProject(); return; }
+  const deactivateBtn = e.target.closest("[data-deactivate-project]");
+  if(deactivateBtn){ deactivateProject(deactivateBtn.getAttribute("data-deactivate-project")); return; }
+  if(el("backToTeamBtn")){
+    if(state.user.role === "hr"){ state.view = "hr"; loadHrMonth(); }
+    else { state.view = "supervisor"; loadSupervisorList(); }
+    return;
+  }
   if(el("backToListBtn")){ state.view = "supervisor"; loadSupervisorList(); return; }
   if(el("sigSettingsBtn")){ state.view = "supervisor-signature"; render(); return; }
   if(el("clearSigBtn")){ clearSigPad(); return; }
@@ -875,8 +985,13 @@ function handleDelegatedClick(e){
 }
 
 function handleDelegatedChange(e){
+  if(e.target.classList.contains("project-select") && e.target.value === "__new__"){
+    handleAddProjectFromEmployee(e.target.getAttribute("data-date"), e.target);
+    return;
+  }
   if(e.target.classList.contains("status-select")){
-    setEntry(e.target.getAttribute("data-date"), "status", e.target.value);
+    const field = e.target.getAttribute("data-field") || "status";
+    setEntry(e.target.getAttribute("data-date"), field, e.target.value);
     return;
   }
   if(e.target.id === "hrMonthInput"){
@@ -884,6 +999,28 @@ function handleDelegatedChange(e){
     loadHrMonth();
     return;
   }
+  if(e.target.id === "newProjectNameInput"){
+    state.newProjectName = e.target.value;
+    return;
+  }
+}
+
+async function handleAddProjectFromEmployee(dstr, selectEl){
+  const name = (prompt("New project name:") || "").trim();
+  if(!name){ render(); return; } // re-render to reset the dropdown back to its previous value
+  state.loading = true; render();
+  const { data, error } = await sb.from("ts_projects")
+    .upsert({ name, active: true }, { onConflict: "name" })
+    .select()
+    .maybeSingle();
+  state.loading = false;
+  if(error || !data){
+    toast("Could not add project. Try again.");
+    render(); return;
+  }
+  await loadProjects();
+  setEntry(dstr, "project_id", data.id);
+  toast(`"${name}" added and selected.`);
 }
 
 function handleDelegatedInput(e){
@@ -914,6 +1051,7 @@ async function init(){
   document.addEventListener("change", handleDelegatedChange);
   document.addEventListener("input", handleDelegatedInput);
   if(state.user){
+    await loadProjects();
     state.view = state.user.role === "employee" ? "employee" : (state.user.role === "supervisor" ? "supervisor" : "hr");
     if(state.view === "employee") await loadEmployeeMonth();
     else if(state.view === "supervisor") await loadSupervisorList();
