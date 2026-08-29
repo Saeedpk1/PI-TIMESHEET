@@ -135,19 +135,19 @@
   .summary-item .n{font-size:18px;font-weight:800;color:var(--navy);}
   .summary-item .l{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-top:2px;}
 
-  table.grid{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed;}
-  table.grid th{text-align:left;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.2px;padding:5px 2px;border-bottom:1.5px solid var(--line);}
-  table.grid td{padding:4px 2px;border-bottom:1px solid #EEF2F6;vertical-align:middle;overflow:hidden;}
-  table.grid td.date-cell{white-space:nowrap;font-weight:600;color:var(--ink);width:30px;}
-  table.grid td.date-cell small{display:block;color:var(--muted);font-weight:400;font-size:9px;}
-  select.status-select{padding:4px 2px;font-size:10.5px;border-radius:6px;border:1.5px solid var(--line);width:100%;max-width:100%;}
+  table.grid{width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed;}
+  table.grid th{text-align:left;font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.1px;padding:4px 1px;border-bottom:1.5px solid var(--line);}
+  table.grid td{padding:2px 1px;border-bottom:1px solid #EEF2F6;vertical-align:middle;overflow:hidden;}
+  table.grid td.date-cell{white-space:nowrap;font-weight:600;color:var(--ink);width:22px;font-size:9.5px;}
+  table.grid td.date-cell small{display:block;color:var(--muted);font-weight:400;font-size:7.5px;}
+  select.status-select{padding:2px 0;font-size:8.5px;border-radius:5px;border:1px solid var(--line);width:100%;max-width:100%;box-sizing:border-box;-webkit-appearance:none;appearance:none;background-image:none;text-indent:1px;}
   select.status-select.st-Present{color:var(--present);border-color:var(--present);}
   select.status-select.st-Absent{color:var(--absent);border-color:var(--absent);}
   select.status-select.st-Sick{color:var(--sick);border-color:var(--sick);}
   select.status-select.st-Leave{color:var(--leave);border-color:var(--leave);}
   select.status-select.st-Friday, select.status-select.st-Holiday{color:var(--friday);border-color:var(--friday);}
-  select.project-select{padding:4px 2px;font-size:10px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;}
-  input.ot-input{width:100%;padding:4px 2px;font-size:10.5px;border-radius:6px;border:1.5px solid var(--line);text-align:center;}
+  select.project-select{padding:2px 0;font-size:8.5px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;}
+  input.ot-input{width:100%;padding:2px 0;font-size:8.5px;border-radius:5px;border:1px solid var(--line);text-align:center;box-sizing:border-box;}
   tr.friday-row{background:#FAFBFC;}
 
   .status-banner{padding:12px 14px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
@@ -763,7 +763,7 @@ function renderEmployeeView(){
     </div>
     <div class="card" style="padding:8px 6px 4px;">
       <table class="grid">
-        <colgroup><col style="width:26px;"><col style="width:32%;"><col style="width:38%;"><col style="width:15%;"></colgroup>
+        <colgroup><col style="width:20px;"><col style="width:33%;"><col style="width:40%;"><col style="width:14%;"></colgroup>
         <thead><tr><th>Date</th><th>Status</th><th>Project</th><th>OT</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
