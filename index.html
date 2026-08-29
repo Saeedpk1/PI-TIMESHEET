@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Timesheets — Professional Installation Co</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  :root{
+    --navy:#0F3556;
+    --blue:#1B5A96;
+    --blue-light:#3E86C4;
+    --sky:#EAF2FA;
+    --white:#FFFFFF;
+    --ink:#152436;
+    --muted:#5B6B7C;
+    --line:#DCE5EE;
+    --present:#1C8A4E;
+    --absent:#C43B3B;
+    --sick:#C4791F;
+    --leave:#6B4FC4;
+    --friday:#8592A0;
+    --radius:12px;
+    --shadow:0 2px 10px rgba(15,53,86,0.08);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--sky);
+    color:var(--ink);
+    min-height:100vh;
+  }
+  .app{max-width:520px;margin:0 auto;min-height:100vh;background:var(--white);box-shadow:var(--shadow);display:flex;flex-direction:column;}
+  @media(min-width:640px){ .app{margin:20px auto;min-height:calc(100vh - 40px);border-radius:16px;overflow:hidden;} }
+
+  header.top{
+    background:linear-gradient(135deg,var(--navy),var(--blue));
+    color:#fff;padding:18px 20px 16px;
+  }
+  header.top .brand{font-size:15px;font-weight:700;letter-spacing:.3px;opacity:.9;}
+  header.top .title{font-size:22px;font-weight:800;margin-top:2px;}
+  header.top .sub{font-size:13px;opacity:.85;margin-top:4px;}
+  header.top .logout{float:right;background:rgba(255,255,255,.15);border:none;color:#fff;padding:6px 12px;border-radius:20px;font-size:12px;cursor:pointer;}
+
+  main{flex:1;padding:16px;padding-bottom:90px;}
+
+  /* Login */
+  .login-wrap{padding:40px 24px;}
+  .login-logo{width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,var(--navy),var(--blue-light));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:22px;margin:0 auto 18px;}
+  .login-wrap h1{text-align:center;font-size:20px;margin:0 0 4px;color:var(--navy);}
+  .login-wrap p.hint{text-align:center;color:var(--muted);font-size:13px;margin:0 0 26px;}
+  label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.4px;}
+  input[type=text],input[type=tel],input[type=number],input[type=password],select,textarea{
+    width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;background:#fff;color:var(--ink);
+  }
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue-light);}
+  .btn{
+    display:block;width:100%;padding:13px 16px;border-radius:10px;border:none;font-size:15px;font-weight:700;cursor:pointer;text-align:center;
+  }
+  .btn-primary{background:var(--blue);color:#fff;margin-top:22px;}
+  .btn-primary:active{background:var(--navy);}
+  .btn-outline{background:#fff;color:var(--blue);border:1.5px solid var(--blue);}
+  .btn-ghost{background:transparent;color:var(--muted);}
+  .btn-danger{background:#fff;color:var(--absent);border:1.5px solid var(--absent);}
+  .btn-sm{padding:8px 12px;font-size:13px;width:auto;border-radius:8px;}
+  .error-box{background:#FDECEC;color:var(--absent);padding:10px 12px;border-radius:8px;font-size:13px;margin-top:14px;}
+  .role-tabs{display:flex;gap:8px;margin-bottom:6px;}
+  .role-tab{flex:1;padding:10px 8px;border-radius:10px;border:1.5px solid var(--line);text-align:center;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;background:#fff;}
+  .role-tab.active{background:var(--sky);border-color:var(--blue-light);color:var(--blue);}
+
+  /* Cards / sections */
+  .card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:14px;}
+  .card h3{margin:0 0 4px;font-size:15px;color:var(--navy);}
+  .card .meta{font-size:12.5px;color:var(--muted);}
+  .row-between{display:flex;justify-content:space-between;align-items:center;}
+
+  .month-nav{display:flex;align-items:center;justify-content:space-between;background:var(--sky);border-radius:10px;padding:8px 6px;margin-bottom:14px;}
+  .month-nav button{background:#fff;border:1px solid var(--line);border-radius:8px;width:34px;height:34px;font-size:16px;color:var(--navy);cursor:pointer;}
+  .month-nav .m-label{font-weight:700;color:var(--navy);font-size:14.5px;}
+
+  .summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;}
+  .summary-item{background:var(--sky);border-radius:10px;padding:10px 6px;text-align:center;}
+  .summary-item .n{font-size:18px;font-weight:800;color:var(--navy);}
+  .summary-item .l{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-top:2px;}
+
+  table.grid{width:100%;border-collapse:collapse;font-size:13px;}
+  table.grid th{text-align:left;font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;padding:6px 4px;border-bottom:1.5px solid var(--line);}
+  table.grid td{padding:6px 4px;border-bottom:1px solid #EEF2F6;vertical-align:middle;}
+  table.grid td.date-cell{white-space:nowrap;font-weight:600;color:var(--ink);}
+  table.grid td.date-cell small{display:block;color:var(--muted);font-weight:400;font-size:10.5px;}
+  select.status-select{padding:6px 4px;font-size:12.5px;border-radius:6px;border:1.5px solid var(--line);width:100%;}
+  select.status-select.st-Present{color:var(--present);border-color:var(--present);}
+  select.status-select.st-Absent{color:var(--absent);border-color:var(--absent);}
+  select.status-select.st-Sick{color:var(--sick);border-color:var(--sick);}
+  select.status-select.st-Leave{color:var(--leave);border-color:var(--leave);}
+  select.status-select.st-Friday, select.status-select.st-Holiday{color:var(--friday);border-color:var(--friday);}
+  input.ot-input{width:52px;padding:6px 4px;font-size:12.5px;border-radius:6px;border:1.5px solid var(--line);text-align:center;}
+  tr.friday-row{background:#FAFBFC;}
+
+  .status-banner{padding:12px 14px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+  .status-draft{background:#F1F3F5;color:var(--muted);}
+  .status-submitted{background:#FFF6E5;color:#966109;}
+  .status-approved{background:#E9F8EF;color:var(--present);}
+  .status-rejected{background:#FDECEC;color:var(--absent);}
+
+  .bottom-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);padding:12px 16px;display:flex;gap:10px;max-width:520px;margin:0 auto;}
+  @media(min-width:640px){ .bottom-bar{max-width:520px;} }
+
+  .emp-list-item{display:flex;justify-content:space-between;align-items:center;padding:12px 4px;border-bottom:1px solid #EEF2F6;cursor:pointer;}
+  .emp-list-item:last-child{border-bottom:none;}
+  .emp-list-item .name{font-weight:700;font-size:14.5px;color:var(--ink);}
+  .emp-list-item .sub{font-size:12px;color:var(--muted);}
+  .badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;}
+  .badge-submitted{background:#FFF6E5;color:#966109;}
+  .badge-approved{background:#E9F8EF;color:var(--present);}
+  .badge-rejected{background:#FDECEC;color:var(--absent);}
+  .badge-draft{background:#F1F3F5;color:var(--muted);}
+
+  .tabs{display:flex;border-bottom:1.5px solid var(--line);margin-bottom:14px;}
+  .tab{flex:1;text-align:center;padding:10px 4px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;border-bottom:2.5px solid transparent;}
+  .tab.active{color:var(--blue);border-color:var(--blue);}
+
+  .sig-pad-wrap{border:1.5px dashed var(--line);border-radius:10px;background:#FAFBFC;}
+  canvas#sigCanvas{width:100%;height:160px;display:block;touch-action:none;border-radius:10px;}
+  .sig-preview{border:1.5px solid var(--line);border-radius:10px;padding:10px;background:#FAFBFC;text-align:center;}
+  .sig-preview img{max-height:70px;}
+
+  .empty-state{text-align:center;padding:40px 20px;color:var(--muted);}
+  .empty-state .ic{font-size:34px;margin-bottom:10px;}
+
+  .field-note{font-size:12px;color:var(--muted);margin-top:6px;}
+  .checklist{display:flex;flex-direction:column;gap:8px;}
+  .checklist label{display:flex;align-items:center;gap:8px;font-weight:400;text-transform:none;font-size:14px;color:var(--ink);}
+
+  .toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 18px;border-radius:30px;font-size:13px;z-index:999;box-shadow:0 4px 14px rgba(0,0,0,.2);}
+  .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;display:inline-block;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .link-btn{background:none;border:none;color:var(--blue);font-size:13px;font-weight:700;cursor:pointer;padding:0;}
+</style>
+</head>
+<body>
+<div id="root" class="app"></div>
+
+<script>
+/* ============================================================
+   CONFIG — fill these in from your Supabase project settings
+   Project Settings > API > Project URL / anon public key
+   ============================================================ */
+const SUPABASE_URL = "https://kprgtqdjzmlpqqbeoqni.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_I_xnS76SAgctI7y0dj08MA_ldElyewe";
+const COMPANY_NAME = "Professional Installation Co";
+
+const sb = (SUPABASE_URL.startsWith("http")) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+/* ---------------- state ---------------- */
+let state = {
+  user: JSON.parse(localStorage.getItem("ts_user") || "null"),
+  loginRole: "employee",
+  view: "login",
+  monthDate: new Date(),
+  entries: {},           // date -> {status, overtime_hours}
+  submission: null,
+  supervisorEmployees: [],
+  selectedEmployee: null,
+  selectedEmpEntries: {},
+  selectedEmpSubmission: null,
+  savedSignature: null,
+  hrMonth: monthKey(new Date()),
+  hrApproved: [],
+  loading: false,
+  error: ""
+};
+
+function monthKey(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0"); }
+function monthLabel(d){ return d.toLocaleDateString("en-GB",{month:"long",year:"numeric"}); }
+function daysInMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0).getDate(); }
+function pad(n){ return String(n).padStart(2,"0"); }
+function fmtDate(y,m,day){ return `${y}-${pad(m+1)}-${pad(day)}`; }
+function isFriday(y,m,day){ return new Date(y,m,day).getDay() === 5; }
+function dayName(y,m,day){ return new Date(y,m,day).toLocaleDateString("en-GB",{weekday:"short"}); }
+
+function toast(msg){
+  const t = document.createElement("div");
+  t.className = "toast"; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 2400);
+}
+
+function checkConfig(){
+  if(!sb){
+    document.getElementById("root").innerHTML = `
+      <div class="login-wrap">
+        <div class="login-logo">TS</div>
+        <h1>Setup needed</h1>
+        <p class="hint">This app needs your Supabase project connected before it can run.</p>
+        <div class="error-box">
+          Open <code>index.html</code> and set <b>SUPABASE_URL</b> and <b>SUPABASE_ANON_KEY</b>
+          near the top of the script (find them in your Supabase project under
+          Project Settings → API). Then run <code>setup.sql</code> once in the
+          Supabase SQL Editor to create the tables.
+        </div>
+      </div>`;
+    return false;
+  }
+  return true;
+}
+
+/* ---------------- login ---------------- */
+async function doLogin(phone, iqama){
+  state.error = "";
+  if(!phone || !iqama){ state.error = "Enter both phone number and Iqama number."; render(); return; }
+  state.loading = true; render();
+  const { data, error } = await sb.from("ts_employees")
+    .select("*")
+    .eq("phone", phone.trim())
+    .eq("iqama_number", iqama.trim())
+    .eq("active", true)
+    .maybeSingle();
+  state.loading = false;
+  if(error || !data){
+    state.error = "No match found. Check your phone number and Iqama number, or contact your admin.";
+    render(); return;
+  }
+  state.user = data;
+  localStorage.setItem("ts_user", JSON.stringify(data));
+  state.view = data.role === "employee" ? "employee" : (data.role === "supervisor" ? "supervisor" : "hr");
+  if(state.view === "employee") await loadEmployeeMonth();
+  if(state.view === "supervisor") await loadSupervisorList();
+  if(state.view === "hr") await loadHrMonth();
+  render();
+}
+
+function logout(){
+  localStorage.removeItem("ts_user");
+  state = { ...state, user:null, view:"login", entries:{}, submission:null, error:"" };
+  render();
+}
+
+/* ---------------- employee flow ---------------- */
+async function loadEmployeeMonth(){
+  state.loading = true; render();
+  const mk = monthKey(state.monthDate);
+  const y = state.monthDate.getFullYear(), m = state.monthDate.getMonth();
+  const nd = daysInMonth(state.monthDate);
+  const start = fmtDate(y,m,1), end = fmtDate(y,m,nd);
+
+  const [{data: entryRows}, {data: sub}] = await Promise.all([
+    sb.from("ts_timesheet_entries").select("*").eq("employee_id", state.user.id).gte("entry_date", start).lte("entry_date", end),
+    sb.from("ts_timesheet_submissions").select("*").eq("employee_id", state.user.id).eq("month", mk).maybeSingle()
+  ]);
+
+  const entries = {};
+  for(let day=1; day<=nd; day++){
+    const dstr = fmtDate(y,m,day);
+    const existing = (entryRows||[]).find(r=>r.entry_date===dstr);
+    entries[dstr] = existing
+      ? { status: existing.status, overtime_hours: existing.overtime_hours }
+      : { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0 };
+  }
+  state.entries = entries;
+  state.submission = sub || null;
+  state.loading = false;
+  render();
+}
+
+function setEntry(dstr, field, value){
+  if(!state.entries[dstr]) return;
+  state.entries[dstr][field] = value;
+  renderMain();
+}
+
+async function saveDraft(silent){
+  state.loading = true; render();
+  const mk = monthKey(state.monthDate);
+  const rows = Object.entries(state.entries).map(([dstr, v]) => ({
+    employee_id: state.user.id,
+    month: mk,
+    entry_date: dstr,
+    status: v.status,
+    overtime_hours: Number(v.overtime_hours) || 0,
+    updated_at: new Date().toISOString()
+  }));
+  const { error } = await sb.from("ts_timesheet_entries").upsert(rows, { onConflict: "employee_id,entry_date" });
+  if(!error){
+    await sb.from("ts_timesheet_submissions").upsert({
+      employee_id: state.user.id, month: mk, status: "draft", updated_at: new Date().toISOString()
+    }, { onConflict: "employee_id,month" });
+  }
+  state.loading = false;
+  if(!silent) toast(error ? "Could not save. Try again." : "Draft saved.");
+  await loadEmployeeMonth();
+}
+
+async function submitForApproval(){
+  await saveDraft(true);
+  state.loading = true; render();
+  const mk = monthKey(state.monthDate);
+  const { error } = await sb.from("ts_timesheet_submissions").upsert({
+    employee_id: state.user.id, month: mk, status: "submitted",
+    submitted_at: new Date().toISOString(), rejection_reason: null, updated_at: new Date().toISOString()
+  }, { onConflict: "employee_id,month" });
+  state.loading = false;
+  toast(error ? "Could not submit. Try again." : "Submitted to your supervisor for approval.");
+  await loadEmployeeMonth();
+}
+
+function computeTotals(entries){
+  let present=0, absent=0, sick=0, leave=0, friday=0, ot=0;
+  Object.values(entries).forEach(v=>{
+    if(v.status==="Present") present++;
+    else if(v.status==="Absent") absent++;
+    else if(v.status==="Sick") sick++;
+    else if(v.status==="Leave") leave++;
+    else friday++;
+    ot += Number(v.overtime_hours)||0;
+  });
+  return { present, absent, sick, leave, friday, ot, regularHours: present*8, totalHours: present*8+ot };
+}
+
+/* ---------------- supervisor flow ---------------- */
+async function loadSupervisorList(){
+  state.loading = true; render();
+  const mk = monthKey(state.monthDate);
+  const { data: staff } = await sb.from("ts_employees").select("*").eq("supervisor_id", state.user.id).eq("active", true).order("name");
+  const ids = (staff||[]).map(s=>s.id);
+  let subs = [];
+  if(ids.length){
+    const { data } = await sb.from("ts_timesheet_submissions").select("*").in("employee_id", ids).eq("month", mk);
+    subs = data || [];
+  }
+  state.supervisorEmployees = (staff||[]).map(s => ({
+    ...s,
+    submission: subs.find(x=>x.employee_id===s.id) || null
+  }));
+  const { data: sig } = await sb.from("ts_supervisor_signatures").select("*").eq("supervisor_id", state.user.id).maybeSingle();
+  state.savedSignature = sig ? sig.signature_data : null;
+  state.loading = false;
+  render();
+}
+
+async function openEmployeeReview(emp){
+  state.selectedEmployee = emp;
+  state.loading = true; render();
+  const mk = monthKey(state.monthDate);
+  const y = state.monthDate.getFullYear(), m = state.monthDate.getMonth();
+  const nd = daysInMonth(state.monthDate);
+  const start = fmtDate(y,m,1), end = fmtDate(y,m,nd);
+  const { data: entryRows } = await sb.from("ts_timesheet_entries").select("*").eq("employee_id", emp.id).gte("entry_date", start).lte("entry_date", end);
+  const entries = {};
+  for(let day=1; day<=nd; day++){
+    const dstr = fmtDate(y,m,day);
+    const existing = (entryRows||[]).find(r=>r.entry_date===dstr);
+    entries[dstr] = existing ? { status: existing.status, overtime_hours: existing.overtime_hours } : { status: isFriday(y,m,day)?"Friday":"Absent", overtime_hours:0 };
+  }
+  state.selectedEmpEntries = entries;
+  state.selectedEmpSubmission = emp.submission;
+  state.loading = false;
+  state.view = "supervisor-review";
+  render();
+}
+
+async function approveTimesheet(){
+  if(!state.savedSignature){ toast("Save your signature first."); return; }
+  state.loading = true; render();
+  const mk = monthKey(state.monthDate);
+  const { error } = await sb.from("ts_timesheet_submissions").upsert({
+    employee_id: state.selectedEmployee.id, month: mk, status: "approved",
+    approved_at: new Date().toISOString(), approved_by: state.user.id,
+    signature_data: state.savedSignature, rejection_reason: null, updated_at: new Date().toISOString()
+  }, { onConflict: "employee_id,month" });
+  state.loading = false;
+  toast(error ? "Could not approve. Try again." : "Approved and signed.");
+  if(!error){ state.view = "supervisor"; await loadSupervisorList(); }
+  else render();
+}
+
+async function rejectTimesheet(){
+  const reason = prompt("Reason for rejecting this timesheet (visible to the employee):");
+  if(reason === null) return;
+  state.loading = true; render();
+  const mk = monthKey(state.monthDate);
+  const { error } = await sb.from("ts_timesheet_submissions").upsert({
+    employee_id: state.selectedEmployee.id, month: mk, status: "rejected",
+    rejection_reason: reason, updated_at: new Date().toISOString()
+  }, { onConflict: "employee_id,month" });
+  state.loading = false;
+  toast(error ? "Could not reject. Try again." : "Sent back to employee.");
+  if(!error){ state.view = "supervisor"; await loadSupervisorList(); }
+  else render();
+}
+
+/* signature pad */
+let sigCtx=null, sigDrawing=false, sigHasStroke=false;
+function initSigPad(){
+  const canvas = document.getElementById("sigCanvas");
+  if(!canvas) return;
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = canvas.clientWidth * ratio;
+  canvas.height = canvas.clientHeight * ratio;
+  sigCtx = canvas.getContext("2d");
+  sigCtx.scale(ratio, ratio);
+  sigCtx.lineWidth = 2.2;
+  sigCtx.lineCap = "round";
+  sigCtx.strokeStyle = "#0F3556";
+  sigHasStroke = false;
+
+  const pos = (e)=>{
+    const r = canvas.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    return { x: p.clientX - r.left, y: p.clientY - r.top };
+  };
+  const start = (e)=>{ e.preventDefault(); sigDrawing=true; const p=pos(e); sigCtx.beginPath(); sigCtx.moveTo(p.x,p.y); };
+  const move = (e)=>{ if(!sigDrawing) return; e.preventDefault(); const p=pos(e); sigCtx.lineTo(p.x,p.y); sigCtx.stroke(); sigHasStroke=true; };
+  const end = ()=>{ sigDrawing=false; };
+
+  canvas.addEventListener("mousedown", start);
+  canvas.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", end);
+  canvas.addEventListener("touchstart", start, {passive:false});
+  canvas.addEventListener("touchmove", move, {passive:false});
+  canvas.addEventListener("touchend", end);
+}
+function clearSigPad(){
+  const canvas = document.getElementById("sigCanvas");
+  if(canvas && sigCtx){ sigCtx.clearRect(0,0,canvas.width,canvas.height); sigHasStroke=false; }
+}
+async function saveSigPad(){
+  const canvas = document.getElementById("sigCanvas");
+  if(!canvas || !sigHasStroke){ toast("Draw your signature first."); return; }
+  const dataUrl = canvas.toDataURL("image/png");
+  state.loading = true; render();
+  const { error } = await sb.from("ts_supervisor_signatures").upsert({
+    supervisor_id: state.user.id, signature_data: dataUrl, updated_at: new Date().toISOString()
+  }, { onConflict: "supervisor_id" });
+  state.loading = false;
+  state.savedSignature = dataUrl;
+  toast(error ? "Could not save signature." : "Signature saved.");
+  render();
+}
+
+/* ---------------- HR flow ---------------- */
+async function loadHrMonth(){
+  state.loading = true; render();
+  const { data } = await sb.from("ts_timesheet_submissions")
+    .select("*, ts_employees:employee_id(name, employee_no, project_site)")
+    .eq("month", state.hrMonth).eq("status", "approved");
+  state.hrApproved = data || [];
+  state.loading = false;
+  render();
+}
+
+async function generateCombinedPdf(){
+  if(!state.hrApproved.length){ toast("No approved timesheets for this month yet."); return; }
+  state.loading = true; render();
+  const [y, m] = state.hrMonth.split("-").map(Number);
+  const nd = new Date(y, m, 0).getDate();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+
+  // cover page
+  doc.setFontSize(18); doc.setTextColor(15,53,86);
+  doc.text(COMPANY_NAME, 40, 60);
+  doc.setFontSize(13); doc.setTextColor(60,60,60);
+  doc.text(`Monthly Timesheets — ${monthLabel(new Date(y, m-1, 1))}`, 40, 82);
+  doc.setFontSize(10); doc.setTextColor(120,120,120);
+  doc.text(`Generated ${new Date().toLocaleString()}  •  ${state.hrApproved.length} approved employee(s)`, 40, 100);
+
+  for(let i=0; i<state.hrApproved.length; i++){
+    const sub = state.hrApproved[i];
+    const emp = sub.ts_employees;
+    const { data: entryRows } = await sb.from("ts_timesheet_entries").select("*")
+      .eq("employee_id", sub.employee_id)
+      .gte("entry_date", fmtDate(y, m-1, 1)).lte("entry_date", fmtDate(y, m-1, nd));
+    const entries = {};
+    for(let day=1; day<=nd; day++){
+      const dstr = fmtDate(y, m-1, day);
+      const ex = (entryRows||[]).find(r=>r.entry_date===dstr);
+      entries[dstr] = ex ? {status:ex.status, overtime_hours:ex.overtime_hours} : {status: isFriday(y,m-1,day)?"Friday":"Absent", overtime_hours:0};
+    }
+    const totals = computeTotals(entries);
+
+    doc.addPage();
+    doc.setFontSize(14); doc.setTextColor(15,53,86);
+    doc.text(emp?.name || "Employee", 40, 44);
+    doc.setFontSize(10); doc.setTextColor(90,90,90);
+    doc.text(`No: ${emp?.employee_no || "-"}   Site: ${emp?.project_site || "-"}   Month: ${monthLabel(new Date(y,m-1,1))}`, 40, 60);
+
+    const body = [];
+    for(let day=1; day<=nd; day++){
+      const dstr = fmtDate(y, m-1, day);
+      const v = entries[dstr];
+      body.push([ String(day).padStart(2,"0"), dayName(y,m-1,day), v.status, v.status==="Present" ? "8.0" : "0.0", (Number(v.overtime_hours)||0).toFixed(1) ]);
+    }
+    doc.autoTable({
+      startY: 72,
+      head: [["Date","Day","Status","Reg. Hrs","OT Hrs"]],
+      body,
+      styles: { fontSize: 8, cellPadding: 3 },
+      headStyles: { fillColor: [27,90,150] },
+      theme: "grid",
+      margin: { left: 40, right: 40 }
+    });
+
+    let y2 = doc.lastAutoTable.finalY + 16;
+    doc.setFontSize(9); doc.setTextColor(40,40,40);
+    doc.text(`Present: ${totals.present}   Absent: ${totals.absent}   Sick: ${totals.sick}   Leave: ${totals.leave}   OT hrs: ${totals.ot.toFixed(1)}   Total hrs: ${totals.totalHours.toFixed(1)}`, 40, y2);
+
+    y2 += 26;
+    doc.setFontSize(9); doc.setTextColor(90,90,90);
+    doc.text("Approved & signed by supervisor:", 40, y2);
+    if(sub.signature_data){
+      try{ doc.addImage(sub.signature_data, "PNG", 40, y2+8, 130, 45); }catch(e){}
+    }
+    doc.text(`Approved: ${sub.approved_at ? new Date(sub.approved_at).toLocaleString() : "-"}`, 200, y2+30);
+  }
+
+  doc.save(`Timesheets_${state.hrMonth}.pdf`);
+  state.loading = false;
+  toast("Combined PDF downloaded.");
+  render();
+}
+
+/* ---------------- rendering ---------------- */
+function render(){
+  const root = document.getElementById("root");
+  if(!checkConfig()) return;
+
+  if(!state.user){ root.innerHTML = renderLogin(); attachLoginEvents(); return; }
+
+  let header = renderHeader();
+  let body = "";
+  if(state.view === "employee") body = renderEmployeeView();
+  else if(state.view === "supervisor") body = renderSupervisorList();
+  else if(state.view === "supervisor-review") body = renderSupervisorReview();
+  else if(state.view === "supervisor-signature") body = renderSignaturePad();
+  else if(state.view === "hr") body = renderHrView();
+
+  root.innerHTML = header + `<main>${body}</main>`;
+  attachViewEvents();
+  if(state.view === "supervisor-signature") initSigPad();
+}
+function renderMain(){
+  // re-render just current view without reloading data (used on local edits)
+  render();
+}
+
+function renderHeader(){
+  const roleLabel = { employee:"Employee", supervisor:"Supervisor", hr:"HR" }[state.user.role] || "";
+  return `
+  <header class="top">
+    <button class="logout" id="logoutBtn">Log out</button>
+    <div class="brand">${COMPANY_NAME}</div>
+    <div class="title">${state.user.name}</div>
+    <div class="sub">${roleLabel}${state.user.project_site ? " • " + state.user.project_site : ""}</div>
+  </header>`;
+}
+
+function renderLogin(){
+  return `
+  <div class="login-wrap">
+    <div class="login-logo">TS</div>
+    <h1>Online Timesheets</h1>
+    <p class="hint">${COMPANY_NAME}</p>
+    <label>Phone Number</label>
+    <input type="tel" id="loginPhone" placeholder="e.g. 00966590900938">
+    <label>Iqama Number</label>
+    <input type="password" id="loginIqama" placeholder="Your Iqama number">
+    ${state.error ? `<div class="error-box">${state.error}</div>` : ""}
+    <button class="btn btn-primary" id="loginBtn" ${state.loading?"disabled":""}>${state.loading?'<span class="spinner"></span>Signing in…':'Sign in'}</button>
+  </div>`;
+}
+function attachLoginEvents(){
+  document.getElementById("loginBtn").onclick = ()=>{
+    doLogin(document.getElementById("loginPhone").value, document.getElementById("loginIqama").value);
+  };
+}
+
+/* ---- employee view ---- */
+function renderEmployeeView(){
+  const y = state.monthDate.getFullYear(), m = state.monthDate.getMonth(), nd = daysInMonth(state.monthDate);
+  const totals = computeTotals(state.entries);
+  const subStatus = state.submission ? state.submission.status : "draft";
+  const locked = subStatus === "submitted" || subStatus === "approved";
+
+  let banner = "";
+  if(subStatus==="submitted") banner = `<div class="status-banner status-submitted">⏳ Submitted — waiting for supervisor approval</div>`;
+  else if(subStatus==="approved") banner = `<div class="status-banner status-approved">✅ Approved and signed by your supervisor</div>`;
+  else if(subStatus==="rejected") banner = `<div class="status-banner status-rejected">↩️ Sent back: ${state.submission.rejection_reason || "please review and resubmit"}</div>`;
+  else banner = `<div class="status-banner status-draft">📝 Draft — not yet submitted</div>`;
+
+  let rows = "";
+  for(let day=1; day<=nd; day++){
+    const dstr = fmtDate(y,m,day);
+    const v = state.entries[dstr];
+    const fri = isFriday(y,m,day);
+    rows += `
+    <tr class="${fri?'friday-row':''}">
+      <td class="date-cell">${String(day).padStart(2,"0")}<small>${dayName(y,m,day)}</small></td>
+      <td>
+        <select class="status-select st-${v.status}" data-date="${dstr}" data-field="status" ${locked?"disabled":""}>
+          <option value="Present" ${v.status==="Present"?"selected":""}>Present</option>
+          <option value="Absent" ${v.status==="Absent"?"selected":""}>Absent (A)</option>
+          <option value="Sick" ${v.status==="Sick"?"selected":""}>Sick</option>
+          <option value="Leave" ${v.status==="Leave"?"selected":""}>Leave</option>
+          <option value="Friday" ${v.status==="Friday"?"selected":""}>Friday/Off</option>
+          <option value="Holiday" ${v.status==="Holiday"?"selected":""}>Holiday</option>
+        </select>
+      </td>
+      <td><input class="ot-input" type="number" min="0" step="0.5" value="${v.overtime_hours||0}" data-date="${dstr}" data-field="overtime_hours" ${locked?"disabled":""}></td>
+    </tr>`;
+  }
+
+  return `
+    ${renderMonthNav("employee")}
+    ${banner}
+    <div class="summary-grid">
+      <div class="summary-item"><div class="n">${totals.present}</div><div class="l">Present</div></div>
+      <div class="summary-item"><div class="n">${totals.absent}</div><div class="l">Absent</div></div>
+      <div class="summary-item"><div class="n">${totals.sick}</div><div class="l">Sick</div></div>
+      <div class="summary-item"><div class="n">${totals.leave}</div><div class="l">Leave</div></div>
+      <div class="summary-item"><div class="n">${totals.ot.toFixed(1)}</div><div class="l">OT Hrs</div></div>
+      <div class="summary-item"><div class="n">${totals.totalHours.toFixed(1)}</div><div class="l">Total Hrs</div></div>
+    </div>
+    <div class="card" style="padding:8px 10px 4px;">
+      <table class="grid">
+        <thead><tr><th>Date</th><th>Status</th><th>OT hrs</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    ${!locked ? `
+    <div class="bottom-bar">
+      <button class="btn btn-outline btn-sm" id="saveDraftBtn" style="flex:1;">Save draft</button>
+      <button class="btn btn-primary btn-sm" id="submitBtn" style="flex:1;">Submit for approval</button>
+    </div>` : (subStatus==="rejected" ? `
+    <div class="bottom-bar">
+      <button class="btn btn-primary" id="submitBtn" style="flex:1;">Edit &amp; resubmit</button>
+    </div>` : "")}
+  `;
+}
+
+function renderMonthNav(context){
+  return `
+  <div class="month-nav">
+    <button data-nav="prev">‹</button>
+    <div class="m-label">${monthLabel(state.monthDate)}</div>
+    <button data-nav="next">›</button>
+  </div>`;
+}
+
+/* ---- supervisor list ---- */
+function renderSupervisorList(){
+  const rows = state.supervisorEmployees.map(e=>{
+    const st = e.submission ? e.submission.status : "draft";
+    const badgeClass = { submitted:"badge-submitted", approved:"badge-approved", rejected:"badge-rejected", draft:"badge-draft" }[st];
+    const label = { submitted:"Awaiting review", approved:"Approved", rejected:"Rejected", draft:"Draft" }[st];
+    return `
+    <div class="emp-list-item" data-emp="${e.id}">
+      <div>
+        <div class="name">${e.name}</div>
+        <div class="sub">${e.employee_no || ""} ${e.project_site ? "• " + e.project_site : ""}</div>
+      </div>
+      <span class="badge ${badgeClass}">${label}</span>
+    </div>`;
+  }).join("") || `<div class="empty-state"><div class="ic">👷</div>No employees assigned to you yet.</div>`;
+
+  return `
+    ${renderMonthNav("supervisor")}
+    <div class="row-between" style="margin-bottom:10px;">
+      <div style="font-size:13px;color:var(--muted);font-weight:600;">Your team — ${monthLabel(state.monthDate)}</div>
+      <button class="link-btn" id="sigSettingsBtn">${state.savedSignature ? "Update signature" : "Set up signature"}</button>
+    </div>
+    <div class="card" style="padding:4px 12px;">${rows}</div>
+  `;
+}
+
+function renderSupervisorReview(){
+  const emp = state.selectedEmployee;
+  const totals = computeTotals(state.selectedEmpEntries);
+  const y = state.monthDate.getFullYear(), m = state.monthDate.getMonth(), nd = daysInMonth(state.monthDate);
+  const sub = state.selectedEmpSubmission;
+  const st = sub ? sub.status : "draft";
+
+  let rows = "";
+  for(let day=1; day<=nd; day++){
+    const dstr = fmtDate(y,m,day);
+    const v = state.selectedEmpEntries[dstr];
+    rows += `<tr class="${isFriday(y,m,day)?'friday-row':''}">
+      <td class="date-cell">${String(day).padStart(2,"0")}<small>${dayName(y,m,day)}</small></td>
+      <td><span class="badge badge-draft" style="color:inherit;">${v.status}</span></td>
+      <td>${(Number(v.overtime_hours)||0).toFixed(1)}</td>
+    </tr>`;
+  }
+
+  return `
+    <button class="link-btn" id="backToListBtn" style="margin-bottom:12px;">‹ Back to team</button>
+    <div class="card">
+      <h3>${emp.name}</h3>
+      <div class="meta">${emp.employee_no || ""} ${emp.project_site ? "• " + emp.project_site : ""} • ${monthLabel(state.monthDate)}</div>
+    </div>
+    <div class="summary-grid">
+      <div class="summary-item"><div class="n">${totals.present}</div><div class="l">Present</div></div>
+      <div class="summary-item"><div class="n">${totals.absent}</div><div class="l">Absent</div></div>
+      <div class="summary-item"><div class="n">${totals.sick}</div><div class="l">Sick</div></div>
+      <div class="summary-item"><div class="n">${totals.leave}</div><div class="l">Leave</div></div>
+      <div class="summary-item"><div class="n">${totals.ot.toFixed(1)}</div><div class="l">OT Hrs</div></div>
+      <div class="summary-item"><div class="n">${totals.totalHours.toFixed(1)}</div><div class="l">Total Hrs</div></div>
+    </div>
+    <div class="card" style="padding:8px 10px 4px;">
+      <table class="grid"><thead><tr><th>Date</th><th>Status</th><th>OT</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>
+    ${st === "submitted" ? `
+    <div class="bottom-bar">
+      <button class="btn btn-danger btn-sm" id="rejectBtn" style="flex:1;">Send back</button>
+      <button class="btn btn-primary btn-sm" id="approveBtn" style="flex:1;">Approve &amp; sign</button>
+    </div>` : st === "approved" ? `<div class="status-banner status-approved">✅ Approved ${sub.approved_at ? "on " + new Date(sub.approved_at).toLocaleDateString() : ""}</div>` : `<div class="status-banner status-draft">Employee hasn't submitted this month yet.</div>`}
+  `;
+}
+
+function renderSignaturePad(){
+  return `
+    <button class="link-btn" id="backToListBtn" style="margin-bottom:12px;">‹ Back to team</button>
+    <div class="card">
+      <h3>Your signature</h3>
+      <div class="meta">Saved once, reused every time you approve a timesheet.</div>
+    </div>
+    ${state.savedSignature ? `
+    <div class="sig-preview" style="margin-bottom:14px;">
+      <img src="${state.savedSignature}" alt="Saved signature">
+    </div>` : ""}
+    <label>Draw new signature</label>
+    <div class="sig-pad-wrap"><canvas id="sigCanvas"></canvas></div>
+    <div class="bottom-bar">
+      <button class="btn btn-outline btn-sm" id="clearSigBtn" style="flex:1;">Clear</button>
+      <button class="btn btn-primary btn-sm" id="saveSigBtn" style="flex:1;">Save signature</button>
+    </div>
+  `;
+}
+
+/* ---- HR view ---- */
+function renderHrView(){
+  const rows = state.hrApproved.map(s=>`
+    <div class="emp-list-item">
+      <div>
+        <div class="name">${s.ts_employees?.name || ""}</div>
+        <div class="sub">${s.ts_employees?.employee_no || ""} ${s.ts_employees?.project_site ? "• " + s.ts_employees.project_site : ""}</div>
+      </div>
+      <span class="badge badge-approved">Approved</span>
+    </div>`).join("") || `<div class="empty-state"><div class="ic">📄</div>No approved timesheets yet for this month.</div>`;
+
+  return `
+    <label>Month</label>
+    <input type="month" id="hrMonthInput" value="${state.hrMonth}">
+    <div class="card" style="margin-top:14px;padding:4px 12px;">${rows}</div>
+    <button class="btn btn-primary" id="combinedPdfBtn" style="margin-top:10px;">Download combined PDF (${state.hrApproved.length})</button>
+  `;
+}
+
+/* ---------------- event wiring ---------------- */
+function attachViewEvents(){
+  const logoutBtn = document.getElementById("logoutBtn");
+  if(logoutBtn) logoutBtn.onclick = logout;
+
+  document.querySelectorAll("[data-nav]").forEach(btn=>{
+    btn.onclick = async ()=>{
+      const dir = btn.getAttribute("data-nav");
+      state.monthDate = new Date(state.monthDate.getFullYear(), state.monthDate.getMonth() + (dir==="next"?1:-1), 1);
+      if(state.view === "employee") await loadEmployeeMonth();
+      else if(state.view === "supervisor") await loadSupervisorList();
+    };
+  });
+
+  document.querySelectorAll(".status-select").forEach(sel=>{
+    sel.onchange = ()=> setEntry(sel.getAttribute("data-date"), "status", sel.value);
+  });
+  document.querySelectorAll(".ot-input").forEach(inp=>{
+    inp.oninput = ()=> setEntry(inp.getAttribute("data-date"), "overtime_hours", inp.value);
+  });
+
+  const saveDraftBtn = document.getElementById("saveDraftBtn");
+  if(saveDraftBtn) saveDraftBtn.onclick = ()=> saveDraft(false);
+  const submitBtn = document.getElementById("submitBtn");
+  if(submitBtn) submitBtn.onclick = submitForApproval;
+
+  document.querySelectorAll("[data-emp]").forEach(el=>{
+    el.onclick = ()=>{
+      const emp = state.supervisorEmployees.find(e=>e.id===el.getAttribute("data-emp"));
+      if(emp) openEmployeeReview(emp);
+    };
+  });
+  const backBtn = document.getElementById("backToListBtn");
+  if(backBtn) backBtn.onclick = ()=>{ state.view = "supervisor"; loadSupervisorList(); };
+
+  const sigSettingsBtn = document.getElementById("sigSettingsBtn");
+  if(sigSettingsBtn) sigSettingsBtn.onclick = ()=>{ state.view = "supervisor-signature"; render(); };
+  const clearSigBtn = document.getElementById("clearSigBtn");
+  if(clearSigBtn) clearSigBtn.onclick = clearSigPad;
+  const saveSigBtn = document.getElementById("saveSigBtn");
+  if(saveSigBtn) saveSigBtn.onclick = saveSigPad;
+
+  const approveBtn = document.getElementById("approveBtn");
+  if(approveBtn) approveBtn.onclick = approveTimesheet;
+  const rejectBtn = document.getElementById("rejectBtn");
+  if(rejectBtn) rejectBtn.onclick = rejectTimesheet;
+
+  const hrMonthInput = document.getElementById("hrMonthInput");
+  if(hrMonthInput) hrMonthInput.onchange = ()=>{ state.hrMonth = hrMonthInput.value; loadHrMonth(); };
+  const combinedPdfBtn = document.getElementById("combinedPdfBtn");
+  if(combinedPdfBtn) combinedPdfBtn.onclick = generateCombinedPdf;
+}
+
+/* ---------------- boot ---------------- */
+(async function init(){
+  if(!checkConfig()) return;
+  if(state.user){
+    state.view = state.user.role === "employee" ? "employee" : (state.user.role === "supervisor" ? "supervisor" : "hr");
+    if(state.view === "employee") await loadEmployeeMonth();
+    else if(state.view === "supervisor") await loadSupervisorList();
+    else if(state.view === "hr") await loadHrMonth();
+  }
+  render();
+})();
+</script>
+</body>
+</html>
