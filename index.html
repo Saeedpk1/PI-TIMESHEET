@@ -728,15 +728,15 @@ async function downloadMyTimesheetPdf(){
       startY: 92,
       head: [["Date","Day","Status","Reg. Hrs","OT Hrs","Project"]],
       body,
-      styles: { fontSize: 7.2, cellPadding: 1.6, minCellHeight: 0, lineColor: [220,229,238], lineWidth: 0.5 },
+      styles: { fontSize: 8, cellPadding: 2.2, minCellHeight: 0, lineColor: [190,205,220], lineWidth: 0.6 },
       headStyles: { fillColor: [27,90,150], textColor: [255,255,255], fontStyle: "bold", halign: "left" },
       alternateRowStyles: { fillColor: [248,250,252] },
       theme: "grid",
       margin: { left: 40, right: 40, top: 40, bottom: 10 },
       tableWidth: "wrap",
       columnStyles: {
-        0: { cellWidth: 42 }, 1: { cellWidth: 90 }, 2: { cellWidth: 55 },
-        3: { cellWidth: 68 }, 4: { cellWidth: 65 }, 5: { cellWidth: 195 }
+        0: { cellWidth: 38 }, 1: { cellWidth: 80 }, 2: { cellWidth: 50 },
+        3: { cellWidth: 62 }, 4: { cellWidth: 58 }, 5: { cellWidth: 227 }
       },
       pageBreak: "avoid",
       rowPageBreak: "avoid",
@@ -764,7 +764,7 @@ async function downloadMyTimesheetPdf(){
         startY: y2 + 14,
         head: [["Project","Days worked"]],
         body: projectEntries.map(([pname, days]) => [pname, String(days)]),
-        styles: { fontSize: 7.5, cellPadding: 1.8 },
+        styles: { fontSize: 8, cellPadding: 2.2 },
         headStyles: { fillColor: [27,90,150] },
         theme: "grid",
         margin: { left: 40, right: 40 },
@@ -774,7 +774,7 @@ async function downloadMyTimesheetPdf(){
       y2 = doc.lastAutoTable.finalY;
     }
 
-    y2 += 18;
+    y2 += 14;
     doc.setFontSize(9); doc.setTextColor(90,90,90);
     const sub = state.submission;
     const selfSubmitted = sub && sub.approved_by === sub.employee_id;
@@ -906,19 +906,19 @@ async function generateCombinedPdf(){
       startY: 92,
       head: [["Date","Day","Status","Reg. Hrs","OT Hrs","Project"]],
       body,
-      styles: { fontSize: 7.2, cellPadding: 1.6, minCellHeight: 0, lineColor: [220,229,238], lineWidth: 0.5 },
+      styles: { fontSize: 8, cellPadding: 2.2, minCellHeight: 0, lineColor: [190,205,220], lineWidth: 0.6 },
       headStyles: { fillColor: [27,90,150], textColor: [255,255,255], fontStyle: "bold", halign: "left" },
       alternateRowStyles: { fillColor: [248,250,252] },
       theme: "grid",
       margin: { left: 40, right: 40, top: 40, bottom: 10 },
       tableWidth: "wrap",
       columnStyles: {
-        0: { cellWidth: 42 },
-        1: { cellWidth: 90 },
-        2: { cellWidth: 55 },
-        3: { cellWidth: 68 },
-        4: { cellWidth: 65 },
-        5: { cellWidth: 195 }
+        0: { cellWidth: 38 },
+        1: { cellWidth: 80 },
+        2: { cellWidth: 50 },
+        3: { cellWidth: 62 },
+        4: { cellWidth: 58 },
+        5: { cellWidth: 227 }
       },
       pageBreak: "avoid",
       rowPageBreak: "avoid",
@@ -945,7 +945,7 @@ async function generateCombinedPdf(){
         startY: y2 + 14,
         head: [["Project","Days worked"]],
         body: projectEntries.map(([pname, days]) => [pname, String(days)]),
-        styles: { fontSize: 7.5, cellPadding: 1.8 },
+        styles: { fontSize: 8, cellPadding: 2.2 },
         headStyles: { fillColor: [27,90,150] },
         theme: "grid",
         margin: { left: 40, right: 40 },
@@ -955,7 +955,7 @@ async function generateCombinedPdf(){
       y2 = doc.lastAutoTable.finalY;
     }
 
-    y2 += 18;
+    y2 += 14;
     doc.setFontSize(9); doc.setTextColor(90,90,90);
     const selfSubmitted = sub.approved_by === sub.employee_id;
     doc.text(selfSubmitted ? "Self-submitted (supervisor/HR — no review required):" : "Approved & signed by supervisor:", 40, y2);
