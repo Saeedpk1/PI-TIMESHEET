@@ -135,18 +135,19 @@
   .summary-item .n{font-size:18px;font-weight:800;color:var(--navy);}
   .summary-item .l{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-top:2px;}
 
-  table.grid{width:100%;border-collapse:collapse;font-size:13px;}
-  table.grid th{text-align:left;font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;padding:6px 4px;border-bottom:1.5px solid var(--line);}
-  table.grid td{padding:6px 4px;border-bottom:1px solid #EEF2F6;vertical-align:middle;}
-  table.grid td.date-cell{white-space:nowrap;font-weight:600;color:var(--ink);}
-  table.grid td.date-cell small{display:block;color:var(--muted);font-weight:400;font-size:10.5px;}
-  select.status-select{padding:6px 4px;font-size:12.5px;border-radius:6px;border:1.5px solid var(--line);width:100%;}
+  table.grid{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed;}
+  table.grid th{text-align:left;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.2px;padding:5px 2px;border-bottom:1.5px solid var(--line);}
+  table.grid td{padding:4px 2px;border-bottom:1px solid #EEF2F6;vertical-align:middle;overflow:hidden;}
+  table.grid td.date-cell{white-space:nowrap;font-weight:600;color:var(--ink);width:30px;}
+  table.grid td.date-cell small{display:block;color:var(--muted);font-weight:400;font-size:9px;}
+  select.status-select{padding:4px 2px;font-size:10.5px;border-radius:6px;border:1.5px solid var(--line);width:100%;max-width:100%;}
   select.status-select.st-Present{color:var(--present);border-color:var(--present);}
   select.status-select.st-Absent{color:var(--absent);border-color:var(--absent);}
   select.status-select.st-Sick{color:var(--sick);border-color:var(--sick);}
   select.status-select.st-Leave{color:var(--leave);border-color:var(--leave);}
   select.status-select.st-Friday, select.status-select.st-Holiday{color:var(--friday);border-color:var(--friday);}
-  input.ot-input{width:52px;padding:6px 4px;font-size:12.5px;border-radius:6px;border:1.5px solid var(--line);text-align:center;}
+  select.project-select{padding:4px 2px;font-size:10px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;}
+  input.ot-input{width:100%;padding:4px 2px;font-size:10.5px;border-radius:6px;border:1.5px solid var(--line);text-align:center;}
   tr.friday-row{background:#FAFBFC;}
 
   .status-banner{padding:12px 14px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
@@ -373,7 +374,8 @@ async function loadEmployeeMonth(){
 
   const [{data: entryRows}, {data: sub}] = await Promise.all([
     sb.from("ts_timesheet_entries").select("*").eq("employee_id", state.user.id).gte("entry_date", start).lte("entry_date", end),
-    sb.from("ts_timesheet_submissions").select("*").eq("employee_id", state.user.id).eq("month", mk).maybeSingle()
+    sb.from("ts_timesheet_submissions").select("*").eq("employee_id", state.user.id).eq("month", mk).maybeSingle(),
+    loadProjects() // always refresh so newly-added projects show up without needing to re-login
   ]);
 
   const entries = {};
@@ -723,30 +725,27 @@ function renderEmployeeView(){
     const dstr = fmtDate(y,m,day);
     const v = state.entries[dstr] || { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0, project_id: "" };
     const fri = isFriday(y,m,day);
-    const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${v.project_id===p.id?"selected":""}>${p.name}</option>`).join("") + `<option value="__new__">+ Add new project…</option>`;
+    const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${v.project_id===p.id?"selected":""}>${p.name}</option>`).join("") + `<option value="__new__">+ New…</option>`;
     rows += `
     <tr class="${fri?'friday-row':''}">
       <td class="date-cell">${String(day).padStart(2,"0")}<small>${dayName(y,m,day)}</small></td>
       <td>
         <select class="status-select st-${v.status}" data-date="${dstr}" data-field="status" ${locked?"disabled":""}>
           <option value="Present" ${v.status==="Present"?"selected":""}>Present</option>
-          <option value="Absent" ${v.status==="Absent"?"selected":""}>Absent (A)</option>
+          <option value="Absent" ${v.status==="Absent"?"selected":""}>Absent</option>
           <option value="Sick" ${v.status==="Sick"?"selected":""}>Sick</option>
           <option value="Leave" ${v.status==="Leave"?"selected":""}>Leave</option>
-          <option value="Friday" ${v.status==="Friday"?"selected":""}>Friday/Off</option>
+          <option value="Friday" ${v.status==="Friday"?"selected":""}>Off</option>
           <option value="Holiday" ${v.status==="Holiday"?"selected":""}>Holiday</option>
         </select>
       </td>
-      <td><input class="ot-input" type="number" min="0" step="0.5" value="${v.overtime_hours||0}" data-date="${dstr}" data-field="overtime_hours" ${locked?"disabled":""}></td>
-    </tr>
-    <tr class="${fri?'friday-row':''}">
-      <td></td>
-      <td colspan="2" style="padding-top:0;">
-        <select class="status-select project-select" data-date="${dstr}" data-field="project_id" style="width:100%;color:var(--muted);" ${locked?"disabled":""}>
-          <option value="">— Select project —</option>
+      <td>
+        <select class="status-select project-select" data-date="${dstr}" data-field="project_id" ${locked?"disabled":""}>
+          <option value="">—</option>
           ${projectOptions}
         </select>
       </td>
+      <td><input class="ot-input" type="number" min="0" step="0.5" value="${v.overtime_hours||0}" data-date="${dstr}" data-field="overtime_hours" ${locked?"disabled":""}></td>
     </tr>`;
   }
 
@@ -762,9 +761,10 @@ function renderEmployeeView(){
       <div class="summary-item"><div class="n">${totals.ot.toFixed(1)}</div><div class="l">OT Hrs</div></div>
       <div class="summary-item"><div class="n">${totals.totalHours.toFixed(1)}</div><div class="l">Total Hrs</div></div>
     </div>
-    <div class="card" style="padding:8px 10px 4px;">
+    <div class="card" style="padding:8px 6px 4px;">
       <table class="grid">
-        <thead><tr><th>Date</th><th>Status</th><th>OT hrs</th></tr></thead>
+        <colgroup><col style="width:26px;"><col style="width:32%;"><col style="width:38%;"><col style="width:15%;"></colgroup>
+        <thead><tr><th>Date</th><th>Status</th><th>Project</th><th>OT</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
