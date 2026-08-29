@@ -638,9 +638,9 @@ async function loadHrMonth(){
 
 function drawLetterhead(doc){
   try{ doc.addImage(LOGO_DATA_URI, "JPEG", 40, 18, 26, 26); }catch(e){}
-  doc.setFontSize(11); doc.setTextColor(15,53,86); doc.setFont(undefined, "bold");
+  doc.setFontSize(11); doc.setTextColor(15,53,86); doc.setFont("helvetica", "bold");
   doc.text(COMPANY_NAME, 74, 30);
-  doc.setFont(undefined, "normal");
+  doc.setFont("helvetica", "normal");
   doc.setFontSize(8); doc.setTextColor(120,120,120);
   doc.text("Monthly Timesheets", 74, 40);
   doc.setDrawColor(220,229,238);
@@ -728,6 +728,7 @@ async function downloadMyTimesheetPdf(){
 async function generateCombinedPdf(){
   if(!state.hrApproved.length){ toast("No approved timesheets for this month yet."); return; }
   state.loading = true; render();
+  try{
   const [y, m] = state.hrMonth.split("-").map(Number);
   const nd = new Date(y, m, 0).getDate();
   const { jsPDF } = window.jspdf;
@@ -850,6 +851,11 @@ async function generateCombinedPdf(){
   state.loading = false;
   toast("Combined PDF downloaded.");
   render();
+  }catch(e){
+    state.loading = false;
+    toast("Could not generate PDF. Try again.");
+    render();
+  }
 }
 
 /* ---------------- rendering ---------------- */
