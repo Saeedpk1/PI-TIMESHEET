@@ -173,8 +173,9 @@
   table.grid td{padding:4px 3px;vertical-align:middle;overflow:hidden;background:#fff;border-top:2px solid var(--line);border-bottom:2px solid var(--line);}
   table.grid td:first-child{border-left:2px solid var(--line);border-radius:8px 0 0 8px;}
   table.grid td:last-child{border-right:2px solid var(--line);border-radius:0 8px 8px 0;}
-  table.grid td.date-cell{white-space:nowrap;font-weight:800;color:var(--navy);width:22px;font-size:9.5px;}
-  table.grid td.date-cell small{display:block;color:var(--muted);font-weight:600;font-size:7.5px;}
+  table.grid td.date-cell{white-space:nowrap;font-weight:800;color:#fff;width:15%;font-size:12px;text-align:center;padding:5px 2px;background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:8px !important;border:none !important;}
+  table.grid td.date-cell small{display:block;color:#EAF2FA;font-weight:700;font-size:8px;text-transform:uppercase;letter-spacing:.3px;margin-top:1px;}
+  tr.friday-row td.date-cell{background:linear-gradient(135deg,#B8380D,var(--friday));}
   select.status-select{padding:3px 1px;font-size:8.5px;font-weight:700;border-radius:6px;border:2px solid var(--line);width:100%;max-width:100%;box-sizing:border-box;-webkit-appearance:none;appearance:none;background-image:none;text-indent:1px;}
   select.status-select.st-Present{color:var(--present);border-color:var(--present);background:#E6F7EC;}
   select.status-select.st-Absent{color:var(--absent);border-color:var(--absent);background:#FDECEC;}
@@ -1024,7 +1025,7 @@ function renderEmployeeView(){
     <button id="downloadMyPdfBtn" style="display:block;width:100%;margin-bottom:14px;padding:11px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;font-weight:800;font-size:14px;cursor:pointer;">⬇ Download PDF</button>
     <div class="card" style="padding:8px 6px 4px;">
       <table class="grid">
-        <colgroup><col style="width:18px;"><col style="width:29%;"><col style="width:35%;"><col style="width:22%;"></colgroup>
+        <colgroup><col style="width:15%;"><col style="width:27%;"><col style="width:33%;"><col style="width:20%;"></colgroup>
         <thead><tr><th>Date</th><th>Status</th><th>Project</th><th>OT</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
