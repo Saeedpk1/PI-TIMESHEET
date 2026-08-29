@@ -857,32 +857,30 @@ async function generateCombinedPdf(){
 
   const OT_MULTIPLIER = 1.25;
   const rosterRows = employeeData.map(({ emp, totals }) => {
-    const otPaidHours = totals.ot * OT_MULTIPLIER;
-    const rate = Number(emp?.hourly_rate) || 0;
-    const otPay = otPaidHours * rate;
+    const otAdjusted = totals.ot * OT_MULTIPLIER;
+    const total = totals.regularHours + otAdjusted;
     return [
       emp?.name || "Employee",
       totals.regularHours.toFixed(1),
       totals.ot.toFixed(1),
-      otPaidHours.toFixed(1),
-      rate > 0 ? otPay.toFixed(2) : "-",
-      totals.totalHours.toFixed(1)
+      otAdjusted.toFixed(1),
+      total.toFixed(1)
     ];
   });
   if(rosterRows.length){
     doc.setFontSize(12); doc.setTextColor(15,53,86);
     doc.text("Employee hours summary", 40, 124);
     doc.setFontSize(8); doc.setTextColor(120,120,120);
-    doc.text("OT Paid Hrs = OT Hrs × 1.25   •   OT Pay = OT Paid Hrs × hourly rate (SAR)", 40, 136);
+    doc.text("OT × 1.25 = OT Hrs × 1.25   •   Total Hrs = Reg. Hrs + (OT × 1.25)", 40, 136);
     doc.autoTable({
       startY: 144,
-      head: [["Employee","Reg. Hrs","OT Hrs","OT Paid Hrs","OT Pay (SAR)","Total Hrs"]],
+      head: [["Employee","Reg. Hrs","OT Hrs","OT × 1.25","Total Hrs"]],
       body: rosterRows,
       styles: { fontSize: 8.5, cellPadding: 3.5 },
       headStyles: { fillColor: [27,90,150] },
       theme: "grid",
       margin: { left: 40, right: 40 },
-      columnStyles: { 0: { cellWidth: 170 }, 1: { cellWidth: 65 }, 2: { cellWidth: 65 }, 3: { cellWidth: 75 }, 4: { cellWidth: 75 }, 5: { cellWidth: 65 } }
+      columnStyles: { 0: { cellWidth: 210 }, 1: { cellWidth: 75 }, 2: { cellWidth: 75 }, 3: { cellWidth: 80 }, 4: { cellWidth: 75 } }
     });
   }
 
