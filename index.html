@@ -237,21 +237,26 @@ function checkConfig(){
 async function doLogin(iqama){
   state.error = "";
   if(!iqama){ state.error = "Enter your Iqama / ID number."; render(); return; }
+  const normalized = iqama.replace(/\D/g, ""); // keep digits only — ignores spaces/typos in formatting
+  if(!normalized){ state.error = "Enter your Iqama / ID number."; render(); return; }
   state.loading = true; render();
   try{
     const { data, error } = await sb.from("ts_employees")
       .select("*")
-      .eq("iqama_number", iqama.trim())
-      .eq("active", true)
-      .maybeSingle();
+      .eq("active", true);
     state.loading = false;
-    if(error || !data){
+    if(error){
+      state.error = "Connection problem — check your internet and try again.";
+      render(); return;
+    }
+    const match = (data || []).find(row => (row.iqama_number || "").replace(/\D/g, "") === normalized);
+    if(!match){
       state.error = "No match found. Check your Iqama / ID number, or contact your admin.";
       render(); return;
     }
-    state.user = data;
-    localStorage.setItem("ts_user", JSON.stringify(data));
-    state.view = data.role === "employee" ? "employee" : (data.role === "supervisor" ? "supervisor" : "hr");
+    state.user = match;
+    localStorage.setItem("ts_user", JSON.stringify(match));
+    state.view = match.role === "employee" ? "employee" : (match.role === "supervisor" ? "supervisor" : "hr");
     if(state.view === "employee") await loadEmployeeMonth();
     if(state.view === "supervisor") await loadSupervisorList();
     if(state.view === "hr") await loadHrMonth();
