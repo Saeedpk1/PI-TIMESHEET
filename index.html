@@ -675,7 +675,7 @@ function renderEmployeeView(){
   let rows = "";
   for(let day=1; day<=nd; day++){
     const dstr = fmtDate(y,m,day);
-    const v = state.entries[dstr];
+    const v = state.entries[dstr] || { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0 };
     const fri = isFriday(y,m,day);
     rows += `
     <tr class="${fri?'friday-row':''}">
@@ -767,7 +767,7 @@ function renderSupervisorReview(){
   let rows = "";
   for(let day=1; day<=nd; day++){
     const dstr = fmtDate(y,m,day);
-    const v = state.selectedEmpEntries[dstr];
+    const v = state.selectedEmpEntries[dstr] || { status: isFriday(y,m,day) ? "Friday" : "Absent", overtime_hours: 0 };
     rows += `<tr class="${isFriday(y,m,day)?'friday-row':''}">
       <td class="date-cell">${String(day).padStart(2,"0")}<small>${dayName(y,m,day)}</small></td>
       <td><span class="badge badge-draft" style="color:inherit;">${v.status}</span></td>
