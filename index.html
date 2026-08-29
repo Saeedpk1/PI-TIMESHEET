@@ -265,6 +265,7 @@ let state = {
   hrApproved: [],
   projects: [],           // {id, name, active}
   newProjectName: "",
+  remarksDraft: "",
   loading: false,
   error: ""
 };
@@ -441,6 +442,7 @@ async function loadEmployeeMonth(){
   }
   state.entries = entries;
   state.submission = sub || null;
+  state.remarksDraft = (sub && sub.remarks) || "";
   state.loading = false;
   render();
 }
@@ -466,7 +468,7 @@ async function saveDraft(silent){
   const { error } = await sb.from("ts_timesheet_entries").upsert(rows, { onConflict: "employee_id,entry_date" });
   if(!error){
     await sb.from("ts_timesheet_submissions").upsert({
-      employee_id: state.user.id, month: mk, status: "draft", updated_at: new Date().toISOString()
+      employee_id: state.user.id, month: mk, status: "draft", remarks: state.remarksDraft || null, updated_at: new Date().toISOString()
     }, { onConflict: "employee_id,month" });
   }
   state.loading = false;
@@ -719,6 +721,15 @@ async function downloadMyTimesheetPdf(){
       doc.text(`Approved: ${sub.approved_at ? new Date(sub.approved_at).toLocaleString() : "-"}`, 200, y2+30);
     }
 
+    if(sub && sub.remarks){
+      let y3 = y2 + ((sub.status === "approved" && sub.signature_data) ? 55 : 16);
+      doc.setFontSize(9); doc.setTextColor(90,90,90); doc.setFont("helvetica", "bold");
+      doc.text("Remarks:", 40, y3);
+      doc.setFont("helvetica", "normal");
+      const remarkLines = doc.splitTextToSize(sub.remarks, 515);
+      doc.text(remarkLines, 40, y3 + 12);
+    }
+
     doc.save(`Timesheet_${(state.user.name||"me").replace(/\s+/g,"_")}_${monthKey(state.monthDate)}.pdf`);
     toast("PDF downloaded.");
   }catch(e){
@@ -851,6 +862,15 @@ async function generateCombinedPdf(){
       try{ doc.addImage(sub.signature_data, "PNG", 40, y2+8, 130, 45); }catch(e){}
     }
     doc.text(`Approved: ${sub.approved_at ? new Date(sub.approved_at).toLocaleString() : "-"}`, 200, y2+30);
+
+    if(sub.remarks){
+      let y3 = y2 + 55;
+      doc.setFontSize(9); doc.setTextColor(90,90,90); doc.setFont("helvetica", "bold");
+      doc.text("Remarks:", 40, y3);
+      doc.setFont("helvetica", "normal");
+      const remarkLines = doc.splitTextToSize(sub.remarks, 515);
+      doc.text(remarkLines, 40, y3 + 12);
+    }
   }
 
   doc.save(`Timesheets_${state.hrMonth}.pdf`);
@@ -988,6 +1008,8 @@ function renderEmployeeView(){
         <tbody>${rows}</tbody>
       </table>
     </div>
+    <label style="margin-top:16px;">Remarks / Notes</label>
+    <textarea id="remarksInput" rows="3" placeholder="Anything extra you want to note for this month..." ${locked?"disabled":""} style="width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:13.5px;font-family:inherit;resize:vertical;">${locked ? (state.submission?.remarks || "") : (state.remarksDraft || "")}</textarea>
     ${!locked ? `
     <div class="bottom-bar">
       <button class="btn btn-outline btn-sm" id="saveDraftBtn" style="flex:1;">Save draft</button>
@@ -1079,6 +1101,11 @@ function renderSupervisorReview(){
     <div class="card" style="padding:8px 10px 4px;">
       <table class="grid"><thead><tr><th>Date</th><th>Status</th><th>OT</th><th>Project</th></tr></thead><tbody>${rows}</tbody></table>
     </div>
+    ${sub && sub.remarks ? `
+    <div class="card">
+      <h3 style="font-size:13px;">Remarks / Notes</h3>
+      <div class="meta" style="color:var(--ink);white-space:pre-wrap;">${sub.remarks}</div>
+    </div>` : ""}
     ${st === "submitted" ? `
     <div class="bottom-bar">
       <button class="btn btn-danger btn-sm" id="rejectBtn" style="flex:1;">Send back</button>
@@ -1265,6 +1292,9 @@ function handleDelegatedInput(e){
     if(snapped !== newVal) e.target.value = snapped;
     e.target.dataset.prev = String(snapped);
     setEntry(e.target.getAttribute("data-date"), "overtime_hours", snapped);
+  }
+  if(e.target.id === "remarksInput"){
+    state.remarksDraft = e.target.value; // no re-render here, so the cursor position isn't lost while typing
   }
 }
 
