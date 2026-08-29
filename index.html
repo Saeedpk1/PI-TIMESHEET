@@ -215,6 +215,8 @@
   @keyframes spin{to{transform:rotate(360deg);}}
 
   .link-btn{background:none;border:none;color:var(--blue);font-size:13px;font-weight:700;cursor:pointer;padding:0;}
+  .install-btn{color:#B8860B !important;font-weight:800 !important;border-color:#B8860B !important;}
+  .install-link{color:#D4A017 !important;font-weight:800 !important;opacity:1 !important;}
 </style>
 </head>
 <body>
@@ -888,7 +890,7 @@ function renderHeader(){
       </div>
     </div>
     <div class="sub">${roleLabel}${state.user.project_site ? " • " + state.user.project_site : ""}</div>
-    ${canShowInstallButton() ? `<button class="link-btn" id="installAppBtn" style="color:#fff;opacity:.9;margin-top:8px;">⬇ Install app on this phone</button>` : ""}
+    ${canShowInstallButton() ? `<button class="link-btn install-link" id="installAppBtn" style="margin-top:8px;">⬇ Install app on this phone</button>` : ""}
   </header>`;
 }
 
@@ -898,7 +900,7 @@ function renderLogin(){
     <img class="login-logo" src="${LOGO_DATA_URI}" alt="Professional Installation Co">
     <h1>Online Timesheets</h1>
     <p class="hint">${COMPANY_NAME}</p>
-    ${canShowInstallButton() ? `<button class="btn btn-outline" id="installAppBtn" style="margin-bottom:18px;">⬇ Install App on this phone</button>` : ""}
+    ${canShowInstallButton() ? `<button class="btn btn-outline install-btn" id="installAppBtn" style="margin-bottom:18px;">⬇ Install App on this phone</button>` : ""}
     <label>Iqama / ID Number</label>
     <input type="text" inputmode="numeric" id="loginIqama" placeholder="Enter your Iqama or ID number">
     ${state.error ? `<div class="error-box">${state.error}</div>` : ""}
