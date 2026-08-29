@@ -4,9 +4,58 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>Timesheets — Professional Installation Co</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script>
+  // Load required libraries with fallback CDN sources — some networks/firewalls
+  // block one CDN provider but allow another. Shows a clear message if all fail.
+  window.__appBooted = false;
+  function showLoadError(msg){
+    var root = document.getElementById('root');
+    if(root){
+      root.innerHTML = '<div style="padding:40px 24px;text-align:center;font-family:sans-serif;color:#C43B3B;">' + msg + '<br>Check your internet connection and reload.<br><br><button onclick="window.location.reload()" style="margin-top:14px;padding:10px 22px;border-radius:8px;border:1.5px solid #C43B3B;background:#fff;color:#C43B3B;font-weight:700;">Reload</button></div>';
+    }
+  }
+  function loadScriptChain(urls, onDone, onAllFailed){
+    var i = 0;
+    function tryNext(){
+      if(i >= urls.length){ onAllFailed(); return; }
+      var s = document.createElement('script');
+      s.src = urls[i];
+      s.onload = onDone;
+      s.onerror = function(){ i++; tryNext(); };
+      document.head.appendChild(s);
+    }
+    tryNext();
+  }
+  var __loaded = { supabase: false, jspdf: false, autotable: false };
+  function __checkAllLoaded(){
+    if(__loaded.supabase && __loaded.jspdf && __loaded.autotable){
+      window.__librariesAlreadyReady = true;
+      var evt = document.createEvent('Event');
+      evt.initEvent('librariesReady', true, true);
+      document.dispatchEvent(evt);
+    }
+  }
+  loadScriptChain([
+    "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
+    "https://unpkg.com/@supabase/supabase-js@2"
+  ], function(){ __loaded.supabase = true; __checkAllLoaded(); }, function(){ showLoadError("Could not load the database library."); });
+
+  loadScriptChain([
+    "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+    "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"
+  ], function(){ __loaded.jspdf = true; __checkAllLoaded(); }, function(){ showLoadError("Could not load the PDF library."); });
+
+  loadScriptChain([
+    "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js",
+    "https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"
+  ], function(){ __loaded.autotable = true; __checkAllLoaded(); }, function(){ showLoadError("Could not load the PDF table library."); });
+
+  setTimeout(function(){
+    if(!window.__appBooted){
+      showLoadError("This is taking longer than expected to load.");
+    }
+  }, 8000);
+</script>
 <style>
   :root{
     --navy:#0F3556;
@@ -143,7 +192,9 @@
 </style>
 </head>
 <body>
-<div id="root" class="app"></div>
+<div id="root" class="app">
+  <div style="padding:60px 24px;text-align:center;font-family:-apple-system,sans-serif;color:#5B6B7C;">Loading…</div>
+</div>
 
 <script>
 /* ============================================================
@@ -156,14 +207,16 @@ const COMPANY_NAME = "Professional Installation Co";
 
 let sb = null;
 let libraryLoadError = false;
-try{
-  if(typeof supabase === "undefined" || typeof supabase.createClient !== "function"){
+function setupSupabaseClient(){
+  try{
+    if(typeof supabase === "undefined" || typeof supabase.createClient !== "function"){
+      libraryLoadError = true;
+    } else if(SUPABASE_URL.startsWith("http")){
+      sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+  }catch(e){
     libraryLoadError = true;
-  } else if(SUPABASE_URL.startsWith("http")){
-    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
-}catch(e){
-  libraryLoadError = true;
 }
 
 /* ---------------- state ---------------- */
@@ -853,7 +906,9 @@ window.addEventListener("unhandledrejection", function(e){
   console.error("Unhandled rejection:", e.reason);
 });
 
-(async function init(){
+async function init(){
+  window.__appBooted = true;
+  setupSupabaseClient();
   if(!checkConfig()) return;
   document.addEventListener("click", handleDelegatedClick);
   document.addEventListener("change", handleDelegatedChange);
@@ -865,7 +920,14 @@ window.addEventListener("unhandledrejection", function(e){
     else if(state.view === "hr") await loadHrMonth();
   }
   render();
-})();
+}
+
+// Wait for the async-loaded libraries (with CDN fallback) before booting the app.
+if(window.__librariesAlreadyReady){
+  init();
+}else{
+  document.addEventListener("librariesReady", init, { once: true });
+}
 </script>
 </body>
 </html>
