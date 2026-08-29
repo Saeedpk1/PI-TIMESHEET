@@ -154,7 +154,17 @@ const SUPABASE_URL = "https://kprgtqdjzmlpqqbeoqni.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_I_xnS76SAgctI7y0dj08MA_ldElyewe";
 const COMPANY_NAME = "Professional Installation Co";
 
-const sb = (SUPABASE_URL.startsWith("http")) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+let sb = null;
+let libraryLoadError = false;
+try{
+  if(typeof supabase === "undefined" || typeof supabase.createClient !== "function"){
+    libraryLoadError = true;
+  } else if(SUPABASE_URL.startsWith("http")){
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+}catch(e){
+  libraryLoadError = true;
+}
 
 /* ---------------- state ---------------- */
 let state = {
@@ -191,6 +201,20 @@ function toast(msg){
 }
 
 function checkConfig(){
+  if(libraryLoadError){
+    document.getElementById("root").innerHTML = `
+      <div class="login-wrap">
+        <div class="login-logo">TS</div>
+        <h1>Connection problem</h1>
+        <p class="hint">${COMPANY_NAME}</p>
+        <div class="error-box">
+          Some required files didn't load — this usually means a weak or interrupted
+          internet connection. Check your signal/Wi-Fi and reload the page.
+        </div>
+        <button class="btn btn-primary" id="reloadBtn" onclick="window.location.reload()">Reload</button>
+      </div>`;
+    return false;
+  }
   if(!sb){
     document.getElementById("root").innerHTML = `
       <div class="login-wrap">
@@ -214,23 +238,29 @@ async function doLogin(iqama){
   state.error = "";
   if(!iqama){ state.error = "Enter your Iqama / ID number."; render(); return; }
   state.loading = true; render();
-  const { data, error } = await sb.from("ts_employees")
-    .select("*")
-    .eq("iqama_number", iqama.trim())
-    .eq("active", true)
-    .maybeSingle();
-  state.loading = false;
-  if(error || !data){
-    state.error = "No match found. Check your Iqama / ID number, or contact your admin.";
-    render(); return;
+  try{
+    const { data, error } = await sb.from("ts_employees")
+      .select("*")
+      .eq("iqama_number", iqama.trim())
+      .eq("active", true)
+      .maybeSingle();
+    state.loading = false;
+    if(error || !data){
+      state.error = "No match found. Check your Iqama / ID number, or contact your admin.";
+      render(); return;
+    }
+    state.user = data;
+    localStorage.setItem("ts_user", JSON.stringify(data));
+    state.view = data.role === "employee" ? "employee" : (data.role === "supervisor" ? "supervisor" : "hr");
+    if(state.view === "employee") await loadEmployeeMonth();
+    if(state.view === "supervisor") await loadSupervisorList();
+    if(state.view === "hr") await loadHrMonth();
+    render();
+  }catch(e){
+    state.loading = false;
+    state.error = "Connection problem — check your internet and try again.";
+    render();
   }
-  state.user = data;
-  localStorage.setItem("ts_user", JSON.stringify(data));
-  state.view = data.role === "employee" ? "employee" : (data.role === "supervisor" ? "supervisor" : "hr");
-  if(state.view === "employee") await loadEmployeeMonth();
-  if(state.view === "supervisor") await loadSupervisorList();
-  if(state.view === "hr") await loadHrMonth();
-  render();
 }
 
 function logout(){
@@ -811,6 +841,13 @@ function attachViewEvents(){
 }
 
 /* ---------------- boot ---------------- */
+window.addEventListener("error", function(e){
+  console.error("Uncaught error:", e.error || e.message);
+});
+window.addEventListener("unhandledrejection", function(e){
+  console.error("Unhandled rejection:", e.reason);
+});
+
 (async function init(){
   if(!checkConfig()) return;
   document.addEventListener("click", handleDelegatedClick);
