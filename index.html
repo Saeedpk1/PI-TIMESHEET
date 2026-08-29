@@ -4,10 +4,35 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>Timesheets — Professional Installation Co</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1B5A96">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PI Timesheets">
 <script>
   // Load required libraries with fallback CDN sources — some networks/firewalls
   // block one CDN provider but allow another. Shows a clear message if all fail.
   window.__appBooted = false;
+
+  // Install prompt (Android/Chrome) — captured early so it's ready whenever the app shows the button.
+  window.__deferredInstallPrompt = null;
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    window.__deferredInstallPrompt = e;
+    window.dispatchEvent(new Event("pi-install-available"));
+  });
+  window.addEventListener("appinstalled", () => {
+    window.__deferredInstallPrompt = null;
+  });
+
+  // Service worker for offline caching + installability
+  if("serviceWorker" in navigator){
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    });
+  }
+
   function showLoadError(msg){
     var root = document.getElementById('root');
     if(root){
@@ -98,7 +123,7 @@
 
   /* Login */
   .login-wrap{padding:40px 24px;}
-  .login-logo{width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,var(--navy),var(--blue-light));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:22px;margin:0 auto 18px;}
+  .login-logo{width:64px;height:64px;object-fit:contain;display:block;margin:0 auto 18px;}
   .login-wrap h1{text-align:center;font-size:20px;margin:0 0 4px;color:var(--navy);}
   .login-wrap p.hint{text-align:center;color:var(--muted);font-size:13px;margin:0 0 26px;}
   label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.4px;}
@@ -205,6 +230,7 @@
 const SUPABASE_URL = "https://kprgtqdjzmlpqqbeoqni.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_I_xnS76SAgctI7y0dj08MA_ldElyewe";
 const COMPANY_NAME = "Professional Installation Co";
+const LOGO_DATA_URI = "data:image/jpeg;base64,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";
 
 let sb = null;
 let libraryLoadError = false;
@@ -245,6 +271,15 @@ function projectName(id){
   const p = state.projects.find(x=>x.id===id);
   return p ? p.name : "";
 }
+function otOptions(selected){
+  const values = [0, 0.5, 1, 1.5, 2, 3, 4, 5, 6, 7, 8];
+  let opts = "";
+  values.forEach(h=>{
+    const val = h.toFixed(1);
+    opts += `<option value="${val}" ${Number(selected)===h?"selected":""}>${h===0?"0":(Number.isInteger(h)?h:val)}</option>`;
+  });
+  return opts;
+}
 async function loadProjects(){
   const { data } = await sb.from("ts_projects").select("*").order("name");
   state.projects = data || [];  // includes inactive, so historical entries still resolve names
@@ -281,6 +316,7 @@ function pad(n){ return String(n).padStart(2,"0"); }
 function fmtDate(y,m,day){ return `${y}-${pad(m+1)}-${pad(day)}`; }
 function isFriday(y,m,day){ return new Date(y,m,day).getDay() === 5; }
 function dayName(y,m,day){ return new Date(y,m,day).toLocaleDateString("en-GB",{weekday:"short"}); }
+function dayNameFull(y,m,day){ return new Date(y,m,day).toLocaleDateString("en-GB",{weekday:"long"}); }
 
 function toast(msg){
   const t = document.createElement("div");
@@ -289,11 +325,26 @@ function toast(msg){
   setTimeout(()=>t.remove(), 2400);
 }
 
+function isIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream; }
+function isStandalone(){ return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true; }
+function canShowInstallButton(){ return !isStandalone() && (window.__deferredInstallPrompt || isIOS()); }
+async function handleInstallClick(){
+  if(window.__deferredInstallPrompt){
+    window.__deferredInstallPrompt.prompt();
+    try{ await window.__deferredInstallPrompt.userChoice; }catch(e){}
+    window.__deferredInstallPrompt = null;
+    render();
+  }else if(isIOS()){
+    alert("To install: tap the Share button (square with an arrow) at the bottom of Safari, then choose \"Add to Home Screen\".");
+  }
+}
+window.addEventListener("pi-install-available", ()=> render());
+
 function checkConfig(){
   if(libraryLoadError){
     document.getElementById("root").innerHTML = `
       <div class="login-wrap">
-        <div class="login-logo">TS</div>
+        <img class="login-logo" src="${LOGO_DATA_URI}" alt="Professional Installation Co">
         <h1>Connection problem</h1>
         <p class="hint">${COMPANY_NAME}</p>
         <div class="error-box">
@@ -307,7 +358,7 @@ function checkConfig(){
   if(!sb){
     document.getElementById("root").innerHTML = `
       <div class="login-wrap">
-        <div class="login-logo">TS</div>
+        <img class="login-logo" src="${LOGO_DATA_URI}" alt="Professional Installation Co">
         <h1>Setup needed</h1>
         <p class="hint">This app needs your Supabase project connected before it can run.</p>
         <div class="error-box">
@@ -583,6 +634,95 @@ async function loadHrMonth(){
   render();
 }
 
+function drawLetterhead(doc){
+  try{ doc.addImage(LOGO_DATA_URI, "JPEG", 40, 18, 26, 26); }catch(e){}
+  doc.setFontSize(11); doc.setTextColor(15,53,86); doc.setFont(undefined, "bold");
+  doc.text(COMPANY_NAME, 74, 30);
+  doc.setFont(undefined, "normal");
+  doc.setFontSize(8); doc.setTextColor(120,120,120);
+  doc.text("Monthly Timesheets", 74, 40);
+  doc.setDrawColor(220,229,238);
+  doc.line(40, 52, 555, 52);
+}
+
+async function downloadMyTimesheetPdf(){
+  state.loading = true; render();
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const y = state.monthDate.getFullYear(), m = state.monthDate.getMonth(), nd = daysInMonth(state.monthDate);
+
+    drawLetterhead(doc);
+    doc.setFontSize(13); doc.setTextColor(15,53,86);
+    doc.text(state.user.name || "Employee", 40, 68);
+    doc.setFontSize(9); doc.setTextColor(90,90,90);
+    doc.text(`No: ${state.user.employee_no || "-"}   Site: ${state.user.project_site || "-"}   Month: ${monthLabel(state.monthDate)}`, 40, 82);
+
+    const body = [];
+    const empProjectDays = {};
+    for(let day=1; day<=nd; day++){
+      const dstr = fmtDate(y,m,day);
+      const v = state.entries[dstr] || { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0, project_id: "" };
+      const statusLabel = v.status === "Present" ? "P" : v.status;
+      body.push([ String(day).padStart(2,"0"), dayNameFull(y,m,day), statusLabel, v.status==="Present" ? "8.0" : "0.0", (Number(v.overtime_hours)||0).toFixed(1), projectName(v.project_id) || "-" ]);
+      if(v.status === "Present" && v.project_id){
+        const pname = projectName(v.project_id) || "Unassigned";
+        empProjectDays[pname] = (empProjectDays[pname] || 0) + 1;
+      }
+    }
+    doc.autoTable({
+      startY: 92,
+      head: [["Date","Day","Status","Reg. Hrs","OT Hrs","Project"]],
+      body,
+      styles: { fontSize: 8.5, cellPadding: 3 },
+      headStyles: { fillColor: [27,90,150] },
+      theme: "grid",
+      margin: { left: 40, right: 40 },
+      tableWidth: "wrap",
+      columnStyles: {
+        0: { cellWidth: 42 }, 1: { cellWidth: 90 }, 2: { cellWidth: 55 },
+        3: { cellWidth: 68 }, 4: { cellWidth: 65 }, 5: { cellWidth: 195 }
+      },
+      pageBreak: "avoid"
+    });
+
+    const totals = computeTotals(state.entries);
+    let y2 = doc.lastAutoTable.finalY + 16;
+    doc.setFontSize(9); doc.setTextColor(40,40,40);
+    doc.text(`Present: ${totals.present}   Absent: ${totals.absent}   Sick: ${totals.sick}   Leave: ${totals.leave}   OT hrs: ${totals.ot.toFixed(1)}   Total hrs: ${totals.totalHours.toFixed(1)}`, 40, y2);
+
+    const projectEntries = Object.entries(empProjectDays);
+    if(projectEntries.length){
+      y2 += 14;
+      doc.setFontSize(9); doc.setTextColor(90,90,90);
+      const summary = projectEntries.map(([pname, days]) => `${pname}: ${days} day${days===1?"":"s"}`).join("   •   ");
+      doc.text(`By project — ${summary}`, 40, y2);
+    }
+
+    y2 += 26;
+    doc.setFontSize(9); doc.setTextColor(90,90,90);
+    const sub = state.submission;
+    const selfSubmitted = sub && sub.approved_by === sub.employee_id;
+    const statusText = !sub ? "Status: Draft — not yet submitted"
+      : sub.status === "approved" ? (selfSubmitted ? "Self-submitted (supervisor/HR — no review required):" : "Approved & signed by supervisor:")
+      : sub.status === "submitted" ? "Status: Submitted — awaiting supervisor approval"
+      : sub.status === "rejected" ? "Status: Sent back for changes"
+      : "Status: Draft — not yet submitted";
+    doc.text(statusText, 40, y2);
+    if(sub && sub.status === "approved" && sub.signature_data){
+      try{ doc.addImage(sub.signature_data, "PNG", 40, y2+8, 130, 45); }catch(e){}
+      doc.text(`Approved: ${sub.approved_at ? new Date(sub.approved_at).toLocaleString() : "-"}`, 200, y2+30);
+    }
+
+    doc.save(`Timesheet_${(state.user.name||"me").replace(/\s+/g,"_")}_${monthKey(state.monthDate)}.pdf`);
+    toast("PDF downloaded.");
+  }catch(e){
+    toast("Could not generate PDF. Try again.");
+  }
+  state.loading = false;
+  render();
+}
+
 async function generateCombinedPdf(){
   if(!state.hrApproved.length){ toast("No approved timesheets for this month yet."); return; }
   state.loading = true; render();
@@ -591,14 +731,9 @@ async function generateCombinedPdf(){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "a4" });
 
-  // cover page
-  doc.setFontSize(18); doc.setTextColor(15,53,86);
-  doc.text(COMPANY_NAME, 40, 60);
-  doc.setFontSize(13); doc.setTextColor(60,60,60);
-  doc.text(`Monthly Timesheets — ${monthLabel(new Date(y, m-1, 1))}`, 40, 82);
-  doc.setFontSize(10); doc.setTextColor(120,120,120);
-  doc.text(`Generated ${new Date().toLocaleString()}  •  ${state.hrApproved.length} approved employee(s)`, 40, 100);
-
+  // ---- Pass 1: fetch every employee's data and compute the company-wide project summary ----
+  const employeeData = [];
+  const companyProjectDays = {}; // project name -> days worked, across everyone
   for(let i=0; i<state.hrApproved.length; i++){
     const sub = state.hrApproved[i];
     const emp = sub.ts_employees;
@@ -613,31 +748,91 @@ async function generateCombinedPdf(){
     }
     const totals = computeTotals(entries);
 
+    // per-employee project day breakdown
+    const empProjectDays = {};
+    Object.values(entries).forEach(v=>{
+      if(v.status === "Present" && v.project_id){
+        const pname = projectName(v.project_id) || "Unassigned";
+        empProjectDays[pname] = (empProjectDays[pname] || 0) + 1;
+        companyProjectDays[pname] = (companyProjectDays[pname] || 0) + 1;
+      }
+    });
+
+    employeeData.push({ sub, emp, entries, totals, empProjectDays });
+  }
+
+  // ---- Cover page ----
+  drawLetterhead(doc);
+  doc.setFontSize(16); doc.setTextColor(15,53,86);
+  doc.text(`Monthly Timesheets — ${monthLabel(new Date(y, m-1, 1))}`, 40, 78);
+  doc.setFontSize(10); doc.setTextColor(120,120,120);
+  doc.text(`Generated ${new Date().toLocaleString()}  •  ${state.hrApproved.length} approved employee(s)`, 40, 96);
+
+  const summaryRows = Object.entries(companyProjectDays)
+    .sort((a,b)=> b[1]-a[1])
+    .map(([pname, days]) => [pname, String(days)]);
+  if(summaryRows.length){
+    doc.setFontSize(12); doc.setTextColor(15,53,86);
+    doc.text("Days worked by project (all employees)", 40, 124);
+    doc.autoTable({
+      startY: 134,
+      head: [["Project","Days worked"]],
+      body: summaryRows,
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [27,90,150] },
+      theme: "grid",
+      margin: { left: 40, right: 40 },
+      tableWidth: 300
+    });
+  }
+
+  // ---- Pass 2: one page per employee ----
+  for(const { sub, emp, entries, totals, empProjectDays } of employeeData){
     doc.addPage();
-    doc.setFontSize(14); doc.setTextColor(15,53,86);
-    doc.text(emp?.name || "Employee", 40, 44);
-    doc.setFontSize(10); doc.setTextColor(90,90,90);
-    doc.text(`No: ${emp?.employee_no || "-"}   Site: ${emp?.project_site || "-"}   Month: ${monthLabel(new Date(y,m-1,1))}`, 40, 60);
+    drawLetterhead(doc);
+    doc.setFontSize(13); doc.setTextColor(15,53,86);
+    doc.text(emp?.name || "Employee", 40, 68);
+    doc.setFontSize(9); doc.setTextColor(90,90,90);
+    doc.text(`No: ${emp?.employee_no || "-"}   Site: ${emp?.project_site || "-"}   Month: ${monthLabel(new Date(y,m-1,1))}`, 40, 82);
 
     const body = [];
     for(let day=1; day<=nd; day++){
       const dstr = fmtDate(y, m-1, day);
       const v = entries[dstr];
-      body.push([ String(day).padStart(2,"0"), dayName(y,m-1,day), v.status, v.status==="Present" ? "8.0" : "0.0", (Number(v.overtime_hours)||0).toFixed(1), projectName(v.project_id) || "-" ]);
+      const statusLabel = v.status === "Present" ? "P" : v.status;
+      body.push([ String(day).padStart(2,"0"), dayNameFull(y,m-1,day), statusLabel, v.status==="Present" ? "8.0" : "0.0", (Number(v.overtime_hours)||0).toFixed(1), projectName(v.project_id) || "-" ]);
     }
     doc.autoTable({
-      startY: 72,
+      startY: 92,
       head: [["Date","Day","Status","Reg. Hrs","OT Hrs","Project"]],
       body,
-      styles: { fontSize: 8, cellPadding: 3 },
+      styles: { fontSize: 8.5, cellPadding: 3 },
       headStyles: { fillColor: [27,90,150] },
       theme: "grid",
-      margin: { left: 40, right: 40 }
+      margin: { left: 40, right: 40 },
+      tableWidth: "wrap",
+      columnStyles: {
+        0: { cellWidth: 42 },
+        1: { cellWidth: 90 },
+        2: { cellWidth: 55 },
+        3: { cellWidth: 68 },
+        4: { cellWidth: 65 },
+        5: { cellWidth: 195 }
+      },
+      pageBreak: "avoid"
     });
 
     let y2 = doc.lastAutoTable.finalY + 16;
     doc.setFontSize(9); doc.setTextColor(40,40,40);
     doc.text(`Present: ${totals.present}   Absent: ${totals.absent}   Sick: ${totals.sick}   Leave: ${totals.leave}   OT hrs: ${totals.ot.toFixed(1)}   Total hrs: ${totals.totalHours.toFixed(1)}`, 40, y2);
+
+    const projectEntries = Object.entries(empProjectDays);
+    if(projectEntries.length){
+      y2 += 14;
+      doc.setFontSize(9); doc.setTextColor(90,90,90);
+      const summary = projectEntries.map(([pname, days]) => `${pname}: ${days} day${days===1?"":"s"}`).join("   •   ");
+      doc.text(`By project — ${summary}`, 40, y2);
+    }
 
     y2 += 26;
     doc.setFontSize(9); doc.setTextColor(90,90,90);
@@ -685,18 +880,25 @@ function renderHeader(){
   return `
   <header class="top">
     <button class="logout" id="logoutBtn">Log out</button>
-    <div class="brand">${COMPANY_NAME}</div>
-    <div class="title">${state.user.name}</div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <img src="${LOGO_DATA_URI}" alt="Professional Installation Co" style="width:34px;height:34px;object-fit:contain;background:#fff;border-radius:8px;padding:2px;flex-shrink:0;">
+      <div>
+        <div class="brand">${COMPANY_NAME}</div>
+        <div class="title">${state.user.name}</div>
+      </div>
+    </div>
     <div class="sub">${roleLabel}${state.user.project_site ? " • " + state.user.project_site : ""}</div>
+    ${canShowInstallButton() ? `<button class="link-btn" id="installAppBtn" style="color:#fff;opacity:.9;margin-top:8px;">⬇ Install app on this phone</button>` : ""}
   </header>`;
 }
 
 function renderLogin(){
   return `
   <div class="login-wrap">
-    <div class="login-logo">TS</div>
+    <img class="login-logo" src="${LOGO_DATA_URI}" alt="Professional Installation Co">
     <h1>Online Timesheets</h1>
     <p class="hint">${COMPANY_NAME}</p>
+    ${canShowInstallButton() ? `<button class="btn btn-outline" id="installAppBtn" style="margin-bottom:18px;">⬇ Install App on this phone</button>` : ""}
     <label>Iqama / ID Number</label>
     <input type="text" inputmode="numeric" id="loginIqama" placeholder="Enter your Iqama or ID number">
     ${state.error ? `<div class="error-box">${state.error}</div>` : ""}
@@ -745,7 +947,7 @@ function renderEmployeeView(){
           ${projectOptions}
         </select>
       </td>
-      <td><input class="ot-input" type="number" min="0" step="0.5" value="${v.overtime_hours||0}" data-date="${dstr}" data-field="overtime_hours" ${locked?"disabled":""}></td>
+      <td><input class="ot-input" type="number" min="0" max="50" step="0.5" value="${v.overtime_hours||0}" data-prev="${v.overtime_hours||0}" data-date="${dstr}" data-field="overtime_hours" ${locked?"disabled":""}></td>
     </tr>`;
   }
 
@@ -760,6 +962,10 @@ function renderEmployeeView(){
       <div class="summary-item"><div class="n">${totals.leave}</div><div class="l">Leave</div></div>
       <div class="summary-item"><div class="n">${totals.ot.toFixed(1)}</div><div class="l">OT Hrs</div></div>
       <div class="summary-item"><div class="n">${totals.totalHours.toFixed(1)}</div><div class="l">Total Hrs</div></div>
+    </div>
+    <div class="row-between" style="margin-bottom:10px;">
+      <span></span>
+      <button class="link-btn" id="downloadMyPdfBtn">⬇ Download PDF</button>
     </div>
     <div class="card" style="padding:8px 6px 4px;">
       <table class="grid">
@@ -944,6 +1150,7 @@ function handleDelegatedClick(e){
 
   if(el("logoutBtn")){ logout(); return; }
   if(el("loginBtn")){ doLogin(document.getElementById("loginIqama").value); return; }
+  if(el("installAppBtn")){ handleInstallClick(); return; }
 
   const navBtn = e.target.closest("[data-nav]");
   if(navBtn){
@@ -965,6 +1172,7 @@ function handleDelegatedClick(e){
   }
 
   if(el("mySelfTimesheetBtn")){ state.view = "employee"; loadEmployeeMonth(); return; }
+  if(el("downloadMyPdfBtn")){ downloadMyTimesheetPdf(); return; }
   if(el("manageProjectsBtn")){ state.view = "hr-projects"; render(); return; }
   if(el("backToHrBtn")){ state.view = "hr"; loadHrMonth(); return; }
   if(el("addProjectBtn")){ addProject(); return; }
@@ -1023,9 +1231,26 @@ async function handleAddProjectFromEmployee(dstr, selectEl){
   toast(`"${name}" added and selected.`);
 }
 
+const OT_ALLOWED = [0, 0.5, 1, 1.5, 2];
+for(let n=3; n<=50; n++) OT_ALLOWED.push(n);
+function snapOtValue(newVal, oldVal){
+  if(OT_ALLOWED.some(v => Math.abs(v - newVal) < 0.001)) return newVal; // already a valid step
+  if(newVal > oldVal){
+    const next = OT_ALLOWED.find(v => v > oldVal + 0.001);
+    return next !== undefined ? next : OT_ALLOWED[OT_ALLOWED.length-1];
+  }else{
+    const prevCandidates = OT_ALLOWED.filter(v => v < oldVal - 0.001);
+    return prevCandidates.length ? prevCandidates[prevCandidates.length-1] : 0;
+  }
+}
 function handleDelegatedInput(e){
   if(e.target.classList.contains("ot-input")){
-    setEntry(e.target.getAttribute("data-date"), "overtime_hours", e.target.value);
+    const newVal = parseFloat(e.target.value) || 0;
+    const oldVal = parseFloat(e.target.dataset.prev || "0");
+    const snapped = snapOtValue(newVal, oldVal);
+    if(snapped !== newVal) e.target.value = snapped;
+    e.target.dataset.prev = String(snapped);
+    setEntry(e.target.getAttribute("data-date"), "overtime_hours", snapped);
   }
 }
 
