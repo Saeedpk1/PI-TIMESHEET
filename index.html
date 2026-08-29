@@ -210,19 +210,18 @@ function checkConfig(){
 }
 
 /* ---------------- login ---------------- */
-async function doLogin(phone, iqama){
+async function doLogin(iqama){
   state.error = "";
-  if(!phone || !iqama){ state.error = "Enter both phone number and Iqama number."; render(); return; }
+  if(!iqama){ state.error = "Enter your Iqama / ID number."; render(); return; }
   state.loading = true; render();
   const { data, error } = await sb.from("ts_employees")
     .select("*")
-    .eq("phone", phone.trim())
     .eq("iqama_number", iqama.trim())
     .eq("active", true)
     .maybeSingle();
   state.loading = false;
   if(error || !data){
-    state.error = "No match found. Check your phone number and Iqama number, or contact your admin.";
+    state.error = "No match found. Check your Iqama / ID number, or contact your admin.";
     render(); return;
   }
   state.user = data;
@@ -565,17 +564,15 @@ function renderLogin(){
     <div class="login-logo">TS</div>
     <h1>Online Timesheets</h1>
     <p class="hint">${COMPANY_NAME}</p>
-    <label>Phone Number</label>
-    <input type="tel" id="loginPhone" placeholder="e.g. 00966590900938">
-    <label>Iqama Number</label>
-    <input type="password" id="loginIqama" placeholder="Your Iqama number">
+    <label>Iqama / ID Number</label>
+    <input type="text" inputmode="numeric" id="loginIqama" placeholder="Enter your Iqama or ID number">
     ${state.error ? `<div class="error-box">${state.error}</div>` : ""}
     <button class="btn btn-primary" id="loginBtn" ${state.loading?"disabled":""}>${state.loading?'<span class="spinner"></span>Signing in…':'Sign in'}</button>
   </div>`;
 }
 function attachLoginEvents(){
   document.getElementById("loginBtn").onclick = ()=>{
-    doLogin(document.getElementById("loginPhone").value, document.getElementById("loginIqama").value);
+    doLogin(document.getElementById("loginIqama").value);
   };
 }
 
