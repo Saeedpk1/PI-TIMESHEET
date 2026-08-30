@@ -1479,17 +1479,28 @@ async function generateWpsPayroll(payrollGroup){
     ws.addRow(headerRow);
     rows.forEach(r => ws.addRow(r));
 
-    // Auto-fit each column to its widest cell content
-    const allRowsForWidth = [headerRow, ...rows];
-    const colCount = headerRow.length;
-    const widths = new Array(colCount).fill(4);
-    allRowsForWidth.forEach(r => {
-      r.forEach((val, idx) => {
-        const len = (val === null || val === undefined) ? 0 : String(val).length;
-        if(len + 2 > widths[idx]) widths[idx] = len + 2;
+    // Exact column widths and cell alignment matching the bank's reference WPS file
+    ws.columns = [
+      { width: 7.14 },   // A - record type
+      { width: 9.43 },   // B - amount
+      { width: 26.0 },   // C - IBAN
+      { width: 44.86 },  // D - name
+      { width: 14.71 },  // E - bank code
+      { width: 20.71 },  // F - description
+      { width: 10.57 },  // G - basic
+      { width: 8.43 },   // H - housing
+      { width: 10.29 },  // I - other
+      { width: 10.86 },  // J - deduction
+      { width: 14.43 },  // K - iqama
+      { width: 20.0 }    // L - blank
+    ];
+    const centerCols = [2, 5, 7, 8, 9, 10]; // B, E, G, H, I, J
+    ws.eachRow((row, rowNum) => {
+      if(rowNum === 1) return; // header row keeps default alignment, matching the reference file
+      centerCols.forEach(colNum => {
+        row.getCell(colNum).alignment = { horizontal: "center" };
       });
     });
-    ws.columns = widths.map(w => ({ width: Math.min(w, 40) }));
 
     const filename = `WPY${dd}${mm}${yyyy}${String(fileNum).padStart(2,"0")}.xlsx`;
     await downloadWorkbook(wb, filename);
