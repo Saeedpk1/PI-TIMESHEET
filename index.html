@@ -51,9 +51,9 @@
     }
     tryNext();
   }
-  var __loaded = { supabase: false, jspdf: false, autotable: false, xlsx: false };
+  var __loaded = { supabase: false, jspdf: false, autotable: false, xlsx: false, html2canvas: false };
   function __checkAllLoaded(){
-    if(__loaded.supabase && __loaded.jspdf && __loaded.autotable && __loaded.xlsx){
+    if(__loaded.supabase && __loaded.jspdf && __loaded.autotable && __loaded.xlsx && __loaded.html2canvas){
       window.__librariesAlreadyReady = true;
       var evt = document.createEvent('Event');
       evt.initEvent('librariesReady', true, true);
@@ -79,6 +79,11 @@
     "https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js",
     "https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"
   ], function(){ __loaded.xlsx = true; __checkAllLoaded(); }, function(){ showLoadError("Could not load the spreadsheet library."); });
+
+  loadScriptChain([
+    "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+    "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"
+  ], function(){ __loaded.html2canvas = true; __checkAllLoaded(); }, function(){ showLoadError("Could not load the Arabic rendering library."); });
 
   setTimeout(function(){
     if(!window.__appBooted){
@@ -671,7 +676,7 @@ async function saveSigPad(){
 async function loadHrMonth(){
   state.loading = true; render();
   const { data } = await sb.from("ts_timesheet_submissions")
-    .select("*, ts_employees:employee_id(name, employee_no, project_site, hourly_rate, supervisor_id)")
+    .select("*, ts_employees:employee_id(name, name_ar, employee_no, project_site, hourly_rate, supervisor_id)")
     .eq("month", state.hrMonth).eq("status", "approved");
   state.hrApproved = data || [];
   state.hrExcluded = new Set();
@@ -1031,6 +1036,155 @@ async function generateSaudiTimesheetPdf(){
   await buildCombinedPdf(included, "SAUDI TIME SHEET", `Saudi_Timesheets_${state.hrMonth}.pdf`);
 }
 
+const AR_DAY_NAMES = ["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"]; // index = Date.getDay()
+const AR_STATUS = { Present: "حاضر", Absent: "غائب", Leave: "إجازة", Friday: "عطلة", Holiday: "عطلة رسمية" };
+
+async function generateSaudiArabicPdf(){
+  if(!state.hrmSupervisorId){ toast("Mohammed's HRM team isn't set up yet."); return; }
+  const included = state.hrApproved.filter(s => !state.hrExcluded.has(s.employee_id) && s.ts_employees?.supervisor_id === state.hrmSupervisorId);
+  if(!included.length){ toast("No employees to include in this PDF."); return; }
+
+  state.loading = true; render();
+  const stage = document.createElement("div");
+  stage.style.cssText = "position:fixed;top:0;left:-9999px;width:760px;background:#fff;";
+  document.body.appendChild(stage);
+
+  try{
+    const [y, m] = state.hrMonth.split("-").map(Number);
+    const nd = new Date(y, m, 0).getDate();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const pageW = 595.28, pageH = 841.89, margin = 20;
+
+    async function renderStageToPdfPage(){
+      const canvas = await html2canvas(stage, { scale: 2, backgroundColor: "#ffffff" });
+      const imgW = pageW - margin*2;
+      const imgH = imgW * canvas.height / canvas.width;
+      doc.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", margin, margin, imgW, Math.min(imgH, pageH - margin*2));
+    }
+
+    // ---- Cover page ----
+    const monthAr = monthLabel(new Date(y, m-1, 1));
+    stage.innerHTML = `
+      <div dir="rtl" lang="ar" style="font-family:Tahoma,Arial,sans-serif;padding:24px;">
+        <div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid #1B5A96;padding-bottom:14px;margin-bottom:20px;">
+          <img src="${LOGO_DATA_URI}" style="width:44px;height:44px;">
+          <div>
+            <div style="font-size:18px;font-weight:800;color:#0F3556;">${COMPANY_NAME}</div>
+            <div style="font-size:13px;color:#777;">كشف الدوام الشهري</div>
+          </div>
+        </div>
+        <div style="font-size:22px;font-weight:800;color:#0F3556;margin-bottom:6px;">كشف دوام السعوديين — ${monthAr}</div>
+        <div style="font-size:13px;color:#888;">تم الإنشاء ${new Date().toLocaleString("ar-SA")} • عدد الموظفين: ${included.length}</div>
+      </div>`;
+    await renderStageToPdfPage();
+
+    // ---- One page per employee ----
+    for(const sub of included){
+      const emp = sub.ts_employees;
+      const { data: entryRows } = await sb.from("ts_timesheet_entries").select("*")
+        .eq("employee_id", sub.employee_id)
+        .gte("entry_date", fmtDate(y, m-1, 1)).lte("entry_date", fmtDate(y, m-1, nd));
+
+      const entries = {};
+      for(let day=1; day<=nd; day++){
+        const dstr = fmtDate(y, m-1, day);
+        const ex = (entryRows||[]).find(r=>r.entry_date===dstr);
+        entries[dstr] = ex ? {status:ex.status, overtime_hours:ex.overtime_hours, project_id: ex.project_id || ""} : {status: isFriday(y,m-1,day)?"Friday":"Absent", overtime_hours:0, project_id: ""};
+      }
+      const totals = computeTotals(entries);
+      const empProjectDays = {};
+      Object.values(entries).forEach(v=>{
+        if(v.status === "Present" && v.project_id){
+          const pname = projectName(v.project_id) || "";
+          if(pname) empProjectDays[pname] = (empProjectDays[pname] || 0) + 1;
+        }
+      });
+
+      let rowsHtml = "";
+      for(let day=1; day<=nd; day++){
+        const dstr = fmtDate(y, m-1, day);
+        const v = entries[dstr];
+        const d = new Date(y, m-1, day);
+        const isFri = v.status === "Friday";
+        rowsHtml += `<tr style="${isFri ? "background:#FDE4E4;" : (day%2===0 ? "background:#F8FAFC;" : "")}">
+          <td style="padding:3px 6px;border:1px solid #C9D6E3;text-align:center;">${day}</td>
+          <td style="padding:3px 6px;border:1px solid #C9D6E3;text-align:center;">${AR_DAY_NAMES[d.getDay()]}</td>
+          <td style="padding:3px 6px;border:1px solid #C9D6E3;text-align:center;font-weight:${isFri?"700":"400"};color:${isFri?"#B42828":"#222"};">${AR_STATUS[v.status] || v.status}</td>
+          <td style="padding:3px 6px;border:1px solid #C9D6E3;text-align:center;">${v.status==="Present" ? "8.0" : "0.0"}</td>
+          <td style="padding:3px 6px;border:1px solid #C9D6E3;text-align:center;">${(Number(v.overtime_hours)||0).toFixed(1)}</td>
+          <td style="padding:3px 6px;border:1px solid #C9D6E3;text-align:center;">${projectName(v.project_id) || "-"}</td>
+        </tr>`;
+      }
+
+      const projRowsHtml = Object.entries(empProjectDays).map(([pname, days]) =>
+        `<tr><td style="padding:3px 8px;border:1px solid #C9D6E3;">${pname}</td><td style="padding:3px 8px;border:1px solid #C9D6E3;text-align:center;">${days}</td></tr>`
+      ).join("");
+
+      const selfSubmitted = sub.approved_by === sub.employee_id;
+      const approvedText = selfSubmitted
+        ? "تم التقديم الذاتي (بدون الحاجة لمراجعة)"
+        : "معتمد وموقع من قبل المشرف";
+      const approvedDate = sub.approved_at ? new Date(sub.approved_at).toLocaleString("ar-SA") : "-";
+      const displayName = emp?.name_ar || emp?.name || "";
+
+      stage.innerHTML = `
+        <div dir="rtl" lang="ar" style="font-family:Tahoma,Arial,sans-serif;padding:20px;font-size:12px;color:#222;">
+          <div style="display:flex;align-items:center;gap:10px;border-bottom:2px solid #1B5A96;padding-bottom:10px;margin-bottom:14px;">
+            <img src="${LOGO_DATA_URI}" style="width:32px;height:32px;">
+            <div>
+              <div style="font-size:14px;font-weight:800;color:#0F3556;">${COMPANY_NAME}</div>
+              <div style="font-size:10px;color:#888;">كشف الدوام الشهري</div>
+            </div>
+          </div>
+          <div style="font-size:16px;font-weight:800;color:#0F3556;margin-bottom:2px;">${displayName}</div>
+          <div style="font-size:11px;color:#888;margin-bottom:12px;">الرقم الوظيفي: ${emp?.employee_no || "-"}   الشهر: ${monthAr}</div>
+          <table style="width:100%;border-collapse:collapse;font-size:10.5px;">
+            <thead>
+              <tr style="background:#1B5A96;color:#fff;">
+                <th style="padding:5px 4px;border:1px solid #1B5A96;">التاريخ</th>
+                <th style="padding:5px 4px;border:1px solid #1B5A96;">اليوم</th>
+                <th style="padding:5px 4px;border:1px solid #1B5A96;">الحالة</th>
+                <th style="padding:5px 4px;border:1px solid #1B5A96;">ساعات العمل</th>
+                <th style="padding:5px 4px;border:1px solid #1B5A96;">ساعات إضافية</th>
+                <th style="padding:5px 4px;border:1px solid #1B5A96;">المشروع</th>
+              </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+          <div style="margin-top:12px;font-size:11px;">
+            أيام الحضور: ${totals.present}&nbsp;&nbsp;&nbsp;أيام الغياب: ${totals.absent}&nbsp;&nbsp;&nbsp;أيام الإجازة: ${totals.leave}&nbsp;&nbsp;&nbsp;
+            إجمالي الساعات الإضافية: ${totals.ot.toFixed(1)}&nbsp;&nbsp;&nbsp;إجمالي الساعات: ${totals.totalHours.toFixed(1)}
+          </div>
+          ${projRowsHtml ? `
+          <div style="margin-top:12px;font-size:12px;font-weight:700;color:#0F3556;">أيام العمل حسب المشروع</div>
+          <table style="border-collapse:collapse;font-size:10.5px;margin-top:4px;">
+            <thead><tr style="background:#1B5A96;color:#fff;">
+              <th style="padding:4px 10px;border:1px solid #1B5A96;">المشروع</th>
+              <th style="padding:4px 10px;border:1px solid #1B5A96;">عدد الأيام</th>
+            </tr></thead>
+            <tbody>${projRowsHtml}</tbody>
+          </table>` : ""}
+          <div style="margin-top:16px;font-size:11px;color:#666;">${approvedText}</div>
+          ${(!selfSubmitted && sub.signature_data) ? `<img src="${sub.signature_data}" style="width:110px;height:auto;margin-top:6px;">` : ""}
+          <div style="font-size:10px;color:#888;margin-top:4px;">تاريخ الاعتماد: ${approvedDate}</div>
+          ${sub.remarks ? `<div style="margin-top:10px;font-size:11px;"><b>ملاحظات:</b> <span style="direction:ltr;unicode-bidi:embed;">${sub.remarks}</span></div>` : ""}
+        </div>`;
+      doc.addPage();
+      await renderStageToPdfPage();
+    }
+
+    doc.save(`Saudi_Timesheet_Arabic_${state.hrMonth}.pdf`);
+    toast("Arabic PDF downloaded.");
+  }catch(e){
+    console.error("Arabic PDF error:", e);
+    toast("Arabic PDF error: " + (e && e.message ? e.message : "unknown"));
+  }
+  document.body.removeChild(stage);
+  state.loading = false;
+  render();
+}
+
 async function buildCombinedPdf(included, titleText, filename){
   if(!included.length){ toast("No employees to include in this PDF."); return; }
   state.loading = true; render();
@@ -1235,7 +1389,7 @@ function renderMain(){
 }
 
 function renderHeader(){
-  const roleLabel = { employee:"Employee", supervisor:"Supervisor", hr:"HR" }[state.user.role] || "";
+  const roleLabel = state.user.iqama_number === "1091504728" ? "HR Manager" : ({ employee:"Employee", supervisor:"Supervisor", hr:"HR" }[state.user.role] || "");
   return `
   <header class="top">
     <button class="logout" id="logoutBtn">Log out</button>
@@ -1482,7 +1636,7 @@ function renderHrView(){
       </label>
       <div style="flex:1;min-width:0;">
         <div class="name">${s.ts_employees?.name || ""}</div>
-        <div class="sub">${s.ts_employees?.employee_no || ""} ${s.ts_employees?.project_site ? "• " + s.ts_employees.project_site : ""}${isHrmTeam(s) ? " • 🇸🇦 HRM" : ""}</div>
+        <div class="sub">${s.ts_employees?.employee_no || ""} ${s.ts_employees?.project_site ? "• " + s.ts_employees.project_site : ""}</div>
       </div>
       <span class="badge badge-approved">Approved</span>
       <button class="link-btn" data-delete-sub="${s.employee_id}" style="color:var(--absent) !important;font-size:11px;">🗑 Delete</button>
@@ -1511,6 +1665,7 @@ function renderHrView(){
     <div style="margin-top:10px;">${rows}</div>
     <button class="btn btn-primary" id="combinedPdfBtn" style="margin-top:14px;">⬇ Download combined PDF (${mainCount})</button>
     <button class="btn btn-primary" id="saudiPdfBtn" style="margin-top:10px;background:linear-gradient(135deg,#1C8A4E,#25A85F);">⬇ Download SAUDI TIME SHEET (${saudiCount})</button>
+    <button class="btn btn-primary" id="saudiArabicPdfBtn" style="margin-top:10px;background:linear-gradient(135deg,#8A5A1C,#B87F2E);">⬇ تحميل كشف الدوام (Arabic) (${saudiCount})</button>
     <button class="btn btn-outline" id="salarySheetBtn" style="margin-top:10px;">📊 Generate Salary Sheet (Excel)</button>
   `;
 }
@@ -1592,6 +1747,7 @@ function handleDelegatedClick(e){
   if(el("rejectBtn")){ rejectTimesheet(); return; }
   if(el("combinedPdfBtn")){ generateCombinedPdf(); return; }
   if(el("saudiPdfBtn")){ generateSaudiTimesheetPdf(); return; }
+  if(el("saudiArabicPdfBtn")){ generateSaudiArabicPdf(); return; }
   if(el("salarySheetBtn")){ generateSalarySheet(); return; }
 }
 
