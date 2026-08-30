@@ -2005,7 +2005,11 @@ function renderEmployeeView(){
         </select>
       </td>
       <td>
-        <div class="basic-hrs-display">${v.status === "Present" ? "8" : "0"}</div>
+        <div class="ot-stepper">
+          <button type="button" class="ot-btn" data-date="${dstr}" data-dir="down" ${locked?"disabled":""}>−</button>
+          <span class="ot-value">${(Number(v.overtime_hours)||0).toFixed(1)}</span>
+          <button type="button" class="ot-btn" data-date="${dstr}" data-dir="up" ${locked?"disabled":""}>+</button>
+        </div>
       </td>
     </tr>`;
   }
@@ -2024,7 +2028,7 @@ function renderEmployeeView(){
     <div class="card" style="padding:8px 6px 4px;">
       <table class="grid">
         <colgroup><col style="width:15%;"><col style="width:27%;"><col style="width:33%;"><col style="width:20%;"></colgroup>
-        <thead><tr><th>${ar?"التاريخ":"Date"}</th><th>${ar?"الحالة":"Status"}</th><th>${ar?"المشروع":"Project"}</th><th>${ar?"ساعات":"Hrs"}</th></tr></thead>
+        <thead><tr><th>${ar?"التاريخ":"Date"}</th><th>${ar?"الحالة":"Status"}</th><th>${ar?"المشروع":"Project"}</th><th>${ar?"إضافي":"OT"}</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -2535,6 +2539,14 @@ function handleDelegatedClick(e){
 
   if(el("mySelfTimesheetBtn")){ state.view = "employee"; loadEmployeeMonth(); return; }
   if(el("downloadMyPdfBtn")){ downloadMyTimesheetPdf(); return; }
+  const hrTsOtBtnEarly = e.target.closest(".hr-ts-ot-btn");
+  if(hrTsOtBtnEarly){
+    const dstr = hrTsOtBtnEarly.getAttribute("data-date");
+    const dir = hrTsOtBtnEarly.getAttribute("data-dir");
+    const current = Number((state.hrTimesheetEntries[dstr] || {}).overtime_hours) || 0;
+    setHrEntry(dstr, "overtime_hours", stepOtValue(current, dir));
+    return;
+  }
   const otBtn = e.target.closest(".ot-btn");
   if(otBtn && !otBtn.disabled){
     const dstr = otBtn.getAttribute("data-date");
@@ -2571,14 +2583,6 @@ function handleDelegatedClick(e){
   const reviewHrTsEl = e.target.closest("[data-review-hr-timesheet]");
   if(reviewHrTsEl){ openHrTimesheetReview(reviewHrTsEl.getAttribute("data-review-hr-timesheet")); return; }
   if(el("saveHrTimesheetBtn")){ saveHrTimesheetEdit(); return; }
-  const hrTsOtBtn = e.target.closest(".hr-ts-ot-btn");
-  if(hrTsOtBtn){
-    const dstr = hrTsOtBtn.getAttribute("data-date");
-    const dir = hrTsOtBtn.getAttribute("data-dir");
-    const current = Number((state.hrTimesheetEntries[dstr] || {}).overtime_hours) || 0;
-    setHrEntry(dstr, "overtime_hours", stepOtValue(current, dir));
-    return;
-  }
   const reviewLeaveEl = e.target.closest("[data-review-leave]");
   if(reviewLeaveEl){
     const reqId = reviewLeaveEl.getAttribute("data-review-leave");
