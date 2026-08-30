@@ -1448,10 +1448,22 @@ async function generateSalarySheet(){
     const wb = new ExcelJS.Workbook();
     const monthTitle = monthLabel(new Date(y, m-1, 1)).toUpperCase();
 
-    const NAVY = "FF0F3556", BLUE = "FF1B5A96", LIGHT = "FFF3F8FD", WHITE = "FFFFFFFF", GOLD = "FFF0C766";
+    const NAVY = "FF0F3556", WHITE = "FFFFFFFF", GOLD = "FFF0C766";
+    const INCOME_HEAD = "FF1B7A6B", INCOME_TINT = "FFEAF6F3";     // teal — income group
+    const DEDUCT_HEAD = "FFB0521C", DEDUCT_TINT = "FFFCEFE4";     // amber — deduction group
+    const NEUTRAL_HEAD = "FF1B5A96", NEUTRAL_TINT = "FFF3F8FD";   // navy-blue — identity/payout columns
     const APPROVED_GREEN = "FFDDF3E4", APPROVED_TEXT = "FF1C8A4E";
     const thinBorder = { style: "thin", color: { argb: "FFB9C6D6" } };
     const allBorders = { top: thinBorder, left: thinBorder, bottom: thinBorder, right: thinBorder };
+
+    // Column groups: 1-4 identity, 5-10 income (incl. SALARY), 11-13 deduction, 14-16 payout
+    const colGroup = (colNum) => {
+      if(colNum >= 5 && colNum <= 10) return "income";
+      if(colNum >= 11 && colNum <= 13) return "deduct";
+      return "neutral";
+    };
+    const headColor = { income: INCOME_HEAD, deduct: DEDUCT_HEAD, neutral: NEUTRAL_HEAD };
+    const tintColor = { income: INCOME_TINT, deduct: DEDUCT_TINT, neutral: NEUTRAL_TINT };
 
     const headers1 = ["NO","NAME","COMPANY","PROJECT","INCOME","","","","","SALARY","DEDUCTION","","","N.PAY","GOSI","BALANCE"];
     const headers2 = ["","","","","BASIC","DAYS","OT","AMT","OTHR","","ABS","AMT","OTH","","",""];
@@ -1465,21 +1477,22 @@ async function generateSalarySheet(){
       // Title row
       ws.mergeCells(1, 1, 1, 16);
       const titleCell = ws.getCell(1, 1);
-      titleCell.value = `${groupName} - SALARY FOR THE MONTH OF ${monthTitle} (GOSI v2)`;
-      titleCell.font = { bold: true, size: 14, color: { argb: WHITE } };
+      const groupLabel = groupName === "Al falak" ? "AL FALAK" : groupName.toUpperCase();
+      titleCell.value = `${groupLabel} SALARIES FOR THE MONTH OF ${monthTitle}`;
+      titleCell.font = { bold: true, size: 15, color: { argb: WHITE }, name: "Calibri" };
       titleCell.alignment = { horizontal: "center", vertical: "middle" };
       titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
-      ws.getRow(1).height = 26;
+      ws.getRow(1).height = 30;
 
-      // Header rows
+      // Header rows — colored by column group (identity / income / deduction / payout)
       const h1 = ws.getRow(2);
       h1.values = headers1;
       const h2 = ws.getRow(3);
       h2.values = headers2;
       [h1, h2].forEach(hr => {
-        hr.eachCell({ includeEmpty: true }, cell => {
+        hr.eachCell({ includeEmpty: true }, (cell, colNum) => {
           cell.font = { bold: true, size: 9.5, color: { argb: WHITE } };
-          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BLUE } };
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: headColor[colGroup(colNum)] } };
           cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
           cell.border = allBorders;
         });
@@ -1526,8 +1539,8 @@ async function generateSalarySheet(){
           }
           if(r.isApproved){
             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: APPROVED_GREEN } };
-          }else if(i % 2 === 1){
-            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: LIGHT } };
+          }else{
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: tintColor[colGroup(colNum)] } };
           }
         });
         if(r.isApproved){
