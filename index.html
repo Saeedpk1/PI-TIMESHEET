@@ -318,6 +318,7 @@ let state = {
   supervisorLeaveRequests: [],
   hrLeaveRequests: [],
   selectedLeaveRequest: null,
+  editingLeaveRequestId: null,
   projects: [],           // {id, name, active}
   newProjectName: "",
   remarksDraft: "",
@@ -690,6 +691,31 @@ async function loadMyLeaveRequests(){
   state.myLeaveRequests = data || [];
 }
 
+function startEditLeaveRequest(reqId){
+  const req = state.myLeaveRequests.find(r=>r.id===reqId);
+  if(!req) return;
+  state.editingLeaveRequestId = reqId;
+  state.leaveFormDraft = {
+    lastVacationDate: req.last_vacation_date || "",
+    mobileNumber: req.mobile_number || "",
+    homeMobileNumber: req.home_mobile_number || "",
+    firstDay: req.first_day || "",
+    lastDay: req.last_day || "",
+    hasToolBox: req.has_tool_box === true ? "yes" : (req.has_tool_box === false ? "no" : ""),
+    toolBoxHandoverTo: req.tool_box_handover_to || "",
+    photoDataUrl: req.employee_photo || "",
+    photoCircleDataUrl: req.employee_photo_circle || "",
+    existingSignature: req.employee_signature || ""
+  };
+  render();
+}
+
+function cancelEditLeaveRequest(){
+  state.editingLeaveRequestId = null;
+  state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", photoDataUrl: "", photoCircleDataUrl: "", existingSignature: "" };
+  render();
+}
+
 function leaveDaysBetween(firstDay, lastDay){
   if(!firstDay || !lastDay) return 0;
   const a = new Date(firstDay), b = new Date(lastDay);
@@ -717,14 +743,13 @@ async function submitLeaveRequest(){
   if(!f.firstDay || !f.lastDay){ toast("Enter the first and last day of leave."); return; }
   if(new Date(f.lastDay) < new Date(f.firstDay)){ toast("Last day can't be before the first day."); return; }
   const canvas = document.getElementById("leaveSigCanvas");
-  if(!canvas || !leaveSigHasStroke){ toast("Please sign the declaration before submitting."); return; }
+  const isEditing = !!state.editingLeaveRequestId;
+  if(!canvas || (!leaveSigHasStroke && !isEditing)){ toast("Please sign the declaration before submitting."); return; }
 
   state.loading = true; render();
-  const signatureData = canvas.toDataURL("image/png");
+  const signatureData = leaveSigHasStroke ? canvas.toDataURL("image/png") : f.existingSignature;
   const days = leaveDaysBetween(f.firstDay, f.lastDay);
-  const { error } = await sb.from("ts_leave_requests").insert({
-    employee_id: state.user.id,
-    supervisor_id: state.user.supervisor_id || null,
+  const payload = {
     application_date: new Date().toISOString().slice(0,10),
     last_vacation_date: f.lastVacationDate || null,
     mobile_number: f.mobileNumber || null,
@@ -737,13 +762,33 @@ async function submitLeaveRequest(){
     employee_signature: signatureData,
     employee_photo: f.photoDataUrl || null,
     employee_photo_circle: f.photoCircleDataUrl || null,
-    status: "submitted"
-  });
+    status: "submitted",
+    updated_at: new Date().toISOString()
+  };
+
+  let error;
+  if(isEditing){
+    // Editing resets any prior approval/rejection so it goes through the full flow again with the corrected details.
+    payload.supervisor_approved_at = null;
+    payload.supervisor_signature = null;
+    payload.supervisor_rejection_reason = null;
+    payload.hr_approved_at = null;
+    payload.hr_approved_by = null;
+    payload.hr_rejection_reason = null;
+    payload.hr_note = null;
+    ({ error } = await sb.from("ts_leave_requests").update(payload).eq("id", state.editingLeaveRequestId));
+  }else{
+    payload.employee_id = state.user.id;
+    payload.supervisor_id = state.user.supervisor_id || null;
+    ({ error } = await sb.from("ts_leave_requests").insert(payload));
+  }
+
   state.loading = false;
-  toast(error ? "Could not submit. Try again." : "Leave application submitted to your supervisor.");
+  toast(error ? "Could not submit. Try again." : (isEditing ? "Leave application updated and resubmitted." : "Leave application submitted to your supervisor."));
   if(!error){
-    state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", photoDataUrl: "", photoCircleDataUrl: "" };
+    state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", photoDataUrl: "", photoCircleDataUrl: "", existingSignature: "" };
     leaveSigHasStroke = false;
+    state.editingLeaveRequestId = null;
   }
   await loadMyLeaveRequests();
   render();
@@ -847,6 +892,35 @@ async function rejectLeaveHr(reqId){
   }).eq("id", reqId);
   state.loading = false;
   toast(error ? "Could not reject. Try again." : "Leave request rejected.");
+  await loadHrLeaveRequests();
+  render();
+}
+
+async function deleteLeaveRequestHr(reqId){
+  const req = state.hrLeaveRequests.find(r=>r.id===reqId);
+  const name = req?.ts_employees?.name || "this employee";
+  if(!confirm(`Permanently remove ${name}'s leave application? This cannot be undone.`)) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_leave_requests").delete().eq("id", reqId);
+  state.loading = false;
+  toast(error ? "Could not remove. Try again." : "Leave application removed.");
+  await loadHrLeaveRequests();
+  render();
+}
+
+async function resendLeaveForEditing(reqId){
+  const reason = prompt("Note for the employee (why it needs editing):");
+  if(reason === null) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_leave_requests").update({
+    status: "submitted",
+    supervisor_approved_at: null, supervisor_signature: null, supervisor_rejection_reason: null,
+    hr_approved_at: null, hr_approved_by: null, hr_rejection_reason: null,
+    hr_note: reason || "Please review and correct the details.",
+    updated_at: new Date().toISOString()
+  }).eq("id", reqId);
+  state.loading = false;
+  toast(error ? "Could not send back. Try again." : "Sent back to the employee for editing.");
   await loadHrLeaveRequests();
   render();
 }
@@ -1035,6 +1109,14 @@ function initLeaveSigPad(){
   leaveSigCtx.lineCap = "round";
   leaveSigCtx.strokeStyle = "#0F3556";
   leaveSigHasStroke = false;
+
+  // If editing an existing application, show their prior signature as a starting point —
+  // they can leave it as-is (submit works without redrawing) or clear and re-sign.
+  if(state.leaveFormDraft.existingSignature){
+    const img = new Image();
+    img.onload = () => { leaveSigCtx.drawImage(img, 0, 0, canvas.clientWidth, canvas.clientHeight); };
+    img.src = state.leaveFormDraft.existingSignature;
+  }
 
   const pos = (e)=>{
     const r = canvas.getBoundingClientRect();
@@ -2095,8 +2177,11 @@ function leaveBadgeInfo(status){
 function renderLeaveForm(){
   const f = state.leaveFormDraft;
   const days = leaveDaysBetween(f.firstDay, f.lastDay);
+  const isEditing = !!state.editingLeaveRequestId;
+  const editingReq = isEditing ? state.myLeaveRequests.find(r=>r.id===state.editingLeaveRequestId) : null;
   const historyRows = state.myLeaveRequests.map(r => {
     const b = leaveBadgeInfo(r.status);
+    const canEdit = r.status === "submitted" || r.status === "rejected";
     return `
     <div class="emp-list-item li-approved">
       <div style="flex:1;min-width:0;">
@@ -2104,6 +2189,7 @@ function renderLeaveForm(){
         <div class="sub">${r.status === "rejected" ? (r.hr_rejection_reason || r.supervisor_rejection_reason || "Rejected") : "Applied " + (r.application_date||"")}</div>
       </div>
       <span class="badge ${b.cls}">${b.label}</span>
+      ${canEdit ? `<button class="link-btn" data-edit-leave="${r.id}" style="margin-left:8px;">✎ Edit</button>` : ""}
       ${r.status === "hr_approved" ? `<button class="link-btn" data-download-leave="${r.id}" style="margin-left:8px;">⬇ PDF</button>` : ""}
     </div>`;
   }).join("") || `<div class="empty-state"><div class="ic">🌴</div>No leave applications yet.</div>`;
@@ -2111,9 +2197,11 @@ function renderLeaveForm(){
   return `
     <button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     <div class="card" style="background:linear-gradient(135deg,#E7F1FC,#F3F8FD);border:2px solid var(--blue-light);">
-      <h3 style="color:var(--navy);">🌴 Annual Leave Application</h3>
-      <div class="meta">Submitted to your supervisor first, then HR for final approval.</div>
+      <h3 style="color:var(--navy);">🌴 ${isEditing ? "Editing Leave Application" : "Annual Leave Application"}</h3>
+      <div class="meta">${isEditing ? "Update the details below, then resubmit." : "Submitted to your supervisor first, then HR for final approval."}</div>
     </div>
+    ${isEditing ? `<button class="link-btn" id="cancelEditLeaveBtn" style="margin-bottom:14px;">✕ Cancel edit</button>` : ""}
+    ${editingReq && editingReq.hr_note ? `<div class="status-banner status-rejected">↩️ HR sent this back: ${editingReq.hr_note}</div>` : ""}
 
     <label>Photo</label>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
@@ -2160,10 +2248,11 @@ function renderLeaveForm(){
     </div>
 
     <label style="margin-top:16px;">Employee Signature</label>
+    ${isEditing ? `<div class="field-note">Your previous signature is shown below — leave as-is or clear and re-sign.</div>` : ""}
     <div class="sig-pad-wrap"><canvas id="leaveSigCanvas"></canvas></div>
     <div class="bottom-bar">
       <button class="btn btn-outline btn-sm" id="clearLeaveSigBtn" style="flex:1;">Clear</button>
-      <button class="btn btn-submit btn-sm" id="submitLeaveBtn" style="flex:1;">✅ Submit Application</button>
+      <button class="btn btn-submit btn-sm" id="submitLeaveBtn" style="flex:1;">✅ ${isEditing ? "Update Application" : "Submit Application"}</button>
     </div>
 
     <div class="card" style="margin-top:70px;">
@@ -2215,17 +2304,23 @@ function renderHrLeaveList(){
   const others = state.hrLeaveRequests.filter(r=>r.status!=="supervisor_approved");
   const rowHtml = (r, actionable) => {
     const b = leaveBadgeInfo(r.status);
+    const canResend = r.status === "supervisor_approved" || r.status === "hr_approved";
     return `
-    <div class="emp-list-item li-${r.status==='hr_approved'?'approved':(r.status==='rejected'?'rejected':'submitted')}">
+    <div class="emp-list-item li-${r.status==='hr_approved'?'approved':(r.status==='rejected'?'rejected':'submitted')}" style="flex-wrap:wrap;">
       <div style="flex:1;min-width:0;">
         <div class="name">${r.ts_employees?.name || ""}</div>
         <div class="sub">${r.first_day} → ${r.last_day} (${r.number_of_days} day${r.number_of_days===1?"":"s"})</div>
       </div>
       <span class="badge ${b.cls}">${b.label}</span>
-      ${actionable ? `
-        <button class="link-btn" data-approve-leave-hr="${r.id}" style="color:var(--present) !important;margin-left:6px;">✓</button>
-        <button class="link-btn" data-reject-leave-hr="${r.id}" style="color:var(--absent) !important;margin-left:6px;">✕</button>
-      ` : (r.status === "hr_approved" ? `<button class="link-btn" data-download-leave="${r.id}" style="margin-left:8px;">⬇ PDF</button>` : "")}
+      <div style="width:100%;display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;">
+        ${actionable ? `
+          <button class="link-btn" data-approve-leave-hr="${r.id}" style="color:var(--present) !important;">✓ Approve</button>
+          <button class="link-btn" data-reject-leave-hr="${r.id}" style="color:var(--absent) !important;">✕ Reject</button>
+        ` : ""}
+        ${r.status === "hr_approved" ? `<button class="link-btn" data-download-leave="${r.id}">⬇ PDF</button>` : ""}
+        ${canResend ? `<button class="link-btn" data-resend-leave="${r.id}" style="color:#966109 !important;">↩️ Resend for editing</button>` : ""}
+        <button class="link-btn" data-delete-leave-hr="${r.id}" style="color:var(--absent) !important;">🗑 Remove</button>
+      </div>
     </div>`;
   };
 
@@ -2333,9 +2428,16 @@ function handleDelegatedClick(e){
   if(rejectLeaveHrEl){ rejectLeaveHr(rejectLeaveHrEl.getAttribute("data-reject-leave-hr")); return; }
   const downloadLeaveEl = e.target.closest("[data-download-leave]");
   if(downloadLeaveEl){ generateLeavePdf(downloadLeaveEl.getAttribute("data-download-leave")); return; }
+  const deleteLeaveHrEl = e.target.closest("[data-delete-leave-hr]");
+  if(deleteLeaveHrEl){ deleteLeaveRequestHr(deleteLeaveHrEl.getAttribute("data-delete-leave-hr")); return; }
+  const resendLeaveEl = e.target.closest("[data-resend-leave]");
+  if(resendLeaveEl){ resendLeaveForEditing(resendLeaveEl.getAttribute("data-resend-leave")); return; }
   if(el("clearLeaveSigBtn")){ clearLeaveSigPad(); return; }
   if(el("leavePhotoBtn")){ document.getElementById("leavePhotoInput")?.click(); return; }
   if(el("submitLeaveBtn")){ submitLeaveRequest(); return; }
+  const editLeaveEl = e.target.closest("[data-edit-leave]");
+  if(editLeaveEl){ startEditLeaveRequest(editLeaveEl.getAttribute("data-edit-leave")); return; }
+  if(el("cancelEditLeaveBtn")){ cancelEditLeaveRequest(); return; }
   if(el("salarySheetBtn")){ generateSalarySheet(); return; }
 }
 
