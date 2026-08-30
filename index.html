@@ -813,55 +813,130 @@ async function generateLeavePdf(reqId){
   try{
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const PAGE_W = 595.28, MARGIN = 42, CONTENT_W = PAGE_W - MARGIN*2;
+    const NAVY = [15,53,86], BLUE = [27,90,150], LIGHTBLUE = [234,242,250], GOLD = [232,163,61];
+    const GREEN = [28,138,78], RED = [196,59,59], GREY = [120,120,120], INK = [30,38,48];
+
+    const statusMap = {
+      submitted: { label: "AWAITING SUPERVISOR APPROVAL", color: GOLD },
+      supervisor_approved: { label: "AWAITING HR APPROVAL", color: GOLD },
+      hr_approved: { label: "FULLY APPROVED", color: GREEN },
+      rejected: { label: "REJECTED", color: RED }
+    };
+    const st = statusMap[req.status] || { label: req.status, color: GREY };
+
     drawLetterhead(doc);
-    doc.setFontSize(15); doc.setTextColor(15,53,86); doc.setFont("helvetica","bold");
-    doc.text("ANNUAL LEAVE APPLICATION FORM", 40, 78);
-    doc.setFont("helvetica","normal");
 
-    doc.setFontSize(11); doc.setTextColor(15,53,86); doc.setFont("helvetica","bold");
-    doc.text("Section A: Employee Details", 40, 104);
-    doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(40,40,40);
-    const aLines = [
-      `Employee Name: ${emp?.name || "-"}`,
-      `ID No / Iqama: ${emp?.iqama_number || "-"}`,
-      `Application Date: ${req.application_date || "-"}`,
-      `Last Vacation Date: ${req.last_vacation_date || "-"}`,
-      `Mobile Number: ${req.mobile_number || "-"}`,
-      `Home Mobile No: ${req.home_mobile_number || "-"}`
-    ];
-    let ly = 122;
-    aLines.forEach(l => { doc.text(l, 40, ly); ly += 15; });
+    // ---- Title + status badge ----
+    doc.setFont("helvetica","bold"); doc.setFontSize(17); doc.setTextColor(...NAVY);
+    doc.text("Annual Leave Application", MARGIN, 76);
+    doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(...GREY);
+    doc.text("Annual Leave Application Form", MARGIN, 90);
 
-    ly += 8;
-    doc.setFontSize(11); doc.setTextColor(15,53,86); doc.setFont("helvetica","bold");
-    doc.text("Section B: Leave Details", 40, ly); ly += 18;
-    doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(40,40,40);
-    [`First Day of Leave: ${req.first_day}`, `Last Day of Leave: ${req.last_day}`, `Number of Days: ${req.number_of_days}`].forEach(l => { doc.text(l, 40, ly); ly += 15; });
+    const badgeText = st.label;
+    doc.setFont("helvetica","bold"); doc.setFontSize(9);
+    const badgeW = doc.getTextWidth(badgeText) + 22;
+    const badgeX = PAGE_W - MARGIN - badgeW, badgeY = 60;
+    doc.setFillColor(...st.color);
+    doc.roundedRect(badgeX, badgeY, badgeW, 20, 10, 10, "F");
+    doc.setTextColor(255,255,255);
+    doc.text(badgeText, badgeX + badgeW/2, badgeY + 14, { align: "center" });
 
-    ly += 8;
-    doc.setFontSize(11); doc.setTextColor(15,53,86); doc.setFont("helvetica","bold");
-    doc.text("Section C: Employee Declaration", 40, ly); ly += 18;
-    doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(40,40,40);
-    doc.text(`I have tool box: ${req.has_tool_box === true ? "Yes" : req.has_tool_box === false ? "No" : "-"}`, 40, ly); ly += 15;
-    doc.text(`Tool box handover to: ${req.tool_box_handover_to || "-"}`, 40, ly); ly += 15;
-    doc.text("Employee Signature:", 40, ly);
-    if(req.employee_signature){ try{ doc.addImage(req.employee_signature, "PNG", 150, ly-14, 110, 40); }catch(e){} }
-    ly += 50;
+    let y = 108;
 
-    doc.setFontSize(11); doc.setTextColor(15,53,86); doc.setFont("helvetica","bold");
-    doc.text("Section D: 1st Approval (Supervisor)", 40, ly); ly += 18;
-    doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(40,40,40);
-    doc.text(`Line Manager: ${supName}`, 40, ly); ly += 15;
-    doc.text("Signature:", 40, ly);
-    if(req.supervisor_signature){ try{ doc.addImage(req.supervisor_signature, "PNG", 150, ly-14, 110, 40); }catch(e){} }
-    ly += 40;
-    doc.text(`Date: ${req.supervisor_approved_at ? new Date(req.supervisor_approved_at).toLocaleDateString() : "-"}`, 40, ly); ly += 24;
+    function sectionHeader(letter, titleEn){
+      doc.setFillColor(...NAVY);
+      doc.roundedRect(MARGIN, y, CONTENT_W, 22, 4, 4, "F");
+      doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(255,255,255);
+      doc.text(`Section ${letter}: ${titleEn}`, MARGIN + 10, y + 15);
+      y += 22;
+    }
+    function cardBody(height){
+      doc.setDrawColor(215,224,235); doc.setLineWidth(0.8);
+      doc.setFillColor(250,251,253);
+      doc.rect(MARGIN, y, CONTENT_W, height, "FD");
+    }
+    function fieldPair(label, value, x, yy, w){
+      doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(...GREY);
+      doc.text(label.toUpperCase(), x, yy);
+      doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(...INK);
+      doc.text(String(value || "-"), x, yy + 14);
+    }
 
-    doc.setFontSize(11); doc.setTextColor(15,53,86); doc.setFont("helvetica","bold");
-    doc.text("Section E: 2nd Approval (Employer / HR)", 40, ly); ly += 18;
-    doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(40,40,40);
-    doc.text(`Employer Authorization: ${req.status === "hr_approved" ? "Approved" : "-"}`, 40, ly); ly += 15;
-    doc.text(`Date: ${req.hr_approved_at ? new Date(req.hr_approved_at).toLocaleDateString() : "-"}`, 40, ly);
+    // ---- Section A: Employee Details ----
+    sectionHeader("A", "Employee Details");
+    cardBody(72);
+    const colW = CONTENT_W / 2;
+    fieldPair("Employee Name", emp?.name || "-", MARGIN + 14, y + 20, colW);
+    fieldPair("ID No / Iqama", emp?.iqama_number || "-", MARGIN + colW + 4, y + 20, colW);
+    fieldPair("Application Date", req.application_date || "-", MARGIN + 14, y + 48, colW);
+    fieldPair("Last Vacation Date", req.last_vacation_date || "-", MARGIN + colW + 4, y + 48, colW);
+    y += 72 + 14;
+
+    doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(...GREY);
+    doc.text(`Mobile: ${req.mobile_number || "-"}     Home Mobile: ${req.home_mobile_number || "-"}`, MARGIN, y);
+    y += 20;
+
+    // ---- Section B: Leave Details ----
+    sectionHeader("B", "Leave Details");
+    cardBody(58);
+    fieldPair("First Day of Leave", req.first_day, MARGIN + 14, y + 20, colW/1.5);
+    fieldPair("Last Day of Leave", req.last_day, MARGIN + colW*0.8, y + 20, colW/1.5);
+    // Days badge on the right
+    const daysText = `${req.number_of_days} DAY${Number(req.number_of_days)===1?"":"S"}`;
+    doc.setFont("helvetica","bold"); doc.setFontSize(11);
+    const daysW = doc.getTextWidth(daysText) + 24;
+    doc.setFillColor(...BLUE);
+    doc.roundedRect(PAGE_W - MARGIN - daysW - 10, y + 10, daysW, 26, 6, 6, "F");
+    doc.setTextColor(255,255,255);
+    doc.text(daysText, PAGE_W - MARGIN - daysW - 10 + daysW/2, y + 27, { align: "center" });
+    y += 58 + 16;
+
+    // ---- Section C: Employee Declaration ----
+    sectionHeader("C", "Employee Declaration");
+    cardBody(90);
+    doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(...INK);
+    const hasBox = req.has_tool_box === true ? "YES" : req.has_tool_box === false ? "NO" : "-";
+    doc.text(`I have a tool box:  ${hasBox}`, MARGIN + 14, y + 18);
+    doc.text(`I will hand over the complete tool box to Mr. ${req.tool_box_handover_to || "-"} — if any tool is`, MARGIN + 14, y + 34);
+    doc.text(`missing, the amount will be deducted from my salary.`, MARGIN + 14, y + 46);
+
+    doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(...GREY);
+    doc.text("EMPLOYEE SIGNATURE", MARGIN + 14, y + 62);
+    doc.setDrawColor(200,210,222); doc.setLineWidth(0.7);
+    doc.rect(MARGIN + 14, y + 66, 150, 40);
+    if(req.employee_signature){ try{ doc.addImage(req.employee_signature, "PNG", MARGIN + 18, y + 68, 142, 36); }catch(e){} }
+    y += 90 + 16;
+
+    // ---- Section D: 1st Approval ----
+    sectionHeader("D", "1st Approval — Supervisor");
+    cardBody(90);
+    fieldPair("Line Manager", supName, MARGIN + 14, y + 20, colW);
+    fieldPair("Approved On", req.supervisor_approved_at ? new Date(req.supervisor_approved_at).toLocaleDateString() : "-", MARGIN + colW + 4, y + 20, colW);
+    doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(...GREY);
+    doc.text("SUPERVISOR SIGNATURE", MARGIN + 14, y + 44);
+    doc.setDrawColor(200,210,222); doc.setLineWidth(0.7);
+    doc.rect(MARGIN + 14, y + 48, 150, 34);
+    if(req.supervisor_signature){ try{ doc.addImage(req.supervisor_signature, "PNG", MARGIN + 18, y + 50, 142, 30); }catch(e){} }
+    if(req.status === "rejected" && req.supervisor_rejection_reason){
+      doc.setFont("helvetica","italic"); doc.setFontSize(8.5); doc.setTextColor(...RED);
+      doc.text(`Sent back: ${req.supervisor_rejection_reason}`, MARGIN + colW + 4, y + 50, { maxWidth: colW - 14 });
+    }
+    y += 90 + 16;
+
+    // ---- Section E: 2nd Approval ----
+    sectionHeader("E", "2nd Approval — Employer / HR");
+    cardBody(50);
+    const hrApproved = req.status === "hr_approved";
+    doc.setFont("helvetica","bold"); doc.setFontSize(10.5);
+    doc.setTextColor(...(hrApproved ? GREEN : GREY));
+    doc.text(hrApproved ? "Employer Authorization Granted" : "Pending Employer Authorization", MARGIN + 14, y + 22);
+    doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(...INK);
+    doc.text(`Date: ${req.hr_approved_at ? new Date(req.hr_approved_at).toLocaleDateString() : "-"}`, MARGIN + 14, y + 38);
+    if(req.status === "rejected" && req.hr_rejection_reason){
+      doc.setFont("helvetica","italic"); doc.setFontSize(8.5); doc.setTextColor(...RED);
+      doc.text(`Rejected: ${req.hr_rejection_reason}`, MARGIN + colW + 4, y + 30, { maxWidth: colW - 14 });
+    }
 
     stampFooters(doc);
     doc.save(`Leave_Application_${(emp?.name||"employee").replace(/\s+/g,"_")}.pdf`);
