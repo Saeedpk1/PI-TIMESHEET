@@ -1394,9 +1394,16 @@ async function generateSalarySheet(){
     const nd = new Date(y, m, 0).getDate();
     const start = fmtDate(y, m-1, 1), end = fmtDate(y, m-1, nd);
 
+    // Show every active employee, but track which ones have a fully approved
+    // timesheet for this month so those rows can be highlighted.
     const { data: employees, error: empErr } = await sb.from("ts_employees")
       .select("*").in("role", ["employee","supervisor"]).eq("active", true).order("name");
     if(empErr) throw empErr;
+
+    const { data: approvedSubs, error: subErr } = await sb.from("ts_timesheet_submissions")
+      .select("employee_id").eq("month", state.hrMonth).eq("status", "approved");
+    if(subErr) throw subErr;
+    const approvedIds = new Set((approvedSubs || []).map(s => s.employee_id));
 
     if(!state.hrmSupervisorId){
       const { data: mohammed } = await sb.from("ts_employees").select("id").eq("iqama_number", "1091504728").maybeSingle();
@@ -1422,7 +1429,7 @@ async function generateSalarySheet(){
         }
       });
       const projectLabel = Object.keys(projectDays).join("/");
-      records.push({ emp, present, ot, absent, projectLabel });
+      records.push({ emp, present, ot, absent, projectLabel, isApproved: approvedIds.has(emp.id) });
     }
 
     const groups = { "PI": [], "Saudi": [], "Al falak": [] };
@@ -1442,6 +1449,7 @@ async function generateSalarySheet(){
     const monthTitle = monthLabel(new Date(y, m-1, 1)).toUpperCase();
 
     const NAVY = "FF0F3556", BLUE = "FF1B5A96", LIGHT = "FFF3F8FD", WHITE = "FFFFFFFF", GOLD = "FFF0C766";
+    const APPROVED_GREEN = "FFDDF3E4", APPROVED_TEXT = "FF1C8A4E";
     const thinBorder = { style: "thin", color: { argb: "FFB9C6D6" } };
     const allBorders = { top: thinBorder, left: thinBorder, bottom: thinBorder, right: thinBorder };
 
@@ -1516,11 +1524,16 @@ async function generateSalarySheet(){
           if(colNum >= 5 && colNum !== 6 && colNum !== 7 && colNum !== 11){
             cell.numFmt = "#,##0.00";
           }
-          if(i % 2 === 1){
+          if(r.isApproved){
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: APPROVED_GREEN } };
+          }else if(i % 2 === 1){
             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: LIGHT } };
           }
         });
-        wr.getCell(14).fill = { type: "pattern", pattern: "solid", fgColor: { argb: GOLD } }; // N.PAY highlight
+        if(r.isApproved){
+          wr.getCell(2).font = { bold: true, color: { argb: APPROVED_TEXT } }; // NAME in green when approved
+        }
+        wr.getCell(14).fill = { type: "pattern", pattern: "solid", fgColor: { argb: GOLD } };
         wr.getCell(14).font = { bold: true };
       });
 
