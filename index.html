@@ -1433,26 +1433,35 @@ async function generateWpsPayroll(payrollGroup){
     const skipped = [];
     for(const emp of inScopeEmployees){
       if(!emp.iban || !emp.bank_code){ skipped.push(emp.name); continue; }
-      const { data: entryRows } = await sb.from("ts_timesheet_entries").select("*")
-        .eq("employee_id", emp.id).gte("entry_date", start).lte("entry_date", end);
-      let present = 0, ot = 0, absent = 0;
-      (entryRows || []).forEach(r => {
-        if(r.status === "Present"){ present++; ot += Number(r.overtime_hours) || 0; }
-        else if(r.status === "Absent"){ absent++; }
-      });
-      const basicSalary = Number(emp.basic_salary) || 0;
-      const otAmt = basicSalary/208*ot*1.25;
-      const otherAllow = 0;
-      const salary = basicSalary + otAmt + otherAllow;
-      const absAmt = basicSalary/26*absent;
-      const netPay = salary - absAmt;
-      const gosiFixed = Number(emp.gosi_amount) > 0 ? Number(emp.gosi_amount) : basicSalary;
-      const transferAmount = Math.round(Math.min(gosiFixed, netPay));
       const wpsBasic = Math.round(Number(emp.wps_basic) || 0), wpsHousing = Math.round(Number(emp.wps_housing) || 0), wpsOther = Math.round(Number(emp.wps_other) || 0);
-      const deduction = Math.round((wpsBasic + wpsHousing + wpsOther) - transferAmount);
+      const isSaudiTeam = state.hrmSupervisorId && (emp.id === state.hrmSupervisorId || emp.supervisor_id === state.hrmSupervisorId);
+
+      let transferAmount, deduction;
+      if(isSaudiTeam){
+        // Saudi team pay is fixed monthly, not attendance-based — no automatic deduction.
+        transferAmount = wpsBasic + wpsHousing + wpsOther;
+        deduction = 0;
+      }else{
+        const { data: entryRows } = await sb.from("ts_timesheet_entries").select("*")
+          .eq("employee_id", emp.id).gte("entry_date", start).lte("entry_date", end);
+        let present = 0, ot = 0, absent = 0;
+        (entryRows || []).forEach(r => {
+          if(r.status === "Present"){ present++; ot += Number(r.overtime_hours) || 0; }
+          else if(r.status === "Absent"){ absent++; }
+        });
+        const basicSalary = Number(emp.basic_salary) || 0;
+        const otAmt = basicSalary/208*ot*1.25;
+        const salary = basicSalary + otAmt;
+        const absAmt = basicSalary/26*absent;
+        const netPay = salary - absAmt;
+        const gosiFixed = Number(emp.gosi_amount) > 0 ? Number(emp.gosi_amount) : basicSalary;
+        transferAmount = Math.round(Math.min(gosiFixed, netPay));
+        deduction = Math.max(Math.round((wpsBasic + wpsHousing + wpsOther) - transferAmount), 0);
+      }
+
       rows.push([
         "D", transferAmount, emp.iban, (emp.name||"").toUpperCase(), emp.bank_code, monthDesc,
-        wpsBasic, wpsHousing, wpsOther, Math.max(deduction, 0), emp.iqama_number, ""
+        wpsBasic, wpsHousing, wpsOther, deduction, emp.iqama_number, ""
       ]);
     }
 
