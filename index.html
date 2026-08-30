@@ -302,6 +302,7 @@ let state = {
   hrMonth: monthKey(new Date()),
   hrApproved: [],
   hrExcluded: new Set(), // employee_ids to leave out of the combined PDF (without deleting them)
+  hrmSupervisorId: null, // Mohammed Mutlaq Al Morqi's id, for the separate SAUDI TIME SHEET export
   projects: [],           // {id, name, active}
   newProjectName: "",
   remarksDraft: "",
@@ -670,10 +671,12 @@ async function saveSigPad(){
 async function loadHrMonth(){
   state.loading = true; render();
   const { data } = await sb.from("ts_timesheet_submissions")
-    .select("*, ts_employees:employee_id(name, employee_no, project_site, hourly_rate)")
+    .select("*, ts_employees:employee_id(name, employee_no, project_site, hourly_rate, supervisor_id)")
     .eq("month", state.hrMonth).eq("status", "approved");
   state.hrApproved = data || [];
   state.hrExcluded = new Set();
+  const { data: mohammed } = await sb.from("ts_employees").select("id").eq("iqama_number", "1091504728").maybeSingle();
+  state.hrmSupervisorId = mohammed ? mohammed.id : null;
   state.loading = false;
   render();
 }
@@ -1018,8 +1021,18 @@ async function generateSalarySheet(){
 
 
 async function generateCombinedPdf(){
-  const included = state.hrApproved.filter(s => !state.hrExcluded.has(s.employee_id));
-  if(!included.length){ toast("No employees selected for this PDF."); return; }
+  const included = state.hrApproved.filter(s => !state.hrExcluded.has(s.employee_id) && s.ts_employees?.supervisor_id !== state.hrmSupervisorId);
+  await buildCombinedPdf(included, "Monthly Timesheets", `Timesheets_${state.hrMonth}.pdf`);
+}
+
+async function generateSaudiTimesheetPdf(){
+  if(!state.hrmSupervisorId){ toast("Mohammed's HRM team isn't set up yet."); return; }
+  const included = state.hrApproved.filter(s => !state.hrExcluded.has(s.employee_id) && s.ts_employees?.supervisor_id === state.hrmSupervisorId);
+  await buildCombinedPdf(included, "SAUDI TIME SHEET", `Saudi_Timesheets_${state.hrMonth}.pdf`);
+}
+
+async function buildCombinedPdf(included, titleText, filename){
+  if(!included.length){ toast("No employees to include in this PDF."); return; }
   state.loading = true; render();
   try{
   const [y, m] = state.hrMonth.split("-").map(Number);
@@ -1060,7 +1073,7 @@ async function generateCombinedPdf(){
   // ---- Cover page ----
   drawLetterhead(doc);
   doc.setFontSize(16); doc.setTextColor(15,53,86);
-  doc.text(`Monthly Timesheets — ${monthLabel(new Date(y, m-1, 1))}`, 40, 78);
+  doc.text(`${titleText} — ${monthLabel(new Date(y, m-1, 1))}`, 40, 78);
   doc.setFontSize(10); doc.setTextColor(120,120,120);
   doc.text(`Generated ${new Date().toLocaleString()}  •  ${included.length} approved employee(s)`, 40, 96);
 
@@ -1184,9 +1197,9 @@ async function generateCombinedPdf(){
   }
 
   stampFooters(doc);
-  doc.save(`Timesheets_${state.hrMonth}.pdf`);
+  doc.save(filename);
   state.loading = false;
-  toast("Combined PDF downloaded.");
+  toast("PDF downloaded.");
   render();
   }catch(e){
     state.loading = false;
@@ -1281,7 +1294,6 @@ function renderEmployeeView(){
         <select class="status-select st-${v.status}" data-date="${dstr}" data-field="status" ${locked?"disabled":""}>
           <option value="Present" ${v.status==="Present"?"selected":""}>Present</option>
           <option value="Absent" ${v.status==="Absent"?"selected":""}>Absent</option>
-          <option value="Sick" ${v.status==="Sick"?"selected":""}>Sick</option>
           <option value="Leave" ${v.status==="Leave"?"selected":""}>Leave</option>
           <option value="Friday" ${v.status==="Friday"?"selected":""}>Off</option>
           <option value="Holiday" ${v.status==="Holiday"?"selected":""}>Holiday</option>
@@ -1458,7 +1470,9 @@ function renderSignaturePad(){
 
 /* ---- HR view ---- */
 function renderHrView(){
-  const includedCount = state.hrApproved.filter(s => !state.hrExcluded.has(s.employee_id)).length;
+  const isHrmTeam = (s) => s.ts_employees?.supervisor_id === state.hrmSupervisorId;
+  const mainCount = state.hrApproved.filter(s => !state.hrExcluded.has(s.employee_id) && !isHrmTeam(s)).length;
+  const saudiCount = state.hrApproved.filter(s => !state.hrExcluded.has(s.employee_id) && isHrmTeam(s)).length;
   const rows = state.hrApproved.map(s=>{
     const excluded = state.hrExcluded.has(s.employee_id);
     return `
@@ -1468,7 +1482,7 @@ function renderHrView(){
       </label>
       <div style="flex:1;min-width:0;">
         <div class="name">${s.ts_employees?.name || ""}</div>
-        <div class="sub">${s.ts_employees?.employee_no || ""} ${s.ts_employees?.project_site ? "• " + s.ts_employees.project_site : ""}</div>
+        <div class="sub">${s.ts_employees?.employee_no || ""} ${s.ts_employees?.project_site ? "• " + s.ts_employees.project_site : ""}${isHrmTeam(s) ? " • 🇸🇦 HRM" : ""}</div>
       </div>
       <span class="badge badge-approved">Approved</span>
       <button class="link-btn" data-delete-sub="${s.employee_id}" style="color:var(--absent) !important;font-size:11px;">🗑 Delete</button>
@@ -1493,9 +1507,10 @@ function renderHrView(){
       <button class="link-btn install-link" id="manageProjectsBtn" style="color:#FFE7B0 !important;">📁 Manage projects</button>
     </div>
     <input type="month" id="hrMonthInput" value="${state.hrMonth}">
-    <div class="field-note">Uncheck anyone you don't want in this download. Deleting removes their timesheet permanently.</div>
+    <div class="field-note">Uncheck anyone you don't want in this download. Deleting removes their timesheet permanently. Mohammed's HRM team (🇸🇦) goes into its own separate PDF.</div>
     <div style="margin-top:10px;">${rows}</div>
-    <button class="btn btn-primary" id="combinedPdfBtn" style="margin-top:14px;">⬇ Download combined PDF (${includedCount})</button>
+    <button class="btn btn-primary" id="combinedPdfBtn" style="margin-top:14px;">⬇ Download combined PDF (${mainCount})</button>
+    <button class="btn btn-primary" id="saudiPdfBtn" style="margin-top:10px;background:linear-gradient(135deg,#1C8A4E,#25A85F);">⬇ Download SAUDI TIME SHEET (${saudiCount})</button>
     <button class="btn btn-outline" id="salarySheetBtn" style="margin-top:10px;">📊 Generate Salary Sheet (Excel)</button>
   `;
 }
@@ -1576,6 +1591,7 @@ function handleDelegatedClick(e){
   if(el("approveBtn")){ approveTimesheet(); return; }
   if(el("rejectBtn")){ rejectTimesheet(); return; }
   if(el("combinedPdfBtn")){ generateCombinedPdf(); return; }
+  if(el("saudiPdfBtn")){ generateSaudiTimesheetPdf(); return; }
   if(el("salarySheetBtn")){ generateSalarySheet(); return; }
 }
 
