@@ -2233,19 +2233,15 @@ function renderHrView(){
   const rows = state.hrApproved.map(s=>{
     const excluded = state.hrExcluded.has(s.employee_id);
     return `
-    <div class="emp-list-item li-approved" style="${excluded ? "opacity:.55;" : ""}flex-wrap:wrap;">
-      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;" title="${excluded ? "Excluded from PDF" : "Included in PDF"}">
-        <input type="checkbox" class="hr-include-check" data-emp-id="${s.employee_id}" ${excluded ? "" : "checked"} style="width:18px;height:18px;accent-color:var(--present);cursor:pointer;">
+    <div class="emp-list-item li-approved" style="${excluded ? "opacity:.55;" : ""}gap:6px;">
+      <label style="display:flex;align-items:center;cursor:pointer;flex-shrink:0;" title="${excluded ? "Excluded from PDF" : "Included in PDF"}">
+        <input type="checkbox" class="hr-include-check" data-emp-id="${s.employee_id}" ${excluded ? "" : "checked"} style="width:16px;height:16px;accent-color:var(--present);cursor:pointer;">
       </label>
       <div style="flex:1;min-width:0;">
-        <div class="name">${s.ts_employees?.name || ""}</div>
-        <div class="sub">${s.ts_employees?.employee_no || ""} ${s.ts_employees?.project_site ? "• " + s.ts_employees.project_site : ""}</div>
+        <div class="name" style="font-size:12.5px;">${s.ts_employees?.name || ""}</div>
       </div>
-      <span class="badge badge-approved">Approved</span>
-      <div style="width:100%;display:flex;gap:10px;margin-top:8px;">
-        <button class="link-btn" data-review-hr-timesheet="${s.employee_id}" style="color:var(--blue) !important;">👁 Review / Edit</button>
-        <button class="link-btn" data-delete-sub="${s.employee_id}" style="color:var(--absent) !important;">🗑 Delete</button>
-      </div>
+      <button class="link-btn" data-review-hr-timesheet="${s.employee_id}" style="color:var(--blue) !important;font-size:16px;flex-shrink:0;" title="Review / Edit">👁</button>
+      <button class="link-btn" data-delete-sub="${s.employee_id}" style="color:var(--absent) !important;font-size:16px;flex-shrink:0;" title="Delete">🗑</button>
     </div>`;
   }).join("") || `<div class="empty-state"><div class="ic">📄</div>No approved timesheets yet for this month.</div>`;
 
