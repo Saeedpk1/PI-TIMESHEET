@@ -1200,7 +1200,8 @@ async function submitPurchase(){
     status: "submitted"
   });
   state.loading = false;
-  toast(error ? "Could not submit. Try again." : "Purchase recorded and sent to HR.");
+  if(error) console.error("Purchase submit error:", error);
+  toast(error ? "Error: " + (error.message || "unknown") : "Purchase recorded and sent to HR.");
   if(!error){
     state.purchaseFormDraft = { purchaseDate: "", category: "", itemDescription: "", projectId: "", billNo: "", vendorName: "", amount: "", hasVat: true, paymentMethod: "", notes: "", receiptPhoto: "" };
   }
