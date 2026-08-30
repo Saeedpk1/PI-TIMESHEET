@@ -694,6 +694,21 @@ function leaveDaysBetween(firstDay, lastDay){
   return diff > 0 ? diff : 0;
 }
 
+function humanDuration(fromStr, toStr){
+  if(!fromStr) return null;
+  const from = new Date(fromStr);
+  const to = toStr ? new Date(toStr) : new Date();
+  let months = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
+  if(to.getDate() < from.getDate()) months--;
+  if(months <= 0){
+    const days = Math.round((to - from) / 86400000);
+    return days <= 0 ? "Today" : `${days} day${days===1?"":"s"} before`;
+  }
+  if(months < 12) return `${months} month${months===1?"":"s"} before`;
+  const years = Math.floor(months/12), remMonths = months % 12;
+  return (remMonths > 0 ? `${years} year${years===1?"":"s"} ${remMonths} month${remMonths===1?"":"s"}` : `${years} year${years===1?"":"s"}`) + " before";
+}
+
 async function submitLeaveRequest(){
   const f = state.leaveFormDraft;
   if(!f.firstDay || !f.lastDay){ toast("Enter the first and last day of leave."); return; }
@@ -731,7 +746,7 @@ async function submitLeaveRequest(){
 
 async function loadSupervisorLeaveRequests(){
   const { data } = await sb.from("ts_leave_requests")
-    .select("*, ts_employees:employee_id(name, employee_no, project_site)")
+    .select("*, ts_employees:employee_id(name, employee_no, project_site, iqama_number)")
     .eq("supervisor_id", state.user.id).order("created_at", { ascending: false });
   state.supervisorLeaveRequests = data || [];
 }
@@ -766,7 +781,7 @@ async function rejectLeaveSupervisor(reqId){
 
 async function loadHrLeaveRequests(){
   const { data } = await sb.from("ts_leave_requests")
-    .select("*, ts_employees:employee_id(name, employee_no, project_site)")
+    .select("*, ts_employees:employee_id(name, employee_no, project_site, iqama_number)")
     .in("status", ["supervisor_approved","hr_approved","rejected"]).order("created_at", { ascending: false });
   state.hrLeaveRequests = data || [];
 }
@@ -825,9 +840,7 @@ async function generateLeavePdf(reqId){
     };
     const st = statusMap[req.status] || { label: req.status, color: GREY };
 
-    drawLetterhead(doc);
-
-    // ---- Title + status badge ----
+    drawLetterhead(doc, "");
     doc.setFont("helvetica","bold"); doc.setFontSize(17); doc.setTextColor(...NAVY);
     doc.text("Annual Leave Application", MARGIN, 76);
     doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(...GREY);
@@ -865,13 +878,19 @@ async function generateLeavePdf(reqId){
 
     // ---- Section A: Employee Details ----
     sectionHeader("A", "Employee Details");
-    cardBody(72);
+    const lastVacDuration = humanDuration(req.last_vacation_date, req.application_date);
+    cardBody(lastVacDuration ? 100 : 72);
     const colW = CONTENT_W / 2;
     fieldPair("Employee Name", emp?.name || "-", MARGIN + 14, y + 20, colW);
     fieldPair("ID No / Iqama", emp?.iqama_number || "-", MARGIN + colW + 4, y + 20, colW);
     fieldPair("Application Date", req.application_date || "-", MARGIN + 14, y + 48, colW);
     fieldPair("Last Vacation Date", req.last_vacation_date || "-", MARGIN + colW + 4, y + 48, colW);
-    y += 72 + 14;
+    if(lastVacDuration){
+      fieldPair("Time Since Last Vacation", lastVacDuration, MARGIN + 14, y + 76, colW);
+      y += 100 + 14;
+    }else{
+      y += 72 + 14;
+    }
 
     doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(...GREY);
     doc.text(`Mobile: ${req.mobile_number || "-"}     Home Mobile: ${req.home_mobile_number || "-"}`, MARGIN, y);
@@ -1016,13 +1035,15 @@ async function deleteTimesheetSubmission(employeeId){
   await loadHrMonth();
 }
 
-function drawLetterhead(doc){
+function drawLetterhead(doc, subtitle){
   try{ doc.addImage(LOGO_DATA_URI, "JPEG", 40, 18, 26, 26); }catch(e){}
   doc.setFontSize(11); doc.setTextColor(15,53,86); doc.setFont("helvetica", "bold");
   doc.text(COMPANY_NAME, 74, 30);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8); doc.setTextColor(120,120,120);
-  doc.text("Monthly Timesheets", 74, 40);
+  if(subtitle !== ""){
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8); doc.setTextColor(120,120,120);
+    doc.text(subtitle === undefined ? "Monthly Timesheets" : subtitle, 74, 40);
+  }
   doc.setDrawColor(27,90,150);
   doc.setLineWidth(1.2);
   doc.line(40, 52, 555, 52);
@@ -2042,6 +2063,7 @@ function renderLeaveForm(){
 
     <label>Last Vacation Date</label>
     <input type="date" id="leaveLastVacation" value="${f.lastVacationDate}">
+    ${f.lastVacationDate ? `<div class="field-note">📅 ${humanDuration(f.lastVacationDate)}</div>` : ""}
 
     <label>Mobile Number</label>
     <input type="tel" id="leaveMobile" placeholder="05xxxxxxxx" value="${f.mobileNumber}">
@@ -2277,7 +2299,7 @@ function handleDelegatedChange(e){
     render();
     return;
   }
-  if(e.target.id === "leaveLastVacation"){ state.leaveFormDraft.lastVacationDate = e.target.value; return; }
+  if(e.target.id === "leaveLastVacation"){ state.leaveFormDraft.lastVacationDate = e.target.value; render(); return; }
   if(e.target.id === "leaveFirstDay"){ state.leaveFormDraft.firstDay = e.target.value; render(); return; }
   if(e.target.id === "leaveLastDay"){ state.leaveFormDraft.lastDay = e.target.value; render(); return; }
   if(e.target.name === "hasToolBox"){ state.leaveFormDraft.hasToolBox = e.target.value; return; }
