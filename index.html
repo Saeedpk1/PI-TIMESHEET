@@ -1386,6 +1386,115 @@ async function downloadWorkbook(wb, filename){
   setTimeout(()=> URL.revokeObjectURL(url), 4000);
 }
 
+async function generateWpsPayroll(payrollGroup){
+  const fileNumInput = prompt("WPS file number for today (e.g. 1, 2, 3...):", "1");
+  if(fileNumInput === null) return;
+  const fileNum = parseInt(fileNumInput, 10) || 1;
+
+  state.loading = true; render();
+  try{
+    const { data: settings, error: setErr } = await sb.from("ts_payroll_settings")
+      .select("*").eq("payroll_group", payrollGroup).maybeSingle();
+    if(setErr) throw setErr;
+    if(!settings || !settings.sending_bank_code || !settings.company_account_number){
+      toast(payrollGroup === "AL_FALAK" ? "Al Falak's bank details haven't been set up yet." : "Payroll bank details aren't set up yet.");
+      state.loading = false; render();
+      return;
+    }
+
+    if(!state.hrmSupervisorId){
+      const { data: mohammed } = await sb.from("ts_employees").select("id").eq("iqama_number", "1091504728").maybeSingle();
+      state.hrmSupervisorId = mohammed ? mohammed.id : null;
+    }
+
+    const { data: allEmployees, error: empErr } = await sb.from("ts_employees")
+      .select("*").in("role", ["employee","supervisor"]).eq("active", true).order("name");
+    if(empErr) throw empErr;
+
+    const inScopeEmployees = (allEmployees || []).filter(e => {
+      const isSaudiTeam = state.hrmSupervisorId && (e.id === state.hrmSupervisorId || e.supervisor_id === state.hrmSupervisorId);
+      if(payrollGroup === "AL_FALAK") return e.salary_group === "Al falak";
+      return !isSaudiTeam ? e.salary_group !== "Al falak" : true; // PI_SAUDI: everyone not Al falak (Saudi team + PI)
+    });
+    // Saudi team first, then everyone else — matching the source file's layout
+    inScopeEmployees.sort((a, b) => {
+      const aSaudi = state.hrmSupervisorId && (a.id === state.hrmSupervisorId || a.supervisor_id === state.hrmSupervisorId);
+      const bSaudi = state.hrmSupervisorId && (b.id === state.hrmSupervisorId || b.supervisor_id === state.hrmSupervisorId);
+      if(aSaudi !== bSaudi) return aSaudi ? -1 : 1;
+      return (a.name||"").localeCompare(b.name||"");
+    });
+
+    const [y, m] = state.hrMonth.split("-").map(Number);
+    const nd = new Date(y, m, 0).getDate();
+    const start = fmtDate(y, m-1, 1), end = fmtDate(y, m-1, nd);
+    const monthDesc = `Salary ${monthLabel(new Date(y, m-1, 1))}`;
+
+    const rows = [];
+    const skipped = [];
+    for(const emp of inScopeEmployees){
+      if(!emp.iban || !emp.bank_code){ skipped.push(emp.name); continue; }
+      const { data: entryRows } = await sb.from("ts_timesheet_entries").select("*")
+        .eq("employee_id", emp.id).gte("entry_date", start).lte("entry_date", end);
+      let present = 0, ot = 0, absent = 0;
+      (entryRows || []).forEach(r => {
+        if(r.status === "Present"){ present++; ot += Number(r.overtime_hours) || 0; }
+        else if(r.status === "Absent"){ absent++; }
+      });
+      const basicSalary = Number(emp.basic_salary) || 0;
+      const otAmt = basicSalary/208*ot*1.25;
+      const otherAllow = 0;
+      const salary = basicSalary + otAmt + otherAllow;
+      const absAmt = basicSalary/26*absent;
+      const netPay = salary - absAmt;
+      const gosiFixed = Number(emp.gosi_amount) > 0 ? Number(emp.gosi_amount) : basicSalary;
+      const transferAmount = Math.round(Math.min(gosiFixed, netPay) * 100) / 100;
+      const wpsBasic = Number(emp.wps_basic) || 0, wpsHousing = Number(emp.wps_housing) || 0, wpsOther = Number(emp.wps_other) || 0;
+      const deduction = Math.round(((wpsBasic + wpsHousing + wpsOther) - transferAmount) * 100) / 100;
+      rows.push([
+        "D", transferAmount, emp.iban, (emp.name||"").toUpperCase(), emp.bank_code, monthDesc,
+        wpsBasic, wpsHousing, wpsOther, Math.max(deduction, 0), emp.iqama_number, ""
+      ]);
+    }
+
+    if(!rows.length){
+      toast("No employees with IBAN/bank details set up for this group.");
+      state.loading = false; render();
+      return;
+    }
+
+    const today = new Date();
+    const dd = String(today.getDate()).padStart(2,"0"), mm = String(today.getMonth()+1).padStart(2,"0"), yyyy = today.getFullYear();
+    const valueDate = new Date(today); valueDate.setDate(valueDate.getDate()+1);
+    const vdd = String(valueDate.getDate()).padStart(2,"0"), vmm = String(valueDate.getMonth()+1).padStart(2,"0"), vyyyy = valueDate.getFullYear();
+
+    const headerRow = [
+      "H", settings.sending_bank_code, settings.code_2330, "N",
+      `${dd}${mm}${yyyy}.${String(fileNum).padStart(3,"0")}`,
+      settings.company_account_number, "SAR", `${vdd}${vmm}${vyyyy}`,
+      settings.code_92088, `${dd}${mm}${yyyy}`, settings.cr_number, monthDesc
+    ];
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Sheet2");
+    ws.addRow(headerRow);
+    rows.forEach(r => ws.addRow(r));
+
+    const filename = `WPY${dd}${mm}${yyyy}${String(fileNum).padStart(2,"0")}.xlsx`;
+    await downloadWorkbook(wb, filename);
+
+    if(skipped.length){
+      toast(`Downloaded. Skipped ${skipped.length} without IBAN/bank: ${skipped.slice(0,3).join(", ")}${skipped.length>3?"...":""}`);
+    }else{
+      toast("WPS payroll file downloaded.");
+    }
+  }catch(e){
+    console.error("WPS payroll error:", e);
+    toast("WPS payroll error: " + (e && e.message ? e.message : "unknown"));
+  }
+  state.loading = false;
+  render();
+}
+
 async function generateSalarySheet(){
   const shortName = (n) => (n || "").trim().split(/\s+/).slice(0, 2).join(" ");
   state.loading = true; render();
@@ -2307,6 +2416,8 @@ function renderHrView(){
     <button class="btn btn-primary btn-compact" id="saudiArabicPdfBtn" style="margin-top:5px;background:linear-gradient(135deg,#8A5A1C,#B87F2E);">⬇ تحميل كشف الدوام (Arabic) (${saudiCount})</button>
     <button class="btn btn-outline btn-compact" id="salarySheetBtn" style="margin-top:5px;">📊 Generate Salary Sheet (Excel)</button>
     <button class="btn btn-outline btn-compact" id="openHrLeaveListBtn" style="margin-top:5px;border-color:#E8A33D;color:#966109;">🌴 Leave Approvals</button>
+    <button class="btn btn-primary btn-compact" id="wpsPiSaudiBtn" style="margin-top:8px;background:linear-gradient(135deg,#0F3556,#1B5A96);">🏦 Generate WPS Payroll — PI + Saudi</button>
+    <button class="btn btn-primary btn-compact" id="wpsAlFalakBtn" style="margin-top:5px;background:linear-gradient(135deg,#4A2E0F,#6B4423);">🏦 Generate WPS Payroll — Al Falak</button>
   `;
 }
 
@@ -2617,6 +2728,8 @@ function handleDelegatedClick(e){
   if(el("openLeaveFormBtn")){ state.view = "leave-form"; loadMyLeaveRequests().then(render); return; }
   if(el("openSupervisorLeaveListBtn")){ state.view = "supervisor-leave-list"; loadSupervisorLeaveRequests().then(render); return; }
   if(el("openHrLeaveListBtn")){ state.view = "hr-leave-list"; loadHrLeaveRequests().then(render); return; }
+  if(el("wpsPiSaudiBtn")){ generateWpsPayroll("PI_SAUDI"); return; }
+  if(el("wpsAlFalakBtn")){ generateWpsPayroll("AL_FALAK"); return; }
   const reviewHrTsEl = e.target.closest("[data-review-hr-timesheet]");
   if(reviewHrTsEl){ openHrTimesheetReview(reviewHrTsEl.getAttribute("data-review-hr-timesheet")); return; }
   if(el("saveHrTimesheetBtn")){ saveHrTimesheetEdit(); return; }
