@@ -198,6 +198,7 @@
   .ot-stepper .ot-btn{flex:0 0 auto;width:18px;height:100%;border:none;background:var(--blue-light);color:#fff;font-weight:800;font-size:12px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;}
   .ot-stepper .ot-btn:disabled{background:#C9D6E3;opacity:.6;}
   .ot-stepper .ot-value{flex:1;text-align:center;font-size:8.5px;font-weight:800;color:var(--blue);}
+  .basic-hrs-display{text-align:center;font-size:10px;font-weight:800;color:var(--blue);background:#F3F8FD;border:2px solid var(--blue-light);border-radius:6px;padding:3px 2px;}
   tr.friday-row td{background:#FDF3EE;}
 
   .status-banner{padding:12px 14px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px;border:2px solid transparent;}
@@ -1458,11 +1459,7 @@ function renderEmployeeView(){
         </select>
       </td>
       <td>
-        <div class="ot-stepper">
-          <button type="button" class="ot-btn" data-date="${dstr}" data-dir="down" ${locked?"disabled":""}>−</button>
-          <span class="ot-value">${(Number(v.overtime_hours)||0).toFixed(1)}</span>
-          <button type="button" class="ot-btn" data-date="${dstr}" data-dir="up" ${locked?"disabled":""}>+</button>
-        </div>
+        <div class="basic-hrs-display">${v.status === "Present" ? "8" : "0"}</div>
       </td>
     </tr>`;
   }
@@ -1480,7 +1477,7 @@ function renderEmployeeView(){
     <div class="card" style="padding:8px 6px 4px;">
       <table class="grid">
         <colgroup><col style="width:15%;"><col style="width:27%;"><col style="width:33%;"><col style="width:20%;"></colgroup>
-        <thead><tr><th>Date</th><th>Status</th><th>Project</th><th>OT</th></tr></thead>
+        <thead><tr><th>Date</th><th>Status</th><th>Project</th><th>Hrs</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -1562,7 +1559,7 @@ function renderSupervisorReview(){
     rows += `<tr class="${isFriday(y,m,day)?'friday-row':''}">
       <td class="date-cell">${String(day).padStart(2,"0")}<small>${dayName(y,m,day)}</small></td>
       <td><span class="status-select st-${v.status}" style="display:inline-block;padding:3px 8px;border-radius:6px;">${v.status}</span></td>
-      <td>${(Number(v.overtime_hours)||0).toFixed(1)}</td>
+      <td>${v.status === "Present" ? "8" : "0"}</td>
       <td style="font-size:11.5px;color:var(--muted);">${projectName(v.project_id) || "—"}</td>
     </tr>`;
   }
@@ -1579,7 +1576,7 @@ function renderSupervisorReview(){
       <div class="summary-item s-total"><div class="n">${totals.totalHours.toFixed(1)}</div><div class="l">Total Hrs</div></div>
     </div>
     <div class="card" style="padding:8px 10px 4px;">
-      <table class="grid"><thead><tr><th>Date</th><th>Status</th><th>OT</th><th>Project</th></tr></thead><tbody>${rows}</tbody></table>
+      <table class="grid"><thead><tr><th>Date</th><th>Status</th><th>Hrs</th><th>Project</th></tr></thead><tbody>${rows}</tbody></table>
     </div>
     ${sub && sub.remarks ? `
     <div class="card">
