@@ -240,6 +240,9 @@
   .tab.active{color:var(--blue);border-color:var(--blue);}
 
   .remarks-card{background:linear-gradient(135deg,#FFF9EC,#FFF3D9);border:2px solid #F0C766;border-radius:12px;padding:12px 14px;margin-top:16px;margin-bottom:14px;}
+  .leave-photo-circle{width:64px;height:64px;border-radius:50%;overflow:hidden;background:var(--sky);border:2px solid var(--blue-light);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .leave-photo-circle img{width:100%;height:100%;object-fit:cover;}
+  .leave-photo-circle span{font-size:22px;opacity:.5;}
   .remarks-card label{font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;}
   .remarks-card textarea{width:100%;padding:10px 12px;border:1.5px solid #F0C766;border-radius:8px;font-size:13.5px;font-family:inherit;resize:vertical;background:#fff;color:var(--ink);box-sizing:border-box;}
   .remarks-card textarea:disabled{background:#FDF6E8;color:var(--muted);}
@@ -311,7 +314,7 @@ let state = {
   hrExcluded: new Set(), // employee_ids to leave out of the combined PDF (without deleting them)
   hrmSupervisorId: null, // Mohammed Mutlaq Al Morqi's id, for the separate SAUDI TIME SHEET export
   myLeaveRequests: [],
-  leaveFormDraft: { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "" },
+  leaveFormDraft: { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", photoDataUrl: "" },
   supervisorLeaveRequests: [],
   hrLeaveRequests: [],
   selectedLeaveRequest: null,
@@ -732,16 +735,38 @@ async function submitLeaveRequest(){
     has_tool_box: f.hasToolBox === "yes" ? true : (f.hasToolBox === "no" ? false : null),
     tool_box_handover_to: f.toolBoxHandoverTo || null,
     employee_signature: signatureData,
+    employee_photo: f.photoDataUrl || null,
     status: "submitted"
   });
   state.loading = false;
   toast(error ? "Could not submit. Try again." : "Leave application submitted to your supervisor.");
   if(!error){
-    state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "" };
+    state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", photoDataUrl: "" };
     leaveSigHasStroke = false;
   }
   await loadMyLeaveRequests();
   render();
+}
+
+function handleLeavePhotoFile(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const SIZE = 300;
+      const canvas = document.createElement("canvas");
+      canvas.width = SIZE; canvas.height = SIZE;
+      const ctx = canvas.getContext("2d");
+      const side = Math.min(img.width, img.height);
+      const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+      ctx.drawImage(img, sx, sy, side, side, 0, 0, SIZE, SIZE);
+      state.leaveFormDraft.photoDataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      render();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
 }
 
 async function loadSupervisorLeaveRequests(){
@@ -882,9 +907,22 @@ async function generateLeavePdf(reqId){
     cardBody(lastVacDuration ? 100 : 72);
     const colW = CONTENT_W / 2;
     fieldPair("Employee Name", emp?.name || "-", MARGIN + 14, y + 20, colW);
-    fieldPair("ID No / Iqama", emp?.iqama_number || "-", MARGIN + colW + 4, y + 20, colW);
+    fieldPair("ID No / Iqama", emp?.iqama_number || "-", MARGIN + colW + 4, y + 20, colW - 60);
     fieldPair("Application Date", req.application_date || "-", MARGIN + 14, y + 48, colW);
     fieldPair("Last Vacation Date", req.last_vacation_date || "-", MARGIN + colW + 4, y + 48, colW);
+    if(req.employee_photo){
+      try{
+        const pr = 26, pcx = PAGE_W - MARGIN - pr - 10, pcy = y + 24;
+        doc.saveGraphicsState();
+        doc.circle(pcx, pcy, pr);
+        doc.clip();
+        doc.discardPath();
+        doc.addImage(req.employee_photo, "JPEG", pcx - pr, pcy - pr, pr*2, pr*2);
+        doc.restoreGraphicsState();
+        doc.setDrawColor(...BLUE); doc.setLineWidth(1.2);
+        doc.circle(pcx, pcy, pr, "S");
+      }catch(e){}
+    }
     if(lastVacDuration){
       fieldPair("Time Since Last Vacation", lastVacDuration, MARGIN + 14, y + 76, colW);
       y += 100 + 14;
@@ -2061,6 +2099,17 @@ function renderLeaveForm(){
       <div class="meta">Submitted to your supervisor first, then HR for final approval.</div>
     </div>
 
+    <label>Photo</label>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
+      <div class="leave-photo-circle">
+        ${f.photoDataUrl ? `<img src="${f.photoDataUrl}" alt="Photo">` : `<span>📷</span>`}
+      </div>
+      <div style="flex:1;">
+        <input type="file" accept="image/*" id="leavePhotoInput" style="display:none;">
+        <button type="button" class="btn btn-outline btn-sm" id="leavePhotoBtn" style="width:100%;">${f.photoDataUrl ? "Change Photo" : "Take Photo / Choose from Gallery"}</button>
+      </div>
+    </div>
+
     <label>Last Vacation Date</label>
     <input type="date" id="leaveLastVacation" value="${f.lastVacationDate}">
     ${f.lastVacationDate ? `<div class="field-note">📅 ${humanDuration(f.lastVacationDate)}</div>` : ""}
@@ -2269,6 +2318,7 @@ function handleDelegatedClick(e){
   const downloadLeaveEl = e.target.closest("[data-download-leave]");
   if(downloadLeaveEl){ generateLeavePdf(downloadLeaveEl.getAttribute("data-download-leave")); return; }
   if(el("clearLeaveSigBtn")){ clearLeaveSigPad(); return; }
+  if(el("leavePhotoBtn")){ document.getElementById("leavePhotoInput")?.click(); return; }
   if(el("submitLeaveBtn")){ submitLeaveRequest(); return; }
   if(el("salarySheetBtn")){ generateSalarySheet(); return; }
 }
@@ -2303,6 +2353,7 @@ function handleDelegatedChange(e){
   if(e.target.id === "leaveFirstDay"){ state.leaveFormDraft.firstDay = e.target.value; render(); return; }
   if(e.target.id === "leaveLastDay"){ state.leaveFormDraft.lastDay = e.target.value; render(); return; }
   if(e.target.name === "hasToolBox"){ state.leaveFormDraft.hasToolBox = e.target.value; return; }
+  if(e.target.id === "leavePhotoInput"){ handleLeavePhotoFile(e.target.files && e.target.files[0]); return; }
 }
 
 async function handleAddProjectFromEmployee(dstr, selectEl){
