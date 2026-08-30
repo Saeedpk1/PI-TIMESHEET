@@ -1448,9 +1448,7 @@ function renderEmployeeView(){
         <select class="status-select st-${v.status}" data-date="${dstr}" data-field="status" ${locked?"disabled":""}>
           <option value="Present" ${v.status==="Present"?"selected":""}>Present</option>
           <option value="Absent" ${v.status==="Absent"?"selected":""}>Absent</option>
-          <option value="Leave" ${v.status==="Leave"?"selected":""}>Leave</option>
           <option value="Friday" ${v.status==="Friday"?"selected":""}>Off</option>
-          <option value="Holiday" ${v.status==="Holiday"?"selected":""}>Holiday</option>
         </select>
       </td>
       <td>
@@ -1476,9 +1474,6 @@ function renderEmployeeView(){
     <div class="summary-grid">
       <div class="summary-item s-present"><div class="n">${totals.present}</div><div class="l">Present</div></div>
       <div class="summary-item s-absent"><div class="n">${totals.absent}</div><div class="l">Absent</div></div>
-      <div class="summary-item s-sick"><div class="n">${totals.sick}</div><div class="l">Sick</div></div>
-      <div class="summary-item s-leave"><div class="n">${totals.leave}</div><div class="l">Leave</div></div>
-      <div class="summary-item s-ot"><div class="n">${totals.ot.toFixed(1)}</div><div class="l">OT Hrs</div></div>
       <div class="summary-item s-total"><div class="n">${totals.totalHours.toFixed(1)}</div><div class="l">Total Hrs</div></div>
     </div>
     <button id="downloadMyPdfBtn" style="display:block;width:100%;margin-bottom:14px;padding:11px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;font-weight:800;font-size:14px;cursor:pointer;">⬇ Download PDF</button>
@@ -1581,9 +1576,6 @@ function renderSupervisorReview(){
     <div class="summary-grid">
       <div class="summary-item s-present"><div class="n">${totals.present}</div><div class="l">Present</div></div>
       <div class="summary-item s-absent"><div class="n">${totals.absent}</div><div class="l">Absent</div></div>
-      <div class="summary-item s-sick"><div class="n">${totals.sick}</div><div class="l">Sick</div></div>
-      <div class="summary-item s-leave"><div class="n">${totals.leave}</div><div class="l">Leave</div></div>
-      <div class="summary-item s-ot"><div class="n">${totals.ot.toFixed(1)}</div><div class="l">OT Hrs</div></div>
       <div class="summary-item s-total"><div class="n">${totals.totalHours.toFixed(1)}</div><div class="l">Total Hrs</div></div>
     </div>
     <div class="card" style="padding:8px 10px 4px;">
