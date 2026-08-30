@@ -1445,9 +1445,9 @@ async function generateSalarySheet(){
     const thinBorder = { style: "thin", color: { argb: "FFB9C6D6" } };
     const allBorders = { top: thinBorder, left: thinBorder, bottom: thinBorder, right: thinBorder };
 
-    const headers1 = ["NO","NAME","COMPANY","PROJECT","INCOME","","","","","DEDUCTION","","","","N.PAY","GOSI","BALANCE"];
-    const headers2 = ["","","","","BASIC","DAYS","OT","AMT","OTHR","SALARY","ABS","AMT","OTH","DEC","","",""];
-    const colWidths = [5,24,11,20,10,7,6,10,9,11,6,10,9,9,12,10,12];
+    const headers1 = ["NO","NAME","COMPANY","PROJECT","INCOME","","","","","SALARY","DEDUCTION","","","N.PAY","GOSI","BALANCE"];
+    const headers2 = ["","","","","BASIC","DAYS","OT","AMT","OTHR","","ABS","AMT","OTH","","",""];
+    const colWidths = [5,22,11,20,9,6,6,9,8,10,6,9,8,11,10,11];
 
     Object.entries(groups).forEach(([groupName, groupRecords]) => {
       if(!groupRecords.length) return;
@@ -1455,7 +1455,7 @@ async function generateSalarySheet(){
       ws.columns = colWidths.map(w => ({ width: w }));
 
       // Title row
-      ws.mergeCells(1, 1, 1, 17);
+      ws.mergeCells(1, 1, 1, 16);
       const titleCell = ws.getCell(1, 1);
       titleCell.value = `${groupName} - SALARY FOR THE MONTH OF ${monthTitle}`;
       titleCell.font = { bold: true, size: 14, color: { argb: WHITE } };
@@ -1478,11 +1478,12 @@ async function generateSalarySheet(){
         hr.height = 16;
       });
       ws.mergeCells(2, 5, 2, 9);   // INCOME
-      ws.mergeCells(2, 10, 2, 13); // DEDUCTION
+      ws.mergeCells(2, 11, 2, 13); // DEDUCTION
       ws.mergeCells(2, 1, 3, 1);   // NO
       ws.mergeCells(2, 2, 3, 2);   // NAME
       ws.mergeCells(2, 3, 3, 3);   // COMPANY
       ws.mergeCells(2, 4, 3, 4);   // PROJECT
+      ws.mergeCells(2, 10, 3, 10); // SALARY
       ws.mergeCells(2, 14, 3, 14); // N.PAY
       ws.mergeCells(2, 15, 3, 15); // GOSI
       ws.mergeCells(2, 16, 3, 16); // BALANCE
@@ -1494,7 +1495,7 @@ async function generateSalarySheet(){
         wr.values = [
           i + 1,
           shortName(r.emp.name),
-          groupName === "Al falak" ? "AL FALAK" : "PI",
+          groupName === "Al falak" ? "AL FALAK" : (groupName === "Saudi" ? "SAUDI" : "PI"),
           r.projectLabel,
           Number(r.emp.basic_salary) || 0,
           r.present,
@@ -1505,10 +1506,9 @@ async function generateSalarySheet(){
           r.absent,
           { formula: `E${row}/26*K${row}` },
           0,
-          { formula: `L${row}+M${row}` },
-          { formula: `J${row}-N${row}` },
-          0,
-          { formula: `O${row}-P${row}` }
+          { formula: `J${row}-L${row}-M${row}` },
+          { formula: `MIN(E${row},N${row})` },
+          { formula: `N${row}-O${row}` }
         ];
         wr.eachCell({ includeEmpty: true }, (cell, colNum) => {
           cell.border = allBorders;
@@ -1520,8 +1520,8 @@ async function generateSalarySheet(){
             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: LIGHT } };
           }
         });
-        wr.getCell(15).fill = { type: "pattern", pattern: "solid", fgColor: { argb: GOLD } }; // N.PAY highlight
-        wr.getCell(15).font = { bold: true };
+        wr.getCell(14).fill = { type: "pattern", pattern: "solid", fgColor: { argb: GOLD } }; // N.PAY highlight
+        wr.getCell(14).font = { bold: true };
       });
 
       const lastDataRow = firstDataRow + groupRecords.length - 1;
@@ -1533,8 +1533,7 @@ async function generateSalarySheet(){
         "","","",
         { formula: `SUM(N${firstDataRow}:N${lastDataRow})` },
         { formula: `SUM(O${firstDataRow}:O${lastDataRow})` },
-        { formula: `SUM(P${firstDataRow}:P${lastDataRow})` },
-        { formula: `SUM(Q${firstDataRow}:Q${lastDataRow})` }
+        { formula: `SUM(P${firstDataRow}:P${lastDataRow})` }
       ];
       tr.eachCell({ includeEmpty: true }, cell => {
         cell.font = { bold: true };
