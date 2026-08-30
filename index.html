@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>Timesheets — Professional Installation Co</title>
+<!-- build-marker: arabic-v2 -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1B5A96">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -445,6 +446,8 @@ async function doLogin(iqama){
     }
     state.user = match;
     localStorage.setItem("ts_user", JSON.stringify(match));
+    const mohammed = (data || []).find(row => (row.iqama_number || "") === "1091504728");
+    state.hrmSupervisorId = mohammed ? mohammed.id : null;
     await loadProjects();
     state.view = match.role === "employee" ? "employee" : (match.role === "supervisor" ? "supervisor" : "hr");
     if(state.view === "employee") await loadEmployeeMonth();
@@ -1421,35 +1424,42 @@ function renderLogin(){
 }
 
 /* ---- employee view ---- */
+function isSaudiUser(){
+  return !!state.user && (state.user.iqama_number === "1091504728" || (state.hrmSupervisorId && state.user.supervisor_id === state.hrmSupervisorId));
+}
+const AR_DAY_SHORT = ["أحد","اثنين","ثلاثاء","أربعاء","خميس","جمعة","سبت"]; // index = Date.getDay()
+
 function renderEmployeeView(){
   const y = state.monthDate.getFullYear(), m = state.monthDate.getMonth(), nd = daysInMonth(state.monthDate);
   const totals = computeTotals(state.entries);
   const subStatus = state.submission ? state.submission.status : "draft";
   const locked = subStatus === "submitted" || subStatus === "approved";
   const isSelfSubmit = state.user.role !== "employee";
+  const ar = isSaudiUser();
 
   let banner = "";
-  if(subStatus==="submitted") banner = `<div class="status-banner status-submitted">⏳ Submitted — waiting for supervisor approval</div>`;
+  if(subStatus==="submitted") banner = `<div class="status-banner status-submitted">${ar ? "⏳ تم الإرسال — بانتظار اعتماد المشرف" : "⏳ Submitted — waiting for supervisor approval"}</div>`;
   else if(subStatus==="approved") banner = isSelfSubmit
-    ? `<div class="status-banner status-approved">✅ Submitted and recorded</div>`
-    : `<div class="status-banner status-approved">✅ Approved and signed by your supervisor</div>`;
-  else if(subStatus==="rejected") banner = `<div class="status-banner status-rejected">↩️ Sent back: ${state.submission.rejection_reason || "please review and resubmit"}</div>`;
-  else banner = `<div class="status-banner status-draft">📝 Draft — not yet submitted</div>`;
+    ? `<div class="status-banner status-approved">${ar ? "✅ تم الإرسال والتسجيل" : "✅ Submitted and recorded"}</div>`
+    : `<div class="status-banner status-approved">${ar ? "✅ تم الاعتماد والتوقيع من قبل المشرف" : "✅ Approved and signed by your supervisor"}</div>`;
+  else if(subStatus==="rejected") banner = `<div class="status-banner status-rejected">${ar ? "↩️ تم الإرجاع: " : "↩️ Sent back: "}${state.submission.rejection_reason || (ar ? "يرجى المراجعة وإعادة الإرسال" : "please review and resubmit")}</div>`;
+  else banner = `<div class="status-banner status-draft">${ar ? "📝 مسودة — لم يتم الإرسال بعد" : "📝 Draft — not yet submitted"}</div>`;
 
   let rows = "";
   for(let day=1; day<=nd; day++){
     const dstr = fmtDate(y,m,day);
     const v = state.entries[dstr] || { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0, project_id: "" };
     const fri = isFriday(y,m,day);
-    const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${v.project_id===p.id?"selected":""}>${p.name}</option>`).join("") + `<option value="__new__">+ New…</option>`;
+    const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${v.project_id===p.id?"selected":""}>${p.name}</option>`).join("") + `<option value="__new__">${ar ? "+ جديد…" : "+ New…"}</option>`;
+    const dayLabel = ar ? AR_DAY_SHORT[new Date(y,m,day).getDay()] : dayName(y,m,day);
     rows += `
     <tr class="${fri?'friday-row':''}">
-      <td class="date-cell">${String(day).padStart(2,"0")}<small>${dayName(y,m,day)}</small></td>
+      <td class="date-cell">${String(day).padStart(2,"0")}<small>${dayLabel}</small></td>
       <td>
         <select class="status-select st-${v.status}" data-date="${dstr}" data-field="status" ${locked?"disabled":""}>
-          <option value="Present" ${v.status==="Present"?"selected":""}>Present</option>
-          <option value="Absent" ${v.status==="Absent"?"selected":""}>Absent</option>
-          <option value="Friday" ${v.status==="Friday"?"selected":""}>Off</option>
+          <option value="Present" ${v.status==="Present"?"selected":""}>${ar ? "حاضر" : "Present"}</option>
+          <option value="Absent" ${v.status==="Absent"?"selected":""}>${ar ? "غائب" : "Absent"}</option>
+          <option value="Friday" ${v.status==="Friday"?"selected":""}>${ar ? "عطلة" : "Off"}</option>
         </select>
       </td>
       <td>
@@ -1465,33 +1475,33 @@ function renderEmployeeView(){
   }
 
   return `
-    ${isSelfSubmit ? `<button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>` : ""}
+    ${isSelfSubmit ? `<button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">${ar ? "› رجوع" : "‹ Back"}</button>` : ""}
     ${renderMonthNav("employee")}
     ${banner}
     <div class="summary-grid">
-      <div class="summary-item s-present"><div class="n">${totals.present}</div><div class="l">Present</div></div>
-      <div class="summary-item s-absent"><div class="n">${totals.absent}</div><div class="l">Absent</div></div>
-      <div class="summary-item s-total"><div class="n">${totals.totalHours.toFixed(1)}</div><div class="l">Total Hrs</div></div>
+      <div class="summary-item s-present"><div class="n">${totals.present}</div><div class="l">${ar ? "حاضر" : "Present"}</div></div>
+      <div class="summary-item s-absent"><div class="n">${totals.absent}</div><div class="l">${ar ? "غائب" : "Absent"}</div></div>
+      <div class="summary-item s-total"><div class="n">${totals.totalHours.toFixed(1)}</div><div class="l">${ar ? "إجمالي الساعات" : "Total Hrs"}</div></div>
     </div>
-    <button id="downloadMyPdfBtn" style="display:block;width:100%;margin-bottom:14px;padding:11px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;font-weight:800;font-size:14px;cursor:pointer;">⬇ Download PDF</button>
+    <button id="downloadMyPdfBtn" style="display:block;width:100%;margin-bottom:14px;padding:11px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;font-weight:800;font-size:14px;cursor:pointer;">${ar ? "⬇ تحميل PDF" : "⬇ Download PDF"}</button>
     <div class="card" style="padding:8px 6px 4px;">
       <table class="grid">
         <colgroup><col style="width:15%;"><col style="width:27%;"><col style="width:33%;"><col style="width:20%;"></colgroup>
-        <thead><tr><th>Date</th><th>Status</th><th>Project</th><th>Hrs</th></tr></thead>
+        <thead><tr><th>${ar?"التاريخ":"Date"}</th><th>${ar?"الحالة":"Status"}</th><th>${ar?"المشروع":"Project"}</th><th>${ar?"ساعات":"Hrs"}</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
     <div class="remarks-card">
-      <label style="margin-top:0;color:#966109;">📝 Remarks / Notes</label>
-      <textarea id="remarksInput" rows="3" placeholder="Anything extra you want to note for this month..." ${locked?"disabled":""}>${locked ? (state.submission?.remarks || "") : (state.remarksDraft || "")}</textarea>
+      <label style="margin-top:0;color:#966109;">${ar ? "📝 ملاحظات" : "📝 Remarks / Notes"}</label>
+      <textarea id="remarksInput" rows="3" placeholder="${ar ? "أي ملاحظات إضافية لهذا الشهر..." : "Anything extra you want to note for this month..."}" ${locked?"disabled":""}>${locked ? (state.submission?.remarks || "") : (state.remarksDraft || "")}</textarea>
     </div>
     ${!locked ? `
     <div class="bottom-bar">
-      <button class="btn btn-save-draft btn-sm" id="saveDraftBtn" style="flex:1;">💾 Save draft</button>
-      <button class="btn btn-submit btn-sm" id="submitBtn" style="flex:1;">✅ ${isSelfSubmit ? "Submit timesheet" : "Submit for approval"}</button>
+      <button class="btn btn-save-draft btn-sm" id="saveDraftBtn" style="flex:1;">${ar ? "💾 حفظ كمسودة" : "💾 Save draft"}</button>
+      <button class="btn btn-submit btn-sm" id="submitBtn" style="flex:1;">${ar ? "✅ " + (isSelfSubmit ? "إرسال الدوام" : "إرسال للاعتماد") : "✅ " + (isSelfSubmit ? "Submit timesheet" : "Submit for approval")}</button>
     </div>` : (subStatus==="rejected" ? `
     <div class="bottom-bar">
-      <button class="btn btn-submit" id="submitBtn" style="flex:1;">✏️ Edit &amp; resubmit</button>
+      <button class="btn btn-submit" id="submitBtn" style="flex:1;">${ar ? "✏️ تعديل وإعادة إرسال" : "✏️ Edit & resubmit"}</button>
     </div>` : "")}
   `;
 }
@@ -1507,21 +1517,24 @@ function renderMonthNav(context){
 
 /* ---- supervisor list ---- */
 function renderSupervisorList(){
+  const ar = isSaudiUser();
   const initials = (name)=> (name||"?").trim().split(/\s+/).slice(0,2).map(w=>w[0]?.toUpperCase()||"").join("");
   const rows = state.supervisorEmployees.map(e=>{
     const st = e.submission ? e.submission.status : "draft";
     const badgeClass = { submitted:"badge-submitted", approved:"badge-approved", rejected:"badge-rejected", draft:"badge-draft" }[st];
-    const label = { submitted:"Awaiting review", approved:"Approved", rejected:"Rejected", draft:"Draft" }[st];
+    const label = ar
+      ? { submitted:"بانتظار المراجعة", approved:"معتمد", rejected:"مرفوض", draft:"مسودة" }[st]
+      : { submitted:"Awaiting review", approved:"Approved", rejected:"Rejected", draft:"Draft" }[st];
     return `
     <div class="emp-list-item li-${st}" data-emp="${e.id}">
       <div class="emp-avatar">${initials(e.name)}</div>
       <div style="flex:1;min-width:0;">
-        <div class="name">${e.name}</div>
+        <div class="name">${(ar && e.name_ar) ? e.name_ar : e.name}</div>
         <div class="sub">${e.employee_no || ""} ${e.project_site ? "• " + e.project_site : ""}</div>
       </div>
       <span class="badge ${badgeClass}">${label}</span>
     </div>`;
-  }).join("") || `<div class="empty-state"><div class="ic">👷</div>No employees assigned to you yet.</div>`;
+  }).join("") || `<div class="empty-state"><div class="ic">👷</div>${ar ? "لا يوجد موظفون مسندون إليك بعد." : "No employees assigned to you yet."}</div>`;
 
   return `
     ${renderMonthNav("supervisor")}
@@ -1530,16 +1543,16 @@ function renderSupervisorList(){
         <div style="display:flex;align-items:center;gap:10px;">
           <span style="font-size:22px;">🕒</span>
           <div>
-            <div style="font-weight:800;font-size:14.5px;color:var(--navy);">My timesheet</div>
-            <div class="meta">Fill in your own hours for ${monthLabel(state.monthDate)}</div>
+            <div style="font-weight:800;font-size:14.5px;color:var(--navy);">${ar ? "دوامي" : "My timesheet"}</div>
+            <div class="meta">${ar ? "أدخل ساعات عملك لشهر " + monthLabel(state.monthDate) : "Fill in your own hours for " + monthLabel(state.monthDate)}</div>
           </div>
         </div>
-        <span style="color:var(--blue);font-size:20px;font-weight:800;">›</span>
+        <span style="color:var(--blue);font-size:20px;font-weight:800;">${ar ? "‹" : "›"}</span>
       </div>
     </div>
     <div class="row-between" style="margin-bottom:10px;background:linear-gradient(135deg,var(--navy),var(--blue));padding:10px 12px;border-radius:10px;">
-      <div style="font-size:13px;color:#fff;font-weight:800;">👥 Your team — ${monthLabel(state.monthDate)}</div>
-      <button class="link-btn install-link" id="sigSettingsBtn" style="color:#FFE7B0 !important;">${state.savedSignature ? "✎ Update signature" : "✎ Set up signature"}</button>
+      <div style="font-size:13px;color:#fff;font-weight:800;">${ar ? "👥 فريقك — " + monthLabel(state.monthDate) : "👥 Your team — " + monthLabel(state.monthDate)}</div>
+      <button class="link-btn install-link" id="sigSettingsBtn" style="color:#FFE7B0 !important;">${ar ? (state.savedSignature ? "✎ تحديث التوقيع" : "✎ إعداد التوقيع") : (state.savedSignature ? "✎ Update signature" : "✎ Set up signature")}</button>
     </div>
     <div>${rows}</div>
   `;
@@ -1829,6 +1842,8 @@ async function init(){
   document.addEventListener("change", handleDelegatedChange);
   document.addEventListener("input", handleDelegatedInput);
   if(state.user){
+    const { data: mohammed } = await sb.from("ts_employees").select("id").eq("iqama_number", "1091504728").maybeSingle();
+    state.hrmSupervisorId = mohammed ? mohammed.id : null;
     await loadProjects();
     state.view = state.user.role === "employee" ? "employee" : (state.user.role === "supervisor" ? "supervisor" : "hr");
     if(state.view === "employee") await loadEmployeeMonth();
