@@ -1387,6 +1387,7 @@ async function downloadWorkbook(wb, filename){
 }
 
 async function generateSalarySheet(){
+  const shortName = (n) => (n || "").trim().split(/\s+/).slice(0, 2).join(" ");
   state.loading = true; render();
   try{
     const [y, m] = state.hrMonth.split("-").map(Number);
@@ -1396,6 +1397,11 @@ async function generateSalarySheet(){
     const { data: employees, error: empErr } = await sb.from("ts_employees")
       .select("*").in("role", ["employee","supervisor"]).eq("active", true).order("name");
     if(empErr) throw empErr;
+
+    if(!state.hrmSupervisorId){
+      const { data: mohammed } = await sb.from("ts_employees").select("id").eq("iqama_number", "1091504728").maybeSingle();
+      state.hrmSupervisorId = mohammed ? mohammed.id : null;
+    }
 
     const records = [];
     for(const emp of (employees || [])){
@@ -1419,9 +1425,10 @@ async function generateSalarySheet(){
       records.push({ emp, present, ot, absent, projectLabel });
     }
 
-    const groups = { "PI": [], "Al falak": [] };
+    const groups = { "PI": [], "Saudi": [], "Al falak": [] };
     records.forEach(r => {
-      const g = r.emp.salary_group === "Al falak" ? "Al falak" : "PI";
+      const isSaudiTeam = state.hrmSupervisorId && (r.emp.id === state.hrmSupervisorId || r.emp.supervisor_id === state.hrmSupervisorId);
+      const g = isSaudiTeam ? "Saudi" : (r.emp.salary_group === "Al falak" ? "Al falak" : "PI");
       groups[g].push(r);
     });
 
@@ -1486,7 +1493,7 @@ async function generateSalarySheet(){
         const wr = ws.getRow(row);
         wr.values = [
           i + 1,
-          r.emp.name,
+          shortName(r.emp.name),
           groupName === "Al falak" ? "AL FALAK" : "PI",
           r.projectLabel,
           Number(r.emp.basic_salary) || 0,
