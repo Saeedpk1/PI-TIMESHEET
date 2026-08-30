@@ -310,6 +310,11 @@ let state = {
   hrApproved: [],
   hrExcluded: new Set(), // employee_ids to leave out of the combined PDF (without deleting them)
   hrmSupervisorId: null, // Mohammed Mutlaq Al Morqi's id, for the separate SAUDI TIME SHEET export
+  myLeaveRequests: [],
+  leaveFormDraft: { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "" },
+  supervisorLeaveRequests: [],
+  hrLeaveRequests: [],
+  selectedLeaveRequest: null,
   projects: [],           // {id, name, active}
   newProjectName: "",
   remarksDraft: "",
@@ -674,6 +679,234 @@ async function saveSigPad(){
   state.savedSignature = dataUrl;
   toast(error ? "Could not save signature." : "Signature saved.");
   render();
+}
+
+/* ---------------- Leave requests ---------------- */
+async function loadMyLeaveRequests(){
+  const { data } = await sb.from("ts_leave_requests").select("*").eq("employee_id", state.user.id).order("created_at", { ascending: false });
+  state.myLeaveRequests = data || [];
+}
+
+function leaveDaysBetween(firstDay, lastDay){
+  if(!firstDay || !lastDay) return 0;
+  const a = new Date(firstDay), b = new Date(lastDay);
+  const diff = Math.round((b - a) / 86400000) + 1;
+  return diff > 0 ? diff : 0;
+}
+
+async function submitLeaveRequest(){
+  const f = state.leaveFormDraft;
+  if(!f.firstDay || !f.lastDay){ toast("Enter the first and last day of leave."); return; }
+  if(new Date(f.lastDay) < new Date(f.firstDay)){ toast("Last day can't be before the first day."); return; }
+  const canvas = document.getElementById("leaveSigCanvas");
+  if(!canvas || !leaveSigHasStroke){ toast("Please sign the declaration before submitting."); return; }
+
+  state.loading = true; render();
+  const signatureData = canvas.toDataURL("image/png");
+  const days = leaveDaysBetween(f.firstDay, f.lastDay);
+  const { error } = await sb.from("ts_leave_requests").insert({
+    employee_id: state.user.id,
+    supervisor_id: state.user.supervisor_id || null,
+    application_date: new Date().toISOString().slice(0,10),
+    last_vacation_date: f.lastVacationDate || null,
+    mobile_number: f.mobileNumber || null,
+    home_mobile_number: f.homeMobileNumber || null,
+    first_day: f.firstDay,
+    last_day: f.lastDay,
+    number_of_days: days,
+    has_tool_box: f.hasToolBox === "yes" ? true : (f.hasToolBox === "no" ? false : null),
+    tool_box_handover_to: f.toolBoxHandoverTo || null,
+    employee_signature: signatureData,
+    status: "submitted"
+  });
+  state.loading = false;
+  toast(error ? "Could not submit. Try again." : "Leave application submitted to your supervisor.");
+  if(!error){
+    state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "" };
+    leaveSigHasStroke = false;
+  }
+  await loadMyLeaveRequests();
+  render();
+}
+
+async function loadSupervisorLeaveRequests(){
+  const { data } = await sb.from("ts_leave_requests")
+    .select("*, ts_employees:employee_id(name, employee_no, project_site)")
+    .eq("supervisor_id", state.user.id).order("created_at", { ascending: false });
+  state.supervisorLeaveRequests = data || [];
+}
+
+async function approveLeaveSupervisor(reqId){
+  if(!state.savedSignature){ toast("Save your signature first (in your team screen)."); return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_leave_requests").update({
+    status: "supervisor_approved", supervisor_approved_at: new Date().toISOString(),
+    supervisor_signature: state.savedSignature, updated_at: new Date().toISOString()
+  }).eq("id", reqId);
+  state.loading = false;
+  toast(error ? "Could not approve. Try again." : "Leave request approved and sent to HR.");
+  state.view = "supervisor-leave-list";
+  await loadSupervisorLeaveRequests();
+  render();
+}
+
+async function rejectLeaveSupervisor(reqId){
+  const reason = prompt("Reason for rejecting this leave request:");
+  if(reason === null) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_leave_requests").update({
+    status: "rejected", supervisor_rejection_reason: reason, updated_at: new Date().toISOString()
+  }).eq("id", reqId);
+  state.loading = false;
+  toast(error ? "Could not reject. Try again." : "Leave request rejected.");
+  state.view = "supervisor-leave-list";
+  await loadSupervisorLeaveRequests();
+  render();
+}
+
+async function loadHrLeaveRequests(){
+  const { data } = await sb.from("ts_leave_requests")
+    .select("*, ts_employees:employee_id(name, employee_no, project_site)")
+    .in("status", ["supervisor_approved","hr_approved","rejected"]).order("created_at", { ascending: false });
+  state.hrLeaveRequests = data || [];
+}
+
+async function approveLeaveHr(reqId){
+  state.loading = true; render();
+  const { error } = await sb.from("ts_leave_requests").update({
+    status: "hr_approved", hr_approved_at: new Date().toISOString(), hr_approved_by: state.user.id, updated_at: new Date().toISOString()
+  }).eq("id", reqId);
+  state.loading = false;
+  toast(error ? "Could not approve. Try again." : "Leave request fully approved.");
+  await loadHrLeaveRequests();
+  render();
+}
+
+async function rejectLeaveHr(reqId){
+  const reason = prompt("Reason for rejecting this leave request:");
+  if(reason === null) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_leave_requests").update({
+    status: "rejected", hr_rejection_reason: reason, updated_at: new Date().toISOString()
+  }).eq("id", reqId);
+  state.loading = false;
+  toast(error ? "Could not reject. Try again." : "Leave request rejected.");
+  await loadHrLeaveRequests();
+  render();
+}
+
+async function generateLeavePdf(reqId){
+  let req = state.hrLeaveRequests.find(r=>r.id===reqId) || state.supervisorLeaveRequests.find(r=>r.id===reqId) || state.myLeaveRequests.find(r=>r.id===reqId);
+  if(!req){ toast("Could not find that request."); return; }
+  let emp = req.ts_employees;
+  if(!emp){
+    const { data } = await sb.from("ts_employees").select("name, name_ar, employee_no, iqama_number").eq("id", req.employee_id).maybeSingle();
+    emp = data;
+  }
+  let supName = "-";
+  if(req.supervisor_id){
+    const { data: sup } = await sb.from("ts_employees").select("name").eq("id", req.supervisor_id).maybeSingle();
+    if(sup) supName = sup.name;
+  }
+
+  state.loading = true; render();
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    drawLetterhead(doc);
+    doc.setFontSize(15); doc.setTextColor(15,53,86); doc.setFont("helvetica","bold");
+    doc.text("ANNUAL LEAVE APPLICATION FORM", 40, 78);
+    doc.setFont("helvetica","normal");
+
+    doc.setFontSize(11); doc.setTextColor(15,53,86); doc.setFont("helvetica","bold");
+    doc.text("Section A: Employee Details", 40, 104);
+    doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(40,40,40);
+    const aLines = [
+      `Employee Name: ${emp?.name || "-"}`,
+      `ID No / Iqama: ${emp?.iqama_number || "-"}`,
+      `Application Date: ${req.application_date || "-"}`,
+      `Last Vacation Date: ${req.last_vacation_date || "-"}`,
+      `Mobile Number: ${req.mobile_number || "-"}`,
+      `Home Mobile No: ${req.home_mobile_number || "-"}`
+    ];
+    let ly = 122;
+    aLines.forEach(l => { doc.text(l, 40, ly); ly += 15; });
+
+    ly += 8;
+    doc.setFontSize(11); doc.setTextColor(15,53,86); doc.setFont("helvetica","bold");
+    doc.text("Section B: Leave Details", 40, ly); ly += 18;
+    doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(40,40,40);
+    [`First Day of Leave: ${req.first_day}`, `Last Day of Leave: ${req.last_day}`, `Number of Days: ${req.number_of_days}`].forEach(l => { doc.text(l, 40, ly); ly += 15; });
+
+    ly += 8;
+    doc.setFontSize(11); doc.setTextColor(15,53,86); doc.setFont("helvetica","bold");
+    doc.text("Section C: Employee Declaration", 40, ly); ly += 18;
+    doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(40,40,40);
+    doc.text(`I have tool box: ${req.has_tool_box === true ? "Yes" : req.has_tool_box === false ? "No" : "-"}`, 40, ly); ly += 15;
+    doc.text(`Tool box handover to: ${req.tool_box_handover_to || "-"}`, 40, ly); ly += 15;
+    doc.text("Employee Signature:", 40, ly);
+    if(req.employee_signature){ try{ doc.addImage(req.employee_signature, "PNG", 150, ly-14, 110, 40); }catch(e){} }
+    ly += 50;
+
+    doc.setFontSize(11); doc.setTextColor(15,53,86); doc.setFont("helvetica","bold");
+    doc.text("Section D: 1st Approval (Supervisor)", 40, ly); ly += 18;
+    doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(40,40,40);
+    doc.text(`Line Manager: ${supName}`, 40, ly); ly += 15;
+    doc.text("Signature:", 40, ly);
+    if(req.supervisor_signature){ try{ doc.addImage(req.supervisor_signature, "PNG", 150, ly-14, 110, 40); }catch(e){} }
+    ly += 40;
+    doc.text(`Date: ${req.supervisor_approved_at ? new Date(req.supervisor_approved_at).toLocaleDateString() : "-"}`, 40, ly); ly += 24;
+
+    doc.setFontSize(11); doc.setTextColor(15,53,86); doc.setFont("helvetica","bold");
+    doc.text("Section E: 2nd Approval (Employer / HR)", 40, ly); ly += 18;
+    doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(40,40,40);
+    doc.text(`Employer Authorization: ${req.status === "hr_approved" ? "Approved" : "-"}`, 40, ly); ly += 15;
+    doc.text(`Date: ${req.hr_approved_at ? new Date(req.hr_approved_at).toLocaleDateString() : "-"}`, 40, ly);
+
+    stampFooters(doc);
+    doc.save(`Leave_Application_${(emp?.name||"employee").replace(/\s+/g,"_")}.pdf`);
+    toast("Leave application PDF downloaded.");
+  }catch(e){
+    console.error("Leave PDF error:", e);
+    toast("PDF error: " + (e && e.message ? e.message : "unknown"));
+  }
+  state.loading = false;
+  render();
+}
+
+let leaveSigCtx=null, leaveSigDrawing=false, leaveSigHasStroke=false;
+function initLeaveSigPad(){
+  const canvas = document.getElementById("leaveSigCanvas");
+  if(!canvas) return;
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = canvas.clientWidth * ratio;
+  canvas.height = canvas.clientHeight * ratio;
+  leaveSigCtx = canvas.getContext("2d");
+  leaveSigCtx.scale(ratio, ratio);
+  leaveSigCtx.lineWidth = 2.2;
+  leaveSigCtx.lineCap = "round";
+  leaveSigCtx.strokeStyle = "#0F3556";
+  leaveSigHasStroke = false;
+
+  const pos = (e)=>{
+    const r = canvas.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    return { x: p.clientX - r.left, y: p.clientY - r.top };
+  };
+  const start = (e)=>{ e.preventDefault(); leaveSigDrawing=true; const p=pos(e); leaveSigCtx.beginPath(); leaveSigCtx.moveTo(p.x,p.y); };
+  const move = (e)=>{ if(!leaveSigDrawing) return; e.preventDefault(); const p=pos(e); leaveSigCtx.lineTo(p.x,p.y); leaveSigCtx.stroke(); leaveSigHasStroke=true; };
+  const end = ()=>{ leaveSigDrawing=false; };
+
+  canvas.addEventListener("mousedown", start);
+  canvas.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", end);
+  canvas.addEventListener("touchstart", start, {passive:false});
+  canvas.addEventListener("touchmove", move, {passive:false});
+  canvas.addEventListener("touchend", end);
+}
+function clearLeaveSigPad(){
+  const canvas = document.getElementById("leaveSigCanvas");
+  if(canvas && leaveSigCtx){ leaveSigCtx.clearRect(0,0,canvas.width,canvas.height); leaveSigHasStroke=false; }
 }
 
 /* ---------------- HR flow ---------------- */
@@ -1382,10 +1615,15 @@ function render(){
   else if(state.view === "supervisor-signature") body = renderSignaturePad();
   else if(state.view === "hr") body = renderHrView();
   else if(state.view === "hr-projects") body = renderProjectsManager();
+  else if(state.view === "leave-form") body = renderLeaveForm();
+  else if(state.view === "supervisor-leave-list") body = renderSupervisorLeaveList();
+  else if(state.view === "hr-leave-list") body = renderHrLeaveList();
+  else if(state.view === "supervisor-leave-review") body = renderSupervisorLeaveReview();
 
   root.innerHTML = header + `<main>${body}</main>`;
   attachViewEvents();
   if(state.view === "supervisor-signature") initSigPad();
+  if(state.view === "leave-form") initLeaveSigPad();
 }
 function renderMain(){
   // re-render just current view without reloading data (used on local edits)
@@ -1483,7 +1721,8 @@ function renderEmployeeView(){
       <div class="summary-item s-absent"><div class="n">${totals.absent}</div><div class="l">${ar ? "غائب" : "Absent"}</div></div>
       <div class="summary-item s-total"><div class="n">${totals.totalHours.toFixed(1)}</div><div class="l">${ar ? "إجمالي الساعات" : "Total Hrs"}</div></div>
     </div>
-    <button id="downloadMyPdfBtn" style="display:block;width:100%;margin-bottom:14px;padding:11px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;font-weight:800;font-size:14px;cursor:pointer;">${ar ? "⬇ تحميل PDF" : "⬇ Download PDF"}</button>
+    <button id="downloadMyPdfBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;font-weight:800;font-size:14px;cursor:pointer;">${ar ? "⬇ تحميل PDF" : "⬇ Download PDF"}</button>
+    <button id="openLeaveFormBtn" style="display:block;width:100%;margin-bottom:14px;padding:11px 16px;border-radius:10px;border:2px solid #E8A33D;background:#FFF3D9;color:#966109;font-weight:800;font-size:14px;cursor:pointer;">🌴 ${ar ? "طلب إجازة سنوية" : "Apply for Annual Leave"}</button>
     <div class="card" style="padding:8px 6px 4px;">
       <table class="grid">
         <colgroup><col style="width:15%;"><col style="width:27%;"><col style="width:33%;"><col style="width:20%;"></colgroup>
@@ -1554,6 +1793,7 @@ function renderSupervisorList(){
       <div style="font-size:13px;color:#fff;font-weight:800;">${ar ? "👥 فريقك — " + monthLabel(state.monthDate) : "👥 Your team — " + monthLabel(state.monthDate)}</div>
       <button class="link-btn install-link" id="sigSettingsBtn" style="color:#FFE7B0 !important;">${ar ? (state.savedSignature ? "✎ تحديث التوقيع" : "✎ إعداد التوقيع") : (state.savedSignature ? "✎ Update signature" : "✎ Set up signature")}</button>
     </div>
+    <button id="openSupervisorLeaveListBtn" style="display:block;width:100%;margin-bottom:14px;padding:10px 16px;border-radius:10px;border:2px solid #E8A33D;background:#FFF3D9;color:#966109;font-weight:800;font-size:13.5px;cursor:pointer;">🌴 ${ar ? "طلبات الإجازة" : "Leave Requests"}</button>
     <div>${rows}</div>
   `;
 }
@@ -1669,6 +1909,7 @@ function renderHrView(){
     <button class="btn btn-primary" id="saudiPdfBtn" style="margin-top:10px;background:linear-gradient(135deg,#1C8A4E,#25A85F);">⬇ Download SAUDI TIME SHEET (${saudiCount})</button>
     <button class="btn btn-primary" id="saudiArabicPdfBtn" style="margin-top:10px;background:linear-gradient(135deg,#8A5A1C,#B87F2E);">⬇ تحميل كشف الدوام (Arabic) (${saudiCount})</button>
     <button class="btn btn-outline" id="salarySheetBtn" style="margin-top:10px;">📊 Generate Salary Sheet (Excel)</button>
+    <button class="btn btn-outline" id="openHrLeaveListBtn" style="margin-top:10px;border-color:#E8A33D;color:#966109;">🌴 Leave Approvals</button>
   `;
 }
 
@@ -1689,6 +1930,163 @@ function renderProjectsManager(){
     <input type="text" id="newProjectNameInput" placeholder="e.g. Riyadh Site A" value="${state.newProjectName || ""}">
     <button class="btn btn-primary btn-sm" id="addProjectBtn" style="margin-top:10px;">Add project</button>
     <div class="card" style="margin-top:18px;padding:4px 12px;">${rows}</div>
+  `;
+}
+
+function leaveBadgeInfo(status){
+  return {
+    submitted: { cls: "badge-submitted", label: "Awaiting supervisor" },
+    supervisor_approved: { cls: "badge-submitted", label: "Awaiting HR" },
+    hr_approved: { cls: "badge-approved", label: "Fully approved" },
+    rejected: { cls: "badge-rejected", label: "Rejected" }
+  }[status] || { cls: "badge-draft", label: status };
+}
+
+function renderLeaveForm(){
+  const f = state.leaveFormDraft;
+  const days = leaveDaysBetween(f.firstDay, f.lastDay);
+  const historyRows = state.myLeaveRequests.map(r => {
+    const b = leaveBadgeInfo(r.status);
+    return `
+    <div class="emp-list-item li-approved">
+      <div style="flex:1;min-width:0;">
+        <div class="name">${r.first_day} → ${r.last_day} (${r.number_of_days} day${r.number_of_days===1?"":"s"})</div>
+        <div class="sub">${r.status === "rejected" ? (r.hr_rejection_reason || r.supervisor_rejection_reason || "Rejected") : "Applied " + (r.application_date||"")}</div>
+      </div>
+      <span class="badge ${b.cls}">${b.label}</span>
+      ${r.status === "hr_approved" ? `<button class="link-btn" data-download-leave="${r.id}" style="margin-left:8px;">⬇ PDF</button>` : ""}
+    </div>`;
+  }).join("") || `<div class="empty-state"><div class="ic">🌴</div>No leave applications yet.</div>`;
+
+  return `
+    <button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    <div class="card" style="background:linear-gradient(135deg,#E7F1FC,#F3F8FD);border:2px solid var(--blue-light);">
+      <h3 style="color:var(--navy);">🌴 Annual Leave Application</h3>
+      <div class="meta">Submitted to your supervisor first, then HR for final approval.</div>
+    </div>
+
+    <label>Last Vacation Date</label>
+    <input type="date" id="leaveLastVacation" value="${f.lastVacationDate}">
+
+    <label>Mobile Number</label>
+    <input type="tel" id="leaveMobile" placeholder="05xxxxxxxx" value="${f.mobileNumber}">
+
+    <label>Home Mobile No (optional)</label>
+    <input type="tel" id="leaveHomeMobile" placeholder="Optional" value="${f.homeMobileNumber}">
+
+    <div class="row-between" style="gap:10px;margin-top:14px;">
+      <div style="flex:1;">
+        <label>First Day of Leave</label>
+        <input type="date" id="leaveFirstDay" value="${f.firstDay}">
+      </div>
+      <div style="flex:1;">
+        <label>Last Day of Leave</label>
+        <input type="date" id="leaveLastDay" value="${f.lastDay}">
+      </div>
+    </div>
+    <div class="field-note">Number of days: <b>${days || "-"}</b></div>
+
+    <div class="remarks-card" style="margin-top:16px;">
+      <label style="margin-top:0;color:#966109;">🧰 Tool Box Declaration</label>
+      <div class="checklist" style="margin-bottom:10px;">
+        <label><input type="radio" name="hasToolBox" id="leaveToolBoxYes" value="yes" ${f.hasToolBox==="yes"?"checked":""}> I have a tool box — Yes</label>
+        <label><input type="radio" name="hasToolBox" id="leaveToolBoxNo" value="no" ${f.hasToolBox==="no"?"checked":""}> I have a tool box — No</label>
+      </div>
+      <label style="text-transform:none;font-weight:600;">I will hand over the complete tool box to Mr.</label>
+      <input type="text" id="leaveHandoverTo" placeholder="Name" value="${f.toolBoxHandoverTo}">
+      <div class="field-note">If any tool is missing, the amount will be deducted from my salary.</div>
+    </div>
+
+    <label style="margin-top:16px;">Employee Signature</label>
+    <div class="sig-pad-wrap"><canvas id="leaveSigCanvas"></canvas></div>
+    <div class="bottom-bar">
+      <button class="btn btn-outline btn-sm" id="clearLeaveSigBtn" style="flex:1;">Clear</button>
+      <button class="btn btn-submit btn-sm" id="submitLeaveBtn" style="flex:1;">✅ Submit Application</button>
+    </div>
+
+    <div class="card" style="margin-top:70px;">
+      <h3 style="font-size:14px;">My Leave Applications</h3>
+    </div>
+    <div style="margin-top:6px;">${historyRows}</div>
+  `;
+}
+
+function renderSupervisorLeaveList(){
+  const rows = state.supervisorLeaveRequests.map(r => {
+    const b = leaveBadgeInfo(r.status);
+    return `
+    <div class="emp-list-item li-${r.status==='submitted'?'submitted':(r.status==='rejected'?'rejected':'approved')}" ${r.status==='submitted' ? `data-review-leave="${r.id}" style="cursor:pointer;"` : ""}>
+      <div style="flex:1;min-width:0;">
+        <div class="name">${r.ts_employees?.name || ""}</div>
+        <div class="sub">${r.first_day} → ${r.last_day} (${r.number_of_days} day${r.number_of_days===1?"":"s"})</div>
+      </div>
+      <span class="badge ${b.cls}">${b.label}</span>
+    </div>`;
+  }).join("") || `<div class="empty-state"><div class="ic">🌴</div>No leave requests from your team.</div>`;
+
+  return `
+    <button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back to team</button>
+    <div class="card">
+      <h3>🌴 Leave Requests</h3>
+      <div class="meta">Tap a pending request to review and approve or send back.</div>
+    </div>
+    <div style="margin-top:10px;">${rows}</div>
+  `;
+}
+
+function renderLeaveReviewModal(req){
+  if(!req) return "";
+  return `
+    <div class="card" style="border:2px solid var(--blue-light);">
+      <h3>${req.ts_employees?.name || ""}</h3>
+      <div class="meta">Applied ${req.application_date} • Last vacation: ${req.last_vacation_date || "-"}</div>
+      <div class="meta">Mobile: ${req.mobile_number || "-"} ${req.home_mobile_number ? "• Home: " + req.home_mobile_number : ""}</div>
+      <div style="margin-top:10px;font-size:14px;"><b>${req.first_day} → ${req.last_day}</b> (${req.number_of_days} day${req.number_of_days===1?"":"s"})</div>
+      <div class="meta" style="margin-top:6px;">Tool box: ${req.has_tool_box===true?"Yes":req.has_tool_box===false?"No":"-"} ${req.tool_box_handover_to ? "• Handover to: " + req.tool_box_handover_to : ""}</div>
+      ${req.employee_signature ? `<div class="sig-preview" style="margin-top:10px;"><img src="${req.employee_signature}" alt="Employee signature"></div>` : ""}
+    </div>
+  `;
+}
+
+function renderHrLeaveList(){
+  const pending = state.hrLeaveRequests.filter(r=>r.status==="supervisor_approved");
+  const others = state.hrLeaveRequests.filter(r=>r.status!=="supervisor_approved");
+  const rowHtml = (r, actionable) => {
+    const b = leaveBadgeInfo(r.status);
+    return `
+    <div class="emp-list-item li-${r.status==='hr_approved'?'approved':(r.status==='rejected'?'rejected':'submitted')}">
+      <div style="flex:1;min-width:0;">
+        <div class="name">${r.ts_employees?.name || ""}</div>
+        <div class="sub">${r.first_day} → ${r.last_day} (${r.number_of_days} day${r.number_of_days===1?"":"s"})</div>
+      </div>
+      <span class="badge ${b.cls}">${b.label}</span>
+      ${actionable ? `
+        <button class="link-btn" data-approve-leave-hr="${r.id}" style="color:var(--present) !important;margin-left:6px;">✓</button>
+        <button class="link-btn" data-reject-leave-hr="${r.id}" style="color:var(--absent) !important;margin-left:6px;">✕</button>
+      ` : (r.status === "hr_approved" ? `<button class="link-btn" data-download-leave="${r.id}" style="margin-left:8px;">⬇ PDF</button>` : "")}
+    </div>`;
+  };
+
+  return `
+    <div class="card">
+      <h3>🌴 Leave Approvals — Final Sign-off</h3>
+      <div class="meta">Approved by the supervisor, waiting on your final authorization.</div>
+    </div>
+    <div style="margin-top:10px;">${pending.map(r=>rowHtml(r,true)).join("") || `<div class="empty-state"><div class="ic">🌴</div>Nothing awaiting your approval.</div>`}</div>
+    ${others.length ? `<div class="card" style="margin-top:18px;"><h3 style="font-size:13px;">History</h3></div><div style="margin-top:6px;">${others.map(r=>rowHtml(r,false)).join("")}</div>` : ""}
+  `;
+}
+
+function renderSupervisorLeaveReview(){
+  const req = state.selectedLeaveRequest;
+  if(!req) return `<div class="empty-state">Nothing selected.</div>`;
+  return `
+    <button class="back-link-glow" id="backToLeaveListBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    ${renderLeaveReviewModal(req)}
+    <div class="bottom-bar">
+      <button class="btn btn-send-back btn-sm" data-reject-leave-sup="${req.id}" style="flex:1;">↩️ Send back</button>
+      <button class="btn btn-approve-sign btn-sm" data-approve-leave-sup="${req.id}" style="flex:1;">✍️ Approve & sign</button>
+    </div>
   `;
 }
 
@@ -1738,7 +2136,8 @@ function handleDelegatedClick(e){
   if(deactivateBtn){ deactivateProject(deactivateBtn.getAttribute("data-deactivate-project")); return; }
   if(el("backToTeamBtn")){
     if(state.user.role === "hr"){ state.view = "hr"; loadHrMonth(); }
-    else { state.view = "supervisor"; loadSupervisorList(); }
+    else if(state.user.role === "supervisor"){ state.view = "supervisor"; loadSupervisorList(); }
+    else { state.view = "employee"; loadEmployeeMonth(); }
     return;
   }
   if(el("backToListBtn")){ state.view = "supervisor"; loadSupervisorList(); return; }
@@ -1750,6 +2149,30 @@ function handleDelegatedClick(e){
   if(el("combinedPdfBtn")){ generateCombinedPdf(); return; }
   if(el("saudiPdfBtn")){ generateSaudiTimesheetPdf(); return; }
   if(el("saudiArabicPdfBtn")){ generateSaudiArabicPdf(); return; }
+  if(el("openLeaveFormBtn")){ state.view = "leave-form"; loadMyLeaveRequests().then(render); return; }
+  if(el("openSupervisorLeaveListBtn")){ state.view = "supervisor-leave-list"; loadSupervisorLeaveRequests().then(render); return; }
+  if(el("openHrLeaveListBtn")){ state.view = "hr-leave-list"; loadHrLeaveRequests().then(render); return; }
+  const reviewLeaveEl = e.target.closest("[data-review-leave]");
+  if(reviewLeaveEl){
+    const reqId = reviewLeaveEl.getAttribute("data-review-leave");
+    state.selectedLeaveRequest = state.supervisorLeaveRequests.find(r=>r.id===reqId) || null;
+    state.view = "supervisor-leave-review";
+    render();
+    return;
+  }
+  if(el("backToLeaveListBtn")){ state.view = "supervisor-leave-list"; render(); return; }
+  const approveLeaveSupEl = e.target.closest("[data-approve-leave-sup]");
+  if(approveLeaveSupEl){ approveLeaveSupervisor(approveLeaveSupEl.getAttribute("data-approve-leave-sup")); return; }
+  const rejectLeaveSupEl = e.target.closest("[data-reject-leave-sup]");
+  if(rejectLeaveSupEl){ rejectLeaveSupervisor(rejectLeaveSupEl.getAttribute("data-reject-leave-sup")); return; }
+  const approveLeaveHrEl = e.target.closest("[data-approve-leave-hr]");
+  if(approveLeaveHrEl){ approveLeaveHr(approveLeaveHrEl.getAttribute("data-approve-leave-hr")); return; }
+  const rejectLeaveHrEl = e.target.closest("[data-reject-leave-hr]");
+  if(rejectLeaveHrEl){ rejectLeaveHr(rejectLeaveHrEl.getAttribute("data-reject-leave-hr")); return; }
+  const downloadLeaveEl = e.target.closest("[data-download-leave]");
+  if(downloadLeaveEl){ generateLeavePdf(downloadLeaveEl.getAttribute("data-download-leave")); return; }
+  if(el("clearLeaveSigBtn")){ clearLeaveSigPad(); return; }
+  if(el("submitLeaveBtn")){ submitLeaveRequest(); return; }
   if(el("salarySheetBtn")){ generateSalarySheet(); return; }
 }
 
@@ -1779,6 +2202,10 @@ function handleDelegatedChange(e){
     render();
     return;
   }
+  if(e.target.id === "leaveLastVacation"){ state.leaveFormDraft.lastVacationDate = e.target.value; return; }
+  if(e.target.id === "leaveFirstDay"){ state.leaveFormDraft.firstDay = e.target.value; render(); return; }
+  if(e.target.id === "leaveLastDay"){ state.leaveFormDraft.lastDay = e.target.value; render(); return; }
+  if(e.target.name === "hasToolBox"){ state.leaveFormDraft.hasToolBox = e.target.value; return; }
 }
 
 async function handleAddProjectFromEmployee(dstr, selectEl){
@@ -1818,6 +2245,9 @@ function handleDelegatedInput(e){
   if(e.target.id === "remarksInput"){
     state.remarksDraft = e.target.value; // no re-render here, so the cursor position isn't lost while typing
   }
+  if(e.target.id === "leaveMobile"){ state.leaveFormDraft.mobileNumber = e.target.value; }
+  if(e.target.id === "leaveHomeMobile"){ state.leaveFormDraft.homeMobileNumber = e.target.value; }
+  if(e.target.id === "leaveHandoverTo"){ state.leaveFormDraft.toolBoxHandoverTo = e.target.value; }
 }
 
 function attachViewEvents(){
