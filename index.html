@@ -968,15 +968,17 @@ async function generateLeavePdf(reqId){
     cardBody(90);
     doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(...INK);
     const hasBox = req.has_tool_box === true ? "YES" : req.has_tool_box === false ? "NO" : "-";
-    doc.text(`I have a tool box:  ${hasBox}`, MARGIN + 14, y + 18);
-    doc.text(`I will hand over the complete tool box to Mr. ${req.tool_box_handover_to || "-"} — if any tool is`, MARGIN + 14, y + 34);
-    doc.text(`missing, the amount will be deducted from my salary.`, MARGIN + 14, y + 46);
+    const declColW = colW - 20;
+    doc.text(`I have a tool box:  ${hasBox}`, MARGIN + 14, y + 20, { maxWidth: declColW });
+    const handoverLines = doc.splitTextToSize(`I will hand over the complete tool box to Mr. ${req.tool_box_handover_to || "-"} — if any tool is missing, the amount will be deducted from my salary.`, declColW);
+    doc.text(handoverLines, MARGIN + 14, y + 38);
 
+    const sigBoxX = MARGIN + colW + 10, sigBoxW = colW - 24, sigBoxH = 46, sigBoxY = y + 18;
     doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(...GREY);
-    doc.text("EMPLOYEE SIGNATURE", MARGIN + 14, y + 62);
+    doc.text("EMPLOYEE SIGNATURE", sigBoxX, sigBoxY - 4);
     doc.setDrawColor(200,210,222); doc.setLineWidth(0.7);
-    doc.rect(MARGIN + 14, y + 66, 150, 40);
-    if(req.employee_signature){ try{ doc.addImage(req.employee_signature, "PNG", MARGIN + 18, y + 68, 142, 36); }catch(e){} }
+    doc.rect(sigBoxX, sigBoxY, sigBoxW, sigBoxH);
+    if(req.employee_signature){ try{ doc.addImage(req.employee_signature, "PNG", sigBoxX + 5, sigBoxY + 5, sigBoxW - 10, sigBoxH - 10); }catch(e){} }
     y += 90 + 16;
 
     // ---- Section D: 1st Approval ----
