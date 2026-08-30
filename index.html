@@ -912,7 +912,7 @@ async function generateLeavePdf(reqId){
     fieldPair("Last Vacation Date", req.last_vacation_date || "-", MARGIN + colW + 4, y + 48, colW);
     if(req.employee_photo){
       try{
-        const pr = 26, pcx = PAGE_W - MARGIN - pr - 10, pcy = y + 24;
+        const pr = 22, pcx = PAGE_W - MARGIN - pr - 10, pcy = y + 40;
         doc.saveGraphicsState();
         doc.circle(pcx, pcy, pr);
         doc.clip();
