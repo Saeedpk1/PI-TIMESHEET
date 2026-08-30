@@ -151,6 +151,7 @@
   .btn-ghost{background:transparent;color:var(--muted);}
   .btn-danger{background:#fff;color:var(--absent);border:1.5px solid var(--absent);}
   .btn-sm{padding:8px 12px;font-size:13px;width:auto;border-radius:8px;}
+  .btn-compact{padding:9px 14px;font-size:12.5px;border-radius:8px;}
   .error-box{background:#FDECEC;color:var(--absent);padding:10px 12px;border-radius:8px;font-size:13px;margin-top:14px;}
   .role-tabs{display:flex;gap:8px;margin-bottom:6px;}
   .role-tab{flex:1;padding:10px 8px;border-radius:10px;border:1.5px solid var(--line);text-align:center;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;background:#fff;}
@@ -220,7 +221,7 @@
   .btn-approve-sign:active{background:#167A42;}
   .back-link-glow{color:#fff !important;font-weight:800 !important;background:linear-gradient(135deg,var(--navy),var(--blue));padding:8px 16px;border-radius:20px;display:inline-block;box-shadow:0 2px 10px rgba(27,90,150,0.5);}
 
-  .emp-list-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 10px;margin-bottom:8px;border-radius:10px;cursor:pointer;border-left:5px solid var(--line);background:#FAFBFC;}
+  .emp-list-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;border-radius:8px;cursor:pointer;border-left:4px solid var(--line);background:#FAFBFC;}
   .emp-list-item:last-child{margin-bottom:0;}
   .emp-list-item.li-draft{border-left-color:var(--muted);}
   .emp-list-item.li-submitted{border-left-color:#D99A1B;background:#FFFAF0;}
@@ -2265,11 +2266,11 @@ function renderHrView(){
     <input type="month" id="hrMonthInput" value="${state.hrMonth}">
     <div class="field-note">Uncheck anyone you don't want in this download. Deleting removes their timesheet permanently. Mohammed's HRM team (🇸🇦) goes into its own separate PDF.</div>
     <div style="margin-top:10px;">${rows}</div>
-    <button class="btn btn-primary" id="combinedPdfBtn" style="margin-top:14px;">⬇ Download combined PDF (${mainCount})</button>
-    <button class="btn btn-primary" id="saudiPdfBtn" style="margin-top:10px;background:linear-gradient(135deg,#1C8A4E,#25A85F);">⬇ Download SAUDI TIME SHEET (${saudiCount})</button>
-    <button class="btn btn-primary" id="saudiArabicPdfBtn" style="margin-top:10px;background:linear-gradient(135deg,#8A5A1C,#B87F2E);">⬇ تحميل كشف الدوام (Arabic) (${saudiCount})</button>
-    <button class="btn btn-outline" id="salarySheetBtn" style="margin-top:10px;">📊 Generate Salary Sheet (Excel)</button>
-    <button class="btn btn-outline" id="openHrLeaveListBtn" style="margin-top:10px;border-color:#E8A33D;color:#966109;">🌴 Leave Approvals</button>
+    <button class="btn btn-primary btn-compact" id="combinedPdfBtn" style="margin-top:12px;">⬇ Download combined PDF (${mainCount})</button>
+    <button class="btn btn-primary btn-compact" id="saudiPdfBtn" style="margin-top:8px;background:linear-gradient(135deg,#1C8A4E,#25A85F);">⬇ Download SAUDI TIME SHEET (${saudiCount})</button>
+    <button class="btn btn-primary btn-compact" id="saudiArabicPdfBtn" style="margin-top:8px;background:linear-gradient(135deg,#8A5A1C,#B87F2E);">⬇ تحميل كشف الدوام (Arabic) (${saudiCount})</button>
+    <button class="btn btn-outline btn-compact" id="salarySheetBtn" style="margin-top:8px;">📊 Generate Salary Sheet (Excel)</button>
+    <button class="btn btn-outline btn-compact" id="openHrLeaveListBtn" style="margin-top:8px;border-color:#E8A33D;color:#966109;">🌴 Leave Approvals</button>
   `;
 }
 
