@@ -314,7 +314,7 @@ let state = {
   hrExcluded: new Set(), // employee_ids to leave out of the combined PDF (without deleting them)
   hrmSupervisorId: null, // Mohammed Mutlaq Al Morqi's id, for the separate SAUDI TIME SHEET export
   myLeaveRequests: [],
-  leaveFormDraft: { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", photoDataUrl: "" },
+  leaveFormDraft: { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", photoDataUrl: "", photoCircleDataUrl: "" },
   supervisorLeaveRequests: [],
   hrLeaveRequests: [],
   selectedLeaveRequest: null,
@@ -736,12 +736,13 @@ async function submitLeaveRequest(){
     tool_box_handover_to: f.toolBoxHandoverTo || null,
     employee_signature: signatureData,
     employee_photo: f.photoDataUrl || null,
+    employee_photo_circle: f.photoCircleDataUrl || null,
     status: "submitted"
   });
   state.loading = false;
   toast(error ? "Could not submit. Try again." : "Leave application submitted to your supervisor.");
   if(!error){
-    state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", photoDataUrl: "" };
+    state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", photoDataUrl: "", photoCircleDataUrl: "" };
     leaveSigHasStroke = false;
   }
   await loadMyLeaveRequests();
@@ -755,13 +756,28 @@ function handleLeavePhotoFile(file){
     const img = new Image();
     img.onload = () => {
       const SIZE = 300;
-      const canvas = document.createElement("canvas");
-      canvas.width = SIZE; canvas.height = SIZE;
-      const ctx = canvas.getContext("2d");
+      // Square crop (for the on-screen preview, shown circular via CSS)
+      const squareCanvas = document.createElement("canvas");
+      squareCanvas.width = SIZE; squareCanvas.height = SIZE;
+      const sctx = squareCanvas.getContext("2d");
       const side = Math.min(img.width, img.height);
       const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
-      ctx.drawImage(img, sx, sy, side, side, 0, 0, SIZE, SIZE);
-      state.leaveFormDraft.photoDataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      sctx.drawImage(img, sx, sy, side, side, 0, 0, SIZE, SIZE);
+      state.leaveFormDraft.photoDataUrl = squareCanvas.toDataURL("image/jpeg", 0.85);
+
+      // Circular PNG with transparent corners (for the PDF — avoids relying on jsPDF's clip API)
+      const circCanvas = document.createElement("canvas");
+      circCanvas.width = SIZE; circCanvas.height = SIZE;
+      const cctx = circCanvas.getContext("2d");
+      cctx.save();
+      cctx.beginPath();
+      cctx.arc(SIZE/2, SIZE/2, SIZE/2, 0, Math.PI*2);
+      cctx.closePath();
+      cctx.clip();
+      cctx.drawImage(img, sx, sy, side, side, 0, 0, SIZE, SIZE);
+      cctx.restore();
+      state.leaveFormDraft.photoCircleDataUrl = circCanvas.toDataURL("image/png");
+
       render();
     };
     img.src = e.target.result;
@@ -910,18 +926,16 @@ async function generateLeavePdf(reqId){
     fieldPair("ID No / Iqama", emp?.iqama_number || "-", MARGIN + colW + 4, y + 20, colW - 60);
     fieldPair("Application Date", req.application_date || "-", MARGIN + 14, y + 48, colW);
     fieldPair("Last Vacation Date", req.last_vacation_date || "-", MARGIN + colW + 4, y + 48, colW);
-    if(req.employee_photo){
+    const photoToUse = req.employee_photo_circle || req.employee_photo;
+    if(photoToUse){
+      const pr = 22, pcx = PAGE_W - MARGIN - pr - 10, pcy = y + 40;
       try{
-        const pr = 22, pcx = PAGE_W - MARGIN - pr - 10, pcy = y + 40;
-        doc.saveGraphicsState();
-        doc.circle(pcx, pcy, pr);
-        doc.clip();
-        doc.discardPath();
-        doc.addImage(req.employee_photo, "JPEG", pcx - pr, pcy - pr, pr*2, pr*2);
-        doc.restoreGraphicsState();
-        doc.setDrawColor(...BLUE); doc.setLineWidth(1.2);
-        doc.circle(pcx, pcy, pr, "S");
-      }catch(e){}
+        // The stored image is already circular (transparent corners), pre-cropped client-side —
+        // no PDF-level clipping needed here, which avoids jsPDF's clip API leaking graphics state.
+        doc.addImage(photoToUse, req.employee_photo_circle ? "PNG" : "JPEG", pcx - pr, pcy - pr, pr*2, pr*2);
+      }catch(e){ console.error("Leave PDF photo draw error:", e); }
+      doc.setDrawColor(...BLUE); doc.setLineWidth(1.2);
+      doc.circle(pcx, pcy, pr, "S");
     }
     if(lastVacDuration){
       fieldPair("Time Since Last Vacation", lastVacDuration, MARGIN + 14, y + 76, colW);
