@@ -76,8 +76,8 @@
   ], function(){ __loaded.autotable = true; __checkAllLoaded(); }, function(){ showLoadError("Could not load the PDF table library."); });
 
   loadScriptChain([
-    "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
-    "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
+    "https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js",
+    "https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"
   ], function(){ __loaded.xlsx = true; __checkAllLoaded(); }, function(){ showLoadError("Could not load the spreadsheet library."); });
 
   setTimeout(function(){
@@ -834,11 +834,17 @@ async function downloadMyTimesheetPdf(){
   render();
 }
 
-async function generateSalarySheet(){
-  const fixedDeductionInput = prompt("Fixed monthly deduction for everyone this month (SAR):", "300");
-  if(fixedDeductionInput === null) return;
-  const fixedDeduction = Number(fixedDeductionInput) || 0;
+async function downloadWorkbook(wb, filename){
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=> URL.revokeObjectURL(url), 4000);
+}
 
+async function generateSalarySheet(){
   state.loading = true; render();
   try{
     const [y, m] = state.hrMonth.split("-").map(Number);
@@ -849,7 +855,6 @@ async function generateSalarySheet(){
       .select("*").in("role", ["employee","supervisor"]).eq("active", true).order("name");
     if(empErr) throw empErr;
 
-    // gather each employee's attendance for the month
     const records = [];
     for(const emp of (employees || [])){
       const { data: entryRows } = await sb.from("ts_timesheet_entries").select("*")
@@ -878,73 +883,130 @@ async function generateSalarySheet(){
       groups[g].push(r);
     });
 
-    const wb = XLSX.utils.book_new();
-    const monthTitle = monthLabel(new Date(y, m-1, 1)).toUpperCase();
-
-    Object.entries(groups).forEach(([groupName, groupRecords]) => {
-      if(!groupRecords.length) return;
-
-      const aoa = [];
-      aoa.push([`${groupName} - SALARY FOR THE MONTH OF ${monthTitle}`]);
-      aoa.push(["Fixed deduction this month (SAR):", fixedDeduction]);
-      aoa.push([]);
-      aoa.push(["NO","NAME","PROJECT","INCOME","","","","","","DEDUCTION","","","","N.PAY","0.75","BAL"]);
-      aoa.push(["","","","BASIC","DAYS","OT","AMT","OTHR","SALARY","ABS","AMT","OTH","DEC","","",""]);
-
-      // aoa rows: 1=title, 2=fixed deduction, 3=blank, 4=header line1, 5=header line2, 6=first data row
-      const firstDataRow = 6;
-
-      groupRecords.forEach((r, i) => {
-        const row = firstDataRow + i; // 1-indexed Excel row number for this record
-        aoa.push([
-          i + 1,
-          r.emp.name,
-          r.projectLabel,
-          Number(r.emp.basic_salary) || 0,   // D basic
-          r.present,                          // E days
-          r.ot,                                // F ot
-          { f: `D${row}/208*F${row}*1.25` },  // G ot amount
-          0,                                   // H other allowance (fill in manually)
-          { f: `D${row}+G${row}+H${row}` },   // I salary
-          r.absent,                            // J abs
-          { f: `D${row}/26*J${row}` },        // K abs amount
-          0,                                   // L other deduction (fill in manually)
-          { f: `K${row}+L${row}+$B$2` },      // M total deduction
-          { f: `I${row}-M${row}` },           // N net pay
-          { f: `N${row}*0.75` },              // O 75%
-          { f: `N${row}-O${row}` }            // P balance
-        ]);
-      });
-
-      const lastDataRow = firstDataRow + groupRecords.length - 1;
-      const totalRow = lastDataRow + 1;
-      aoa.push([
-        "TOTAL","","","","","","","",
-        { f: `SUM(I${firstDataRow}:I${lastDataRow})` },
-        "","","",
-        { f: `SUM(M${firstDataRow}:M${lastDataRow})` },
-        { f: `SUM(N${firstDataRow}:N${lastDataRow})` },
-        { f: `SUM(O${firstDataRow}:O${lastDataRow})` },
-        { f: `SUM(P${firstDataRow}:P${lastDataRow})` }
-      ]);
-
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
-      ws["!cols"] = [
-        { wch: 4 }, { wch: 26 }, { wch: 22 }, { wch: 10 }, { wch: 6 }, { wch: 6 },
-        { wch: 10 }, { wch: 9 }, { wch: 11 }, { wch: 6 }, { wch: 10 }, { wch: 9 },
-        { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 11 }
-      ];
-      ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 15 } }];
-      XLSX.utils.book_append_sheet(wb, ws, groupName);
-    });
-
-    if(!wb.SheetNames.length){
+    if(!records.length){
       toast("No active employees found to include.");
       state.loading = false; render();
       return;
     }
 
-    XLSX.writeFile(wb, `Salary_Sheet_${state.hrMonth}.xlsx`);
+    const wb = new ExcelJS.Workbook();
+    const monthTitle = monthLabel(new Date(y, m-1, 1)).toUpperCase();
+
+    const NAVY = "FF0F3556", BLUE = "FF1B5A96", LIGHT = "FFF3F8FD", WHITE = "FFFFFFFF", GOLD = "FFF0C766";
+    const thinBorder = { style: "thin", color: { argb: "FFB9C6D6" } };
+    const allBorders = { top: thinBorder, left: thinBorder, bottom: thinBorder, right: thinBorder };
+
+    const headers1 = ["NO","NAME","COMPANY","PROJECT","INCOME","","","","","DEDUCTION","","","","N.PAY","GOSI","BALANCE"];
+    const headers2 = ["","","","","BASIC","DAYS","OT","AMT","OTHR","SALARY","ABS","AMT","OTH","DEC","","",""];
+    const colWidths = [5,24,11,20,10,7,6,10,9,11,6,10,9,9,12,10,12];
+
+    Object.entries(groups).forEach(([groupName, groupRecords]) => {
+      if(!groupRecords.length) return;
+      const ws = wb.addWorksheet(groupName, { views: [{ showGridLines: false }] });
+      ws.columns = colWidths.map(w => ({ width: w }));
+
+      // Title row
+      ws.mergeCells(1, 1, 1, 17);
+      const titleCell = ws.getCell(1, 1);
+      titleCell.value = `${groupName} - SALARY FOR THE MONTH OF ${monthTitle}`;
+      titleCell.font = { bold: true, size: 14, color: { argb: WHITE } };
+      titleCell.alignment = { horizontal: "center", vertical: "middle" };
+      titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
+      ws.getRow(1).height = 26;
+
+      // Header rows
+      const h1 = ws.getRow(2);
+      h1.values = headers1;
+      const h2 = ws.getRow(3);
+      h2.values = headers2;
+      [h1, h2].forEach(hr => {
+        hr.eachCell({ includeEmpty: true }, cell => {
+          cell.font = { bold: true, size: 9.5, color: { argb: WHITE } };
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BLUE } };
+          cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+          cell.border = allBorders;
+        });
+        hr.height = 16;
+      });
+      ws.mergeCells(2, 5, 2, 9);   // INCOME
+      ws.mergeCells(2, 10, 2, 13); // DEDUCTION
+      ws.mergeCells(2, 1, 3, 1);   // NO
+      ws.mergeCells(2, 2, 3, 2);   // NAME
+      ws.mergeCells(2, 3, 3, 3);   // COMPANY
+      ws.mergeCells(2, 4, 3, 4);   // PROJECT
+      ws.mergeCells(2, 14, 3, 14); // N.PAY
+      ws.mergeCells(2, 15, 3, 15); // GOSI
+      ws.mergeCells(2, 16, 3, 16); // BALANCE
+
+      const firstDataRow = 4;
+      groupRecords.forEach((r, i) => {
+        const row = firstDataRow + i;
+        const wr = ws.getRow(row);
+        wr.values = [
+          i + 1,
+          r.emp.name,
+          groupName === "Al falak" ? "AL FALAK" : "PI",
+          r.projectLabel,
+          Number(r.emp.basic_salary) || 0,
+          r.present,
+          r.ot,
+          { formula: `E${row}/208*G${row}*1.25` },
+          0,
+          { formula: `E${row}+H${row}+I${row}` },
+          r.absent,
+          { formula: `E${row}/26*K${row}` },
+          0,
+          { formula: `L${row}+M${row}` },
+          { formula: `J${row}-N${row}` },
+          0,
+          { formula: `O${row}-P${row}` }
+        ];
+        wr.eachCell({ includeEmpty: true }, (cell, colNum) => {
+          cell.border = allBorders;
+          cell.alignment = { horizontal: colNum <= 4 ? "left" : "center", vertical: "middle" };
+          if(colNum >= 5 && colNum !== 6 && colNum !== 7 && colNum !== 11){
+            cell.numFmt = "#,##0.00";
+          }
+          if(i % 2 === 1){
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: LIGHT } };
+          }
+        });
+        wr.getCell(15).fill = { type: "pattern", pattern: "solid", fgColor: { argb: GOLD } }; // N.PAY highlight
+        wr.getCell(15).font = { bold: true };
+      });
+
+      const lastDataRow = firstDataRow + groupRecords.length - 1;
+      const totalRow = lastDataRow + 1;
+      const tr = ws.getRow(totalRow);
+      tr.values = [
+        "TOTAL","","","","","","","","",
+        { formula: `SUM(J${firstDataRow}:J${lastDataRow})` },
+        "","","",
+        { formula: `SUM(N${firstDataRow}:N${lastDataRow})` },
+        { formula: `SUM(O${firstDataRow}:O${lastDataRow})` },
+        { formula: `SUM(P${firstDataRow}:P${lastDataRow})` },
+        { formula: `SUM(Q${firstDataRow}:Q${lastDataRow})` }
+      ];
+      tr.eachCell({ includeEmpty: true }, cell => {
+        cell.font = { bold: true };
+        cell.border = { top: { style: "double", color: { argb: NAVY } }, bottom: thinBorder, left: thinBorder, right: thinBorder };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEAF2FA" } };
+        cell.numFmt = "#,##0.00";
+      });
+      ws.mergeCells(totalRow, 1, totalRow, 9);
+      ws.getCell(totalRow, 1).alignment = { horizontal: "right" };
+
+      ws.getColumn(2).alignment = { horizontal: "left" };
+      ws.getColumn(4).alignment = { horizontal: "left" };
+    });
+
+    if(!wb.worksheets.length){
+      toast("No active employees found to include.");
+      state.loading = false; render();
+      return;
+    }
+
+    await downloadWorkbook(wb, `Salary_Sheet_${state.hrMonth}.xlsx`);
     toast("Salary sheet downloaded.");
   }catch(e){
     console.error("Salary sheet error:", e);
@@ -953,6 +1015,7 @@ async function generateSalarySheet(){
   state.loading = false;
   render();
 }
+
 
 async function generateCombinedPdf(){
   const included = state.hrApproved.filter(s => !state.hrExcluded.has(s.employee_id));
