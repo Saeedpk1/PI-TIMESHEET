@@ -1457,7 +1457,7 @@ async function generateSalarySheet(){
       // Title row
       ws.mergeCells(1, 1, 1, 16);
       const titleCell = ws.getCell(1, 1);
-      titleCell.value = `${groupName} - SALARY FOR THE MONTH OF ${monthTitle}`;
+      titleCell.value = `${groupName} - SALARY FOR THE MONTH OF ${monthTitle} (GOSI v2)`;
       titleCell.font = { bold: true, size: 14, color: { argb: WHITE } };
       titleCell.alignment = { horizontal: "center", vertical: "middle" };
       titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
@@ -1507,7 +1507,7 @@ async function generateSalarySheet(){
           { formula: `E${row}/26*K${row}` },
           0,
           { formula: `J${row}-L${row}-M${row}` },
-          { formula: `MIN(E${row},N${row})` },
+          { formula: `MIN(${(Number(r.emp.gosi_amount) > 0 ? Number(r.emp.gosi_amount) : (Number(r.emp.basic_salary) || 0))},N${row})` },
           { formula: `N${row}-O${row}` }
         ];
         wr.eachCell({ includeEmpty: true }, (cell, colNum) => {
@@ -1554,7 +1554,7 @@ async function generateSalarySheet(){
       return;
     }
 
-    await downloadWorkbook(wb, `Salary_Sheet_${state.hrMonth}.xlsx`);
+    await downloadWorkbook(wb, `Salary_Sheet_${state.hrMonth}_v2_${Date.now()}.xlsx`);
     toast("Salary sheet downloaded.");
   }catch(e){
     console.error("Salary sheet error:", e);
