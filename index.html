@@ -1447,9 +1447,9 @@ async function generateWpsPayroll(payrollGroup){
       const absAmt = basicSalary/26*absent;
       const netPay = salary - absAmt;
       const gosiFixed = Number(emp.gosi_amount) > 0 ? Number(emp.gosi_amount) : basicSalary;
-      const transferAmount = Math.round(Math.min(gosiFixed, netPay) * 100) / 100;
-      const wpsBasic = Number(emp.wps_basic) || 0, wpsHousing = Number(emp.wps_housing) || 0, wpsOther = Number(emp.wps_other) || 0;
-      const deduction = Math.round(((wpsBasic + wpsHousing + wpsOther) - transferAmount) * 100) / 100;
+      const transferAmount = Math.round(Math.min(gosiFixed, netPay));
+      const wpsBasic = Math.round(Number(emp.wps_basic) || 0), wpsHousing = Math.round(Number(emp.wps_housing) || 0), wpsOther = Math.round(Number(emp.wps_other) || 0);
+      const deduction = Math.round((wpsBasic + wpsHousing + wpsOther) - transferAmount);
       rows.push([
         "D", transferAmount, emp.iban, (emp.name||"").toUpperCase(), emp.bank_code, monthDesc,
         wpsBasic, wpsHousing, wpsOther, Math.max(deduction, 0), emp.iqama_number, ""
@@ -1478,6 +1478,18 @@ async function generateWpsPayroll(payrollGroup){
     const ws = wb.addWorksheet("Sheet2");
     ws.addRow(headerRow);
     rows.forEach(r => ws.addRow(r));
+
+    // Auto-fit each column to its widest cell content
+    const allRowsForWidth = [headerRow, ...rows];
+    const colCount = headerRow.length;
+    const widths = new Array(colCount).fill(4);
+    allRowsForWidth.forEach(r => {
+      r.forEach((val, idx) => {
+        const len = (val === null || val === undefined) ? 0 : String(val).length;
+        if(len + 2 > widths[idx]) widths[idx] = len + 2;
+      });
+    });
+    ws.columns = widths.map(w => ({ width: Math.min(w, 40) }));
 
     const filename = `WPY${dd}${mm}${yyyy}${String(fileNum).padStart(2,"0")}.xlsx`;
     await downloadWorkbook(wb, filename);
