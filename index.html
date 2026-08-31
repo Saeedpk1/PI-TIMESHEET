@@ -1269,7 +1269,15 @@ async function deletePurchaseHr(id){
 async function deletePurchaseBatchHr(batchId, itemCount){
   if(!confirm(`Permanently remove this whole submission (${itemCount} item${itemCount===1?"":"s"})? This cannot be undone.`)) return;
   state.loading = true; render();
-  const { error } = await sb.from("ts_purchases").delete().eq("batch_id", batchId);
+  let error;
+  if(batchId.startsWith("single-")){
+    // Older records saved before batch_id existed — these were grouped by a fallback
+    // key built from their own item id (see groupPurchasesByBatch), not a real batch_id.
+    const itemId = batchId.replace("single-", "");
+    ({ error } = await sb.from("ts_purchases").delete().eq("id", itemId));
+  }else{
+    ({ error } = await sb.from("ts_purchases").delete().eq("batch_id", batchId));
+  }
   state.loading = false;
   toast(error ? "Could not remove. Try again." : "Submission removed.");
   await loadHrPurchases();
@@ -3077,7 +3085,7 @@ function renderPurchaseForm(){
     <textarea id="purchaseNotes" rows="2" placeholder="Anything extra to note...">${f.notes}</textarea>
 
     <button class="btn btn-submit" id="savePurchaseBtn" style="margin-top:16px;">💾 Save Item</button>
-    ${drafts.length ? `<button class="btn btn-primary" id="submitAllPurchasesBtn" style="margin-top:10px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">📤 Submit to HR — ${draftsTotal.toFixed(2)} SAR</button>` : ""}
+    ${drafts.length ? `<button class="btn btn-primary" id="submitAllPurchasesBtn" style="margin-top:10px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">📤 [v3] Submit to HR — ${draftsTotal.toFixed(2)} SAR</button>` : ""}
 
     <div class="card" style="margin-top:24px;">
       <h3 style="font-size:14px;">📋 Not Yet Submitted (${drafts.length})</h3>
