@@ -3108,7 +3108,15 @@ function renderHrPurchasesList(){
   const batches = groupPurchasesByBatch(items);
   const grandTotal = items.reduce((s,p)=>s+(Number(p.total_amount)||0),0);
 
-  const batchBlocks = batches.map((b, i) => {
+  // Group batches by supervisor, so each person's submissions sit in their own section
+  const bySupervisor = {};
+  batches.forEach(b => {
+    const key = b.supervisorName || "Unknown";
+    if(!bySupervisor[key]) bySupervisor[key] = [];
+    bySupervisor[key].push(b);
+  });
+
+  const renderBatchButton = (b, i) => {
     const expanded = state.expandedPurchaseBatch === b.batchId;
     const itemRows = b.items.map(p => `
       <tr>
@@ -3123,7 +3131,7 @@ function renderHrPurchasesList(){
     return `
     <div style="margin-top:8px;">
       <button class="btn btn-outline" data-toggle-sent-batch="${b.batchId}" style="text-align:left;display:flex;justify-content:space-between;align-items:center;border-color:var(--blue-light);color:var(--blue);">
-        <span>${i+1}. ${firstLastName(b.supervisorName)} — ${b.total.toFixed(2)} SAR (${formatDateDMY(b.date)})</span>
+        <span>${i+1}. ${b.total.toFixed(2)} SAR (${formatDateDMY(b.date)})</span>
         <span>${expanded ? "▲" : "▼"}</span>
       </button>
       ${expanded ? `
@@ -3135,6 +3143,16 @@ function renderHrPurchasesList(){
         <button class="link-btn" data-delete-purchase-batch="${b.batchId}" data-batch-count="${b.items.length}" style="color:var(--absent) !important;margin:8px 0 4px;">🗑 Remove this submission</button>
       </div>` : ""}
     </div>`;
+  };
+
+  const supervisorSections = Object.entries(bySupervisor).map(([name, supBatches]) => {
+    const supTotal = supBatches.reduce((s,b)=>s+b.total,0);
+    return `
+    <div class="card" style="margin-top:18px;background:linear-gradient(135deg,var(--navy),var(--blue));">
+      <div style="font-size:13px;color:#fff;font-weight:800;">👤 ${firstLastName(name)}</div>
+      <div style="font-size:11.5px;color:#DCEAFB;">${supBatches.length} submission${supBatches.length===1?"":"s"} • Total ${supTotal.toFixed(2)} SAR</div>
+    </div>
+    ${supBatches.map((b,i) => renderBatchButton(b,i)).join("")}`;
   }).join("");
 
   return `
@@ -3143,7 +3161,7 @@ function renderHrPurchasesList(){
       <h3>🧾 Purchases / Expenses</h3>
       <div class="meta">${items.length} item${items.length===1?"":"s"} across ${batches.length} submission${batches.length===1?"":"s"} • Total ${grandTotal.toFixed(2)} SAR</div>
     </div>
-    ${batchBlocks || `<div class="empty-state"><div class="ic">🧾</div>Nothing submitted yet.</div>`}
+    ${supervisorSections || `<div class="empty-state"><div class="ic">🧾</div>Nothing submitted yet.</div>`}
     <button class="btn btn-outline" id="exportPurchasesExcelBtn" style="margin-top:14px;">📊 Export as Excel</button>
     <button class="btn btn-primary" id="exportPurchasesPdfBtn" style="margin-top:8px;background:linear-gradient(135deg,#0F3556,#1B5A96);">📄 Export as PDF (v2)</button>
   `;
