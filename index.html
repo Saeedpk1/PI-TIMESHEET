@@ -1240,7 +1240,6 @@ async function scanPurchaseBill(file){
   try{
     const aiResult = await tryAiScanBill(file);
     console.log("AI scan result:", aiResult);
-    alert("Raw AI result:\n" + JSON.stringify(aiResult, null, 2));
     if(aiResult.amount !== null && aiResult.amount !== undefined) state.purchaseFormDraft.amount = String(aiResult.amount);
     if(aiResult.bill_no) state.purchaseFormDraft.billNo = aiResult.bill_no;
     if(aiResult.description && !state.purchaseFormDraft.itemDescription) state.purchaseFormDraft.itemDescription = aiResult.description;
