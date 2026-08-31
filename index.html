@@ -1184,6 +1184,50 @@ function handlePurchasePhotoFile(file){
   reader.readAsDataURL(file);
 }
 
+function fileToBase64(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result; // "data:image/jpeg;base64,XXXX"
+      const commaIdx = result.indexOf(",");
+      resolve({ base64: result.slice(commaIdx + 1), mediaType: file.type || "image/jpeg" });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function tryAiScanBill(file){
+  const { base64, mediaType } = await fileToBase64(file);
+  const resp = await fetch(`${SUPABASE_URL}/functions/v1/scan-bill`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+    body: JSON.stringify({ imageBase64: base64, mediaType })
+  });
+  const data = await resp.json();
+  if(!resp.ok || data.error) throw new Error(data.error || "Scan failed");
+  return data; // { bill_no, description, amount }
+}
+
+async function scanPurchaseBill(file){
+  if(!file) return;
+  toast("Scanning bill — this can take a few seconds...");
+  state.loading = true; render();
+  try{
+    const aiResult = await tryAiScanBill(file);
+    if(aiResult.amount !== null && aiResult.amount !== undefined) state.purchaseFormDraft.amount = String(aiResult.amount);
+    if(aiResult.bill_no) state.purchaseFormDraft.billNo = aiResult.bill_no;
+    if(aiResult.description && !state.purchaseFormDraft.itemDescription) state.purchaseFormDraft.itemDescription = aiResult.description;
+    handlePurchasePhotoFile(file);
+    toast("Scanned with AI — please double-check the details before saving.");
+  }catch(e){
+    console.error("Bill scan error:", e);
+    toast("Could not scan the bill — please fill it in manually.");
+  }
+  state.loading = false;
+  render();
+}
+
 async function savePurchase(){
   const f = state.purchaseFormDraft;
   if(!f.itemDescription.trim()){ toast("Describe what was purchased."); return; }
@@ -3033,6 +3077,10 @@ function renderPurchaseForm(){
       <div class="meta">Save items here, then submit them all to HR when ready.</div>
     </div>
 
+    <input type="file" accept="image/*" id="scanBillInput" style="display:none;">
+    <button type="button" class="btn btn-primary" id="scanBillBtn" style="margin-bottom:16px;background:linear-gradient(135deg,#7A4FBF,#9B6FE0);">📷 Scan Bill with AI</button>
+    <div class="field-note" style="margin-bottom:10px;margin-top:-8px;">Takes a few seconds — always double-check the auto-filled fields.</div>
+
     <div class="purchase-field">
       <label style="color:#1B7A6B;">📅 Date</label>
       <input type="date" id="purchaseDate" value="${f.purchaseDate}">
@@ -3250,6 +3298,7 @@ function handleDelegatedClick(e){
   if(el("wpsAlFalakBtn")){ generateWpsPayroll("AL_FALAK"); return; }
   if(el("openPurchaseFormBtn")){ state.view = "purchase-form"; loadMyPurchases().then(render); return; }
   if(el("purchasePhotoBtn")){ document.getElementById("purchasePhotoInput")?.click(); return; }
+  if(el("scanBillBtn")){ document.getElementById("scanBillInput")?.click(); return; }
   if(el("savePurchaseBtn")){ savePurchase(); return; }
   if(el("submitAllPurchasesBtn")){ submitAllDraftsToHr(); return; }
   const deletePurchaseDraftEl = e.target.closest("[data-delete-purchase-draft]");
@@ -3352,6 +3401,7 @@ function handleDelegatedChange(e){
   if(e.target.id === "purchasePayment"){ state.purchaseFormDraft.paymentMethod = e.target.value; return; }
   if(e.target.id === "purchaseHasVat"){ state.purchaseFormDraft.hasVat = e.target.checked; render(); return; }
   if(e.target.id === "purchasePhotoInput"){ handlePurchasePhotoFile(e.target.files && e.target.files[0]); return; }
+  if(e.target.id === "scanBillInput"){ scanPurchaseBill(e.target.files && e.target.files[0]); return; }
   if(e.target.id === "leavePhotoInput"){ handleLeavePhotoFile(e.target.files && e.target.files[0]); return; }
 }
 
