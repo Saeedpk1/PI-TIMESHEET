@@ -1222,7 +1222,7 @@ async function scanPurchaseBill(file){
     toast("Scanned with AI — please double-check the details before saving.");
   }catch(e){
     console.error("Bill scan error:", e);
-    toast("Could not scan the bill — please fill it in manually.");
+    toast("Scan error: " + (e && e.message ? e.message : "unknown"));
   }
   state.loading = false;
   render();
