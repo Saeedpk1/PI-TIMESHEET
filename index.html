@@ -1232,7 +1232,8 @@ async function submitAllDraftsToHr(){
     .update({ status: "sent", batch_id: batchId, updated_at: new Date().toISOString() })
     .eq("supervisor_id", state.user.id).eq("status", "draft");
   state.loading = false;
-  toast(error ? "Could not submit. Try again." : `${drafts.length} item${drafts.length===1?"":"s"} sent to HR.`);
+  if(error) console.error("Submit to HR error:", error);
+  toast(error ? "Error: " + (error.message || "unknown") : `${drafts.length} item${drafts.length===1?"":"s"} sent to HR.`);
   await loadMyPurchases();
   render();
 }
