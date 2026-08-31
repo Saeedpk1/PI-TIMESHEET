@@ -723,6 +723,14 @@ function cancelEditLeaveRequest(){
   render();
 }
 
+function formatDateDMY(dateStr){
+  if(!dateStr) return "-";
+  const parts = String(dateStr).split("-");
+  if(parts.length !== 3) return dateStr;
+  const [y, m, d] = parts;
+  return `${d}-${m}-${y}`;
+}
+
 function leaveDaysBetween(firstDay, lastDay){
   if(!firstDay || !lastDay) return 0;
   const a = new Date(firstDay), b = new Date(lastDay);
@@ -1281,7 +1289,7 @@ async function generatePurchasesExcel(){
     let totalAmount = 0, totalVat = 0, totalAll = 0;
     items.forEach((p, i) => {
       const row = ws.addRow([
-        i+1, p.purchase_date, p.item_description, p.ts_projects?.name || "-", p.bill_no || "-",
+        i+1, formatDateDMY(p.purchase_date), p.item_description, p.ts_projects?.name || "-", p.bill_no || "-",
         Number(p.amount), Number(p.vat_amount), Number(p.total_amount)
       ]);
       totalAmount += Number(p.amount) || 0;
@@ -1314,13 +1322,18 @@ async function generatePurchasesPdf(){
   try{
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: "pt", format: "a4" });
+    if(typeof doc.autoTable !== "function"){
+      toast("PDF table library not loaded yet — please wait a moment and try again.");
+      state.loading = false; render();
+      return;
+    }
     drawLetterhead(doc, "");
 
     doc.setFont("helvetica","bold"); doc.setFontSize(15); doc.setTextColor(15,53,86);
     doc.text(`Purchases / Expenses — ${monthLabel(state.monthDate)}`, 40, 76);
 
     const body = items.map((p, i) => [
-      i+1, p.purchase_date, p.item_description, p.ts_projects?.name || "-", p.bill_no || "-",
+      i+1, formatDateDMY(p.purchase_date), p.item_description, p.ts_projects?.name || "-", p.bill_no || "-",
       Number(p.amount).toFixed(2), Number(p.vat_amount).toFixed(2), Number(p.total_amount).toFixed(2)
     ]);
     const totalAmount = items.reduce((s,p)=>s+(Number(p.amount)||0),0);
@@ -2932,7 +2945,7 @@ function renderPurchaseForm(){
   const draftRows = drafts.map((p, i) => `
     <tr>
       <td style="font-size:9px;text-align:center;">${i+1}</td>
-      <td style="font-size:9px;white-space:nowrap;">${p.purchase_date}</td>
+      <td style="font-size:9px;white-space:nowrap;">${formatDateDMY(p.purchase_date)}</td>
       <td style="font-size:9px;">${p.item_description}</td>
       <td style="font-size:9px;">${projectName(p.project_id)}</td>
       <td style="font-size:9px;">${p.bill_no || "-"}</td>
@@ -2945,7 +2958,7 @@ function renderPurchaseForm(){
   const sentRows = sent.map((p, i) => `
     <tr>
       <td style="font-size:9px;text-align:center;">${i+1}</td>
-      <td style="font-size:9px;white-space:nowrap;">${p.purchase_date}</td>
+      <td style="font-size:9px;white-space:nowrap;">${formatDateDMY(p.purchase_date)}</td>
       <td style="font-size:9px;">${p.item_description}</td>
       <td style="font-size:9px;">${projectName(p.project_id)}</td>
       <td style="font-size:9px;">${p.bill_no || "-"}</td>
@@ -3059,7 +3072,7 @@ function renderHrPurchasesList(){
   const rows = items.map((p, idx) => `
     <tr>
       <td style="font-size:9px;text-align:center;">${idx+1}</td>
-      <td style="font-size:9px;white-space:nowrap;">${p.purchase_date}</td>
+      <td style="font-size:9px;white-space:nowrap;">${formatDateDMY(p.purchase_date)}</td>
       <td style="font-size:9px;">${p.item_description}</td>
       <td style="font-size:9px;">${p.ts_projects?.name || "-"}</td>
       <td style="font-size:9px;">${p.bill_no || "-"}</td>
@@ -3090,7 +3103,7 @@ function renderHrPurchasesList(){
       </table>` : `<div class="empty-state"><div class="ic">🧾</div>Nothing submitted yet.</div>`}
     </div>
     <button class="btn btn-outline" id="exportPurchasesExcelBtn" style="margin-top:14px;">📊 Export as Excel</button>
-    <button class="btn btn-primary" id="exportPurchasesPdfBtn" style="margin-top:8px;background:linear-gradient(135deg,#0F3556,#1B5A96);">📄 Export as PDF</button>
+    <button class="btn btn-primary" id="exportPurchasesPdfBtn" style="margin-top:8px;background:linear-gradient(135deg,#0F3556,#1B5A96);">📄 Export as PDF (v2)</button>
   `;
 }
 
