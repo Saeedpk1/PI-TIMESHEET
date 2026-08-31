@@ -1330,8 +1330,7 @@ async function generatePurchasesExcel(){
   render();
 }
 
-async function generatePurchasesPdf(){
-  const items = state.hrPurchases;
+async function buildPurchasesPdf(items, filename, titleText){
   if(!items.length){ toast("No purchases to export."); return; }
   state.loading = true; render();
   try{
@@ -1345,7 +1344,7 @@ async function generatePurchasesPdf(){
     drawLetterhead(doc, "");
 
     doc.setFont("helvetica","bold"); doc.setFontSize(15); doc.setTextColor(15,53,86);
-    doc.text(`Purchases / Expenses — ${monthLabel(state.monthDate)}`, 40, 76);
+    doc.text(titleText, 40, 76);
 
     const body = items.map((p, i) => [
       i+1, formatDateDMY(p.purchase_date), p.item_description, p.ts_projects?.name || "-", p.bill_no || "-",
@@ -1376,14 +1375,24 @@ async function generatePurchasesPdf(){
     });
 
     stampFooters(doc);
-    doc.save(`Purchases_${state.hrMonth}.pdf`);
-    toast("Purchases PDF downloaded.");
+    doc.save(filename);
+    toast("PDF downloaded.");
   }catch(e){
     console.error("Purchases PDF error:", e);
     toast("PDF error: " + (e && e.message ? e.message : "unknown"));
   }
   state.loading = false;
   render();
+}
+
+async function generatePurchasesPdf(){
+  await buildPurchasesPdf(state.hrPurchases, `Purchases_${state.hrMonth}.pdf`, `Purchases / Expenses — ${monthLabel(state.monthDate)}`);
+}
+
+async function generateMyPurchaseBatchPdf(batchId){
+  const items = state.myPurchases.filter(p => (p.batch_id || `single-${p.id}`) === batchId);
+  const dateLabel = items.length ? formatDateDMY(items[0].purchase_date) : "";
+  await buildPurchasesPdf(items, `My_Purchases_${dateLabel.replace(/-/g,"")}.pdf`, `My Submitted Expenses — ${dateLabel}`);
 }
 
 /* ---------------- HR flow ---------------- */
@@ -3004,6 +3013,7 @@ function renderPurchaseForm(){
         <thead><tr><th style="font-size:8px;">Description</th><th style="font-size:8px;">Project</th><th style="font-size:8px;">Bill No</th><th style="font-size:8px;">Total</th></tr></thead>
         <tbody>${itemRows}</tbody>
       </table>
+      <button class="link-btn" data-download-my-purchase-batch="${b.batchId}" style="margin:8px 0 4px;">⬇ Download PDF</button>
     </div>` : ""}`;
   }).join("");
 
@@ -3065,9 +3075,7 @@ function renderPurchaseForm(){
     <label>Notes (optional)</label>
     <textarea id="purchaseNotes" rows="2" placeholder="Anything extra to note...">${f.notes}</textarea>
 
-    <div class="bottom-bar">
-      <button class="btn btn-submit btn-sm" id="savePurchaseBtn" style="flex:1;">💾 Save Item</button>
-    </div>
+    <button class="btn btn-submit" id="savePurchaseBtn" style="margin-top:16px;">💾 Save Item</button>
     ${drafts.length ? `<button class="btn btn-primary" id="submitAllPurchasesBtn" style="margin-top:10px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">📤 Submit to HR — ${draftsTotal.toFixed(2)} SAR</button>` : ""}
 
     <div class="card" style="margin-top:24px;">
@@ -3234,6 +3242,8 @@ function handleDelegatedClick(e){
     deletePurchaseBatchHr(deleteBatchEl.getAttribute("data-delete-purchase-batch"), Number(deleteBatchEl.getAttribute("data-batch-count")) || 0);
     return;
   }
+  const downloadMyBatchEl = e.target.closest("[data-download-my-purchase-batch]");
+  if(downloadMyBatchEl){ generateMyPurchaseBatchPdf(downloadMyBatchEl.getAttribute("data-download-my-purchase-batch")); return; }
   if(el("exportPurchasesExcelBtn")){ generatePurchasesExcel(); return; }
   if(el("exportPurchasesPdfBtn")){ generatePurchasesPdf(); return; }
   const reviewHrTsEl = e.target.closest("[data-review-hr-timesheet]");
