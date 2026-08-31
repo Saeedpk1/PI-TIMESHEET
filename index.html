@@ -1199,7 +1199,7 @@ function fileToBase64(file){
 
 async function tryAiScanBill(file){
   const { base64, mediaType } = await fileToBase64(file);
-  const resp = await fetch(`${SUPABASE_URL}/functions/v1/scan-bill`, {
+  const resp = await fetch(`${SUPABASE_URL}/functions/v1/smart-endpoint`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
     body: JSON.stringify({ imageBase64: base64, mediaType })
