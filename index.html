@@ -1172,7 +1172,7 @@ function handlePurchasePhotoFile(file){
   reader.readAsDataURL(file);
 }
 
-async function submitPurchase(){
+async function savePurchase(){
   const f = state.purchaseFormDraft;
   if(!f.itemDescription.trim()){ toast("Describe what was purchased."); return; }
   if(!f.amount || Number(f.amount) <= 0){ toast("Enter a valid amount."); return; }
@@ -1197,11 +1197,11 @@ async function submitPurchase(){
     payment_method: f.paymentMethod || null,
     receipt_photo: f.receiptPhoto || null,
     notes: f.notes || null,
-    status: "submitted"
+    status: "draft"
   });
   state.loading = false;
-  if(error) console.error("Purchase submit error:", error);
-  toast(error ? "Error: " + (error.message || "unknown") : "Purchase recorded and sent to HR.");
+  if(error) console.error("Purchase save error:", error);
+  toast(error ? "Error: " + (error.message || "unknown") : "Saved.");
   if(!error){
     state.purchaseFormDraft = { purchaseDate: "", category: "", itemDescription: "", projectId: "", billNo: "", vendorName: "", amount: "", hasVat: true, paymentMethod: "", notes: "", receiptPhoto: "" };
   }
@@ -1209,35 +1209,37 @@ async function submitPurchase(){
   render();
 }
 
+async function submitAllDraftsToHr(){
+  const drafts = state.myPurchases.filter(p => p.status === "draft");
+  if(!drafts.length){ toast("Nothing to submit — save at least one item first."); return; }
+  if(!confirm(`Submit ${drafts.length} item${drafts.length===1?"":"s"} to HR? You won't be able to edit them after this.`)) return;
+
+  state.loading = true; render();
+  const { error } = await sb.from("ts_purchases")
+    .update({ status: "sent", updated_at: new Date().toISOString() })
+    .eq("supervisor_id", state.user.id).eq("status", "draft");
+  state.loading = false;
+  toast(error ? "Could not submit. Try again." : `${drafts.length} item${drafts.length===1?"":"s"} sent to HR.`);
+  await loadMyPurchases();
+  render();
+}
+
+async function deletePurchaseDraft(id){
+  if(!confirm("Remove this item?")) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_purchases").delete().eq("id", id);
+  state.loading = false;
+  toast(error ? "Could not remove. Try again." : "Removed.");
+  await loadMyPurchases();
+  render();
+}
+
 async function loadHrPurchases(){
   const { data } = await sb.from("ts_purchases")
     .select("*, ts_employees:supervisor_id(name), ts_projects:project_id(name)")
-    .order("created_at", { ascending: false });
+    .eq("status", "sent")
+    .order("purchase_date", { ascending: false });
   state.hrPurchases = data || [];
-}
-
-async function approvePurchaseHr(id){
-  state.loading = true; render();
-  const { error } = await sb.from("ts_purchases").update({
-    status: "approved", hr_approved_at: new Date().toISOString(), hr_approved_by: state.user.id, updated_at: new Date().toISOString()
-  }).eq("id", id);
-  state.loading = false;
-  toast(error ? "Could not approve. Try again." : "Purchase approved.");
-  await loadHrPurchases();
-  render();
-}
-
-async function rejectPurchaseHr(id){
-  const reason = prompt("Reason for rejecting this purchase:");
-  if(reason === null) return;
-  state.loading = true; render();
-  const { error } = await sb.from("ts_purchases").update({
-    status: "rejected", hr_rejection_reason: reason, updated_at: new Date().toISOString()
-  }).eq("id", id);
-  state.loading = false;
-  toast(error ? "Could not reject. Try again." : "Purchase rejected.");
-  await loadHrPurchases();
-  render();
 }
 
 async function deletePurchaseHr(id){
@@ -1253,21 +1255,21 @@ async function deletePurchaseHr(id){
 async function generatePurchasesExcel(){
   state.loading = true; render();
   try{
-    const approved = state.hrPurchases.filter(p => p.status === "approved");
-    if(!approved.length){ toast("No approved purchases to export."); state.loading=false; render(); return; }
+    const items = state.hrPurchases;
+    if(!items.length){ toast("No purchases to export."); state.loading=false; render(); return; }
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Purchases");
     const NAVY = "FF0F3556", WHITE = "FFFFFFFF", BLUE = "FF1B5A96", STRIPE = "FFF3F8FD";
-    ws.mergeCells(1,1,1,10);
+    ws.mergeCells(1,1,1,8);
     const title = ws.getCell(1,1);
-    title.value = `APPROVED PURCHASES / EXPENSES — ${monthLabel(state.monthDate).toUpperCase()}`;
+    title.value = `PURCHASES / EXPENSES — ${monthLabel(state.monthDate).toUpperCase()}`;
     title.font = { bold: true, size: 13, color: { argb: WHITE } };
     title.alignment = { horizontal: "center", vertical: "middle" };
     title.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
     ws.getRow(1).height = 24;
 
-    const headers = ["No.","Date","Description","Project","Bill No","Amount","VAT","Total","Recorded By","Vendor"];
+    const headers = ["No.","Date","Description","Project","Bill No","Amount","VAT","Total"];
     const hr = ws.getRow(2);
     hr.values = headers;
     hr.eachCell(c => {
@@ -1277,11 +1279,10 @@ async function generatePurchasesExcel(){
     });
 
     let totalAmount = 0, totalVat = 0, totalAll = 0;
-    approved.forEach((p, i) => {
+    items.forEach((p, i) => {
       const row = ws.addRow([
         i+1, p.purchase_date, p.item_description, p.ts_projects?.name || "-", p.bill_no || "-",
-        Number(p.amount), Number(p.vat_amount), Number(p.total_amount),
-        p.ts_employees?.name || "", p.vendor_name || "-"
+        Number(p.amount), Number(p.vat_amount), Number(p.total_amount)
       ]);
       totalAmount += Number(p.amount) || 0;
       totalVat += Number(p.vat_amount) || 0;
@@ -1290,17 +1291,68 @@ async function generatePurchasesExcel(){
       [6,7,8].forEach(col => { row.getCell(col).numFmt = "#,##0.00"; });
     });
 
-    const totalRow = ws.addRow(["", "", "", "", "TOTAL", totalAmount, totalVat, totalAll, "", ""]);
+    const totalRow = ws.addRow(["", "", "", "", "TOTAL", totalAmount, totalVat, totalAll]);
     totalRow.font = { bold: true };
     [6,7,8].forEach(col => { totalRow.getCell(col).numFmt = "#,##0.00"; });
 
-    ws.columns = [{width:5},{width:12},{width:26},{width:14},{width:12},{width:11},{width:9},{width:11},{width:18},{width:16}];
+    ws.columns = [{width:5},{width:12},{width:28},{width:16},{width:14},{width:12},{width:10},{width:12}];
 
     await downloadWorkbook(wb, `Purchases_${state.hrMonth}.xlsx`);
     toast("Purchases report downloaded.");
   }catch(e){
     console.error("Purchases export error:", e);
     toast("Export error: " + (e && e.message ? e.message : "unknown"));
+  }
+  state.loading = false;
+  render();
+}
+
+async function generatePurchasesPdf(){
+  const items = state.hrPurchases;
+  if(!items.length){ toast("No purchases to export."); return; }
+  state.loading = true; render();
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    drawLetterhead(doc, "");
+
+    doc.setFont("helvetica","bold"); doc.setFontSize(15); doc.setTextColor(15,53,86);
+    doc.text(`Purchases / Expenses — ${monthLabel(state.monthDate)}`, 40, 76);
+
+    const body = items.map((p, i) => [
+      i+1, p.purchase_date, p.item_description, p.ts_projects?.name || "-", p.bill_no || "-",
+      Number(p.amount).toFixed(2), Number(p.vat_amount).toFixed(2), Number(p.total_amount).toFixed(2)
+    ]);
+    const totalAmount = items.reduce((s,p)=>s+(Number(p.amount)||0),0);
+    const totalVat = items.reduce((s,p)=>s+(Number(p.vat_amount)||0),0);
+    const totalAll = items.reduce((s,p)=>s+(Number(p.total_amount)||0),0);
+    body.push(["", "", "", "", "TOTAL", totalAmount.toFixed(2), totalVat.toFixed(2), totalAll.toFixed(2)]);
+
+    doc.autoTable({
+      startY: 92,
+      head: [["No.","Date","Description","Project","Bill No","Amount","VAT","Total"]],
+      body: body,
+      styles: { fontSize: 8.5, cellPadding: 4 },
+      headStyles: { fillColor: [27,90,150], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [243,248,253] },
+      columnStyles: {
+        0: { cellWidth: 24, halign: "center" },
+        5: { halign: "right" }, 6: { halign: "right" }, 7: { halign: "right", fontStyle: "bold" }
+      },
+      didParseCell: (data) => {
+        if(data.row.index === body.length - 1 && data.section === "body"){
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.fillColor = [240, 199, 102];
+        }
+      }
+    });
+
+    stampFooters(doc);
+    doc.save(`Purchases_${state.hrMonth}.pdf`);
+    toast("Purchases PDF downloaded.");
+  }catch(e){
+    console.error("Purchases PDF error:", e);
+    toast("PDF error: " + (e && e.message ? e.message : "unknown"));
   }
   state.loading = false;
   render();
@@ -2871,23 +2923,40 @@ function renderPurchaseForm(){
   const amountNum = Number(f.amount) || 0;
   const vatAmt = f.hasVat ? amountNum * 0.15 : 0;
   const total = amountNum + vatAmt;
-  const historyRows = state.myPurchases.map(p => {
-    const b = purchaseBadgeInfo(p.status);
-    return `
-    <div class="emp-list-item li-approved">
-      <div style="flex:1;min-width:0;">
-        <div class="name">${p.item_description}</div>
-        <div class="sub">${p.category||"-"} • Total ${Number(p.total_amount).toFixed(2)} SAR • ${p.purchase_date}</div>
-      </div>
-      <span class="badge ${b.cls}">${b.label}</span>
-    </div>`;
-  }).join("") || `<div class="empty-state"><div class="ic">🧾</div>No purchases recorded yet.</div>`;
+
+  const drafts = state.myPurchases.filter(p => p.status === "draft");
+  const sent = state.myPurchases.filter(p => p.status === "sent");
+
+  const projectName = (id) => (state.projects.find(pr => pr.id === id) || {}).name || "-";
+
+  const draftRows = drafts.map((p, i) => `
+    <tr>
+      <td style="font-size:9px;text-align:center;">${i+1}</td>
+      <td style="font-size:9px;white-space:nowrap;">${p.purchase_date}</td>
+      <td style="font-size:9px;">${p.item_description}</td>
+      <td style="font-size:9px;">${projectName(p.project_id)}</td>
+      <td style="font-size:9px;">${p.bill_no || "-"}</td>
+      <td style="font-size:9px;text-align:right;">${Number(p.amount).toFixed(2)}</td>
+      <td style="font-size:9px;text-align:right;">${Number(p.vat_amount).toFixed(2)}</td>
+      <td style="font-size:9px;text-align:right;font-weight:700;">${Number(p.total_amount).toFixed(2)}</td>
+      <td><button class="link-btn" data-delete-purchase-draft="${p.id}" style="color:var(--absent) !important;font-size:11px;" title="Remove">🗑</button></td>
+    </tr>`).join("");
+
+  const sentRows = sent.map((p, i) => `
+    <tr>
+      <td style="font-size:9px;text-align:center;">${i+1}</td>
+      <td style="font-size:9px;white-space:nowrap;">${p.purchase_date}</td>
+      <td style="font-size:9px;">${p.item_description}</td>
+      <td style="font-size:9px;">${projectName(p.project_id)}</td>
+      <td style="font-size:9px;">${p.bill_no || "-"}</td>
+      <td style="font-size:9px;text-align:right;font-weight:700;">${Number(p.total_amount).toFixed(2)}</td>
+    </tr>`).join("");
 
   return `
     <button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     <div class="card" style="background:linear-gradient(135deg,#EAF6F3,#F3FBF9);border:2px solid #1B7A6B;">
-      <h3 style="color:#125C4F;">🧾 Record a Purchase (v2)</h3>
-      <div class="meta">Submitted to HR for approval.</div>
+      <h3 style="color:#125C4F;">🧾 Record a Purchase</h3>
+      <div class="meta">Save items here, then submit them all to HR when ready.</div>
     </div>
 
     <label>Date</label>
@@ -2951,73 +3020,77 @@ function renderPurchaseForm(){
     <textarea id="purchaseNotes" rows="2" placeholder="Anything extra to note...">${f.notes}</textarea>
 
     <div class="bottom-bar">
-      <button class="btn btn-submit btn-sm" id="submitPurchaseBtn" style="flex:1;">✅ Submit to HR</button>
+      <button class="btn btn-submit btn-sm" id="savePurchaseBtn" style="flex:1;">💾 Save Item</button>
     </div>
 
     <div class="card" style="margin-top:70px;">
-      <h3 style="font-size:14px;">My Purchases</h3>
+      <h3 style="font-size:14px;">📋 Not Yet Submitted (${drafts.length})</h3>
+      <div class="meta">Saved items waiting to be sent to HR.</div>
     </div>
-    <div style="margin-top:6px;">${historyRows}</div>
+    <div class="card" style="margin-top:10px;padding:6px 4px 2px;overflow-x:auto;">
+      ${draftRows ? `
+      <table class="grid" style="min-width:600px;">
+        <thead><tr>
+          <th style="font-size:8px;">No.</th><th style="font-size:8px;">Date</th><th style="font-size:8px;">Description</th>
+          <th style="font-size:8px;">Project</th><th style="font-size:8px;">Bill No</th><th style="font-size:8px;">Amount</th>
+          <th style="font-size:8px;">VAT</th><th style="font-size:8px;">Total</th><th></th>
+        </tr></thead>
+        <tbody>${draftRows}</tbody>
+      </table>` : `<div class="empty-state"><div class="ic">🧾</div>Nothing saved yet.</div>`}
+    </div>
+    ${drafts.length ? `<button class="btn btn-primary" id="submitAllPurchasesBtn" style="margin-top:12px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">📤 Submit ${drafts.length} Item${drafts.length===1?"":"s"} to HR</button>` : ""}
+
+    ${sent.length ? `
+    <div class="card" style="margin-top:24px;">
+      <h3 style="font-size:14px;">✅ Sent to HR</h3>
+    </div>
+    <div class="card" style="margin-top:10px;padding:6px 4px 2px;overflow-x:auto;">
+      <table class="grid" style="min-width:420px;">
+        <thead><tr><th style="font-size:8px;">No.</th><th style="font-size:8px;">Date</th><th style="font-size:8px;">Description</th><th style="font-size:8px;">Project</th><th style="font-size:8px;">Bill No</th><th style="font-size:8px;">Total</th></tr></thead>
+        <tbody>${sentRows}</tbody>
+      </table>
+    </div>` : ""}
   `;
 }
 
 function renderHrPurchasesList(){
-  const pending = state.hrPurchases.filter(p => p.status === "submitted");
-  const others = state.hrPurchases.filter(p => p.status !== "submitted");
+  const items = state.hrPurchases;
 
-  const pendingRow = (p) => `
-    <div class="emp-list-item li-submitted" style="flex-wrap:wrap;">
-      <div style="flex:1;min-width:0;">
-        <div class="name">${p.item_description}</div>
-        <div class="sub">${p.ts_employees?.name || ""} ${p.category ? "• " + p.category : ""} • Bill: ${p.bill_no || "-"}</div>
-        <div class="sub">${p.ts_projects?.name ? "Project: " + p.ts_projects.name + " • " : ""}Amount: ${Number(p.amount).toFixed(2)} ${p.has_vat ? "+ VAT " + Number(p.vat_amount).toFixed(2) : "(no VAT)"} = <b>${Number(p.total_amount).toFixed(2)} SAR</b></div>
-      </div>
-      ${p.receipt_photo ? `<img src="${p.receipt_photo}" style="width:44px;height:44px;object-fit:cover;border-radius:8px;border:1.5px solid var(--line);">` : ""}
-      <div style="width:100%;display:flex;gap:10px;margin-top:8px;">
-        <button class="link-btn" data-approve-purchase="${p.id}" style="color:var(--present) !important;">✓ Approve</button>
-        <button class="link-btn" data-reject-purchase="${p.id}" style="color:var(--absent) !important;">✕ Reject</button>
-      </div>
-    </div>`;
-
-  const historyRows = others.map((p, idx) => {
-    const b = purchaseBadgeInfo(p.status);
-    return `
+  const rows = items.map((p, idx) => `
     <tr>
       <td style="font-size:9px;text-align:center;">${idx+1}</td>
       <td style="font-size:9px;white-space:nowrap;">${p.purchase_date}</td>
+      <td style="font-size:9px;font-weight:700;white-space:nowrap;">${firstLastName(p.ts_employees?.name)}</td>
       <td style="font-size:9px;">${p.item_description}</td>
       <td style="font-size:9px;">${p.ts_projects?.name || "-"}</td>
       <td style="font-size:9px;">${p.bill_no || "-"}</td>
       <td style="font-size:9px;text-align:right;">${Number(p.amount).toFixed(2)}</td>
       <td style="font-size:9px;text-align:right;">${Number(p.vat_amount).toFixed(2)}</td>
       <td style="font-size:9px;text-align:right;font-weight:700;">${Number(p.total_amount).toFixed(2)}</td>
-      <td><span class="badge ${b.cls}" style="font-size:7.5px;padding:2px 4px;white-space:nowrap;">${b.label}</span></td>
       <td><button class="link-btn" data-delete-purchase="${p.id}" style="color:var(--absent) !important;font-size:11px;" title="Remove">🗑</button></td>
-    </tr>`;
-  }).join("");
+    </tr>`).join("");
+
+  const grandTotal = items.reduce((s,p)=>s+(Number(p.total_amount)||0),0);
 
   return `
     <button class="back-link-glow" id="backToHrBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     <div class="card">
-      <h3>🧾 Purchase / Expense Approvals</h3>
-      <div class="meta">Submitted by supervisors, awaiting your review.</div>
-    </div>
-    <div style="margin-top:10px;">${pending.map(pendingRow).join("") || `<div class="empty-state"><div class="ic">🧾</div>Nothing awaiting your approval.</div>`}</div>
-    <button class="btn btn-outline" id="exportPurchasesBtn" style="margin-top:14px;">📊 Export Approved Purchases (Excel)</button>
-    <div class="card" style="margin-top:18px;">
-      <h3 style="font-size:14px;">History</h3>
+      <h3>🧾 Purchases / Expenses</h3>
+      <div class="meta">${items.length} item${items.length===1?"":"s"} submitted by supervisors • Total ${grandTotal.toFixed(2)} SAR</div>
     </div>
     <div class="card" style="margin-top:10px;padding:6px 4px 2px;overflow-x:auto;">
-      ${historyRows ? `
-      <table class="grid" style="min-width:640px;">
+      ${rows ? `
+      <table class="grid" style="min-width:700px;">
         <thead><tr>
-          <th style="font-size:8px;">No.</th><th style="font-size:8px;">Date</th><th style="font-size:8px;">Description</th>
-          <th style="font-size:8px;">Project</th><th style="font-size:8px;">Bill No</th><th style="font-size:8px;">Amount</th>
-          <th style="font-size:8px;">VAT</th><th style="font-size:8px;">Total</th><th style="font-size:8px;">Status</th><th></th>
+          <th style="font-size:8px;">No.</th><th style="font-size:8px;">Date</th><th style="font-size:8px;">Supervisor</th>
+          <th style="font-size:8px;">Description</th><th style="font-size:8px;">Project</th><th style="font-size:8px;">Bill No</th>
+          <th style="font-size:8px;">Amount</th><th style="font-size:8px;">VAT</th><th style="font-size:8px;">Total</th><th></th>
         </tr></thead>
-        <tbody>${historyRows}</tbody>
-      </table>` : `<div class="empty-state"><div class="ic">📋</div>No history yet.</div>`}
+        <tbody>${rows}</tbody>
+      </table>` : `<div class="empty-state"><div class="ic">🧾</div>Nothing submitted yet.</div>`}
     </div>
+    <button class="btn btn-outline" id="exportPurchasesExcelBtn" style="margin-top:14px;">📊 Export as Excel</button>
+    <button class="btn btn-primary" id="exportPurchasesPdfBtn" style="margin-top:8px;background:linear-gradient(135deg,#0F3556,#1B5A96);">📄 Export as PDF</button>
   `;
 }
 
@@ -3095,15 +3168,15 @@ function handleDelegatedClick(e){
   if(el("wpsAlFalakBtn")){ generateWpsPayroll("AL_FALAK"); return; }
   if(el("openPurchaseFormBtn")){ state.view = "purchase-form"; loadMyPurchases().then(render); return; }
   if(el("purchasePhotoBtn")){ document.getElementById("purchasePhotoInput")?.click(); return; }
-  if(el("submitPurchaseBtn")){ submitPurchase(); return; }
+  if(el("savePurchaseBtn")){ savePurchase(); return; }
+  if(el("submitAllPurchasesBtn")){ submitAllDraftsToHr(); return; }
+  const deletePurchaseDraftEl = e.target.closest("[data-delete-purchase-draft]");
+  if(deletePurchaseDraftEl){ deletePurchaseDraft(deletePurchaseDraftEl.getAttribute("data-delete-purchase-draft")); return; }
   if(el("openHrPurchasesBtn")){ state.view = "hr-purchases-list"; loadHrPurchases().then(render); return; }
-  const approvePurchaseEl = e.target.closest("[data-approve-purchase]");
-  if(approvePurchaseEl){ approvePurchaseHr(approvePurchaseEl.getAttribute("data-approve-purchase")); return; }
-  const rejectPurchaseEl = e.target.closest("[data-reject-purchase]");
-  if(rejectPurchaseEl){ rejectPurchaseHr(rejectPurchaseEl.getAttribute("data-reject-purchase")); return; }
   const deletePurchaseEl = e.target.closest("[data-delete-purchase]");
   if(deletePurchaseEl){ deletePurchaseHr(deletePurchaseEl.getAttribute("data-delete-purchase")); return; }
-  if(el("exportPurchasesBtn")){ generatePurchasesExcel(); return; }
+  if(el("exportPurchasesExcelBtn")){ generatePurchasesExcel(); return; }
+  if(el("exportPurchasesPdfBtn")){ generatePurchasesPdf(); return; }
   const reviewHrTsEl = e.target.closest("[data-review-hr-timesheet]");
   if(reviewHrTsEl){ openHrTimesheetReview(reviewHrTsEl.getAttribute("data-review-hr-timesheet")); return; }
   if(el("saveHrTimesheetBtn")){ saveHrTimesheetEdit(); return; }
