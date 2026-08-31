@@ -3060,7 +3060,6 @@ function renderHrPurchasesList(){
     <tr>
       <td style="font-size:9px;text-align:center;">${idx+1}</td>
       <td style="font-size:9px;white-space:nowrap;">${p.purchase_date}</td>
-      <td style="font-size:9px;font-weight:700;white-space:nowrap;">${firstLastName(p.ts_employees?.name)}</td>
       <td style="font-size:9px;">${p.item_description}</td>
       <td style="font-size:9px;">${p.ts_projects?.name || "-"}</td>
       <td style="font-size:9px;">${p.bill_no || "-"}</td>
@@ -3078,11 +3077,12 @@ function renderHrPurchasesList(){
       <h3>🧾 Purchases / Expenses</h3>
       <div class="meta">${items.length} item${items.length===1?"":"s"} submitted by supervisors • Total ${grandTotal.toFixed(2)} SAR</div>
     </div>
-    <div class="card" style="margin-top:10px;padding:6px 4px 2px;overflow-x:auto;">
+    <div class="card" style="margin-top:10px;padding:6px 4px 2px;">
       ${rows ? `
-      <table class="grid" style="min-width:700px;">
+      <table class="grid" style="table-layout:fixed;width:100%;">
+        <colgroup><col style="width:6%;"><col style="width:13%;"><col style="width:26%;"><col style="width:14%;"><col style="width:11%;"><col style="width:11%;"><col style="width:9%;"><col style="width:11%;"><col style="width:9%;"></colgroup>
         <thead><tr>
-          <th style="font-size:8px;">No.</th><th style="font-size:8px;">Date</th><th style="font-size:8px;">Supervisor</th>
+          <th style="font-size:8px;">No.</th><th style="font-size:8px;">Date</th>
           <th style="font-size:8px;">Description</th><th style="font-size:8px;">Project</th><th style="font-size:8px;">Bill No</th>
           <th style="font-size:8px;">Amount</th><th style="font-size:8px;">VAT</th><th style="font-size:8px;">Total</th><th></th>
         </tr></thead>
