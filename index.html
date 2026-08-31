@@ -327,6 +327,7 @@ let state = {
   selectedLeaveRequest: null,
   myPurchases: [],
   purchaseFormDraft: { purchaseDate: "", category: "", itemDescription: "", projectId: "", billNo: "", vendorName: "", amount: "", hasVat: true, paymentMethod: "", notes: "", receiptPhoto: "" },
+  expandedPurchaseBatch: null,
   hrPurchases: [],
   editingLeaveRequestId: null,
   projects: [],           // {id, name, active}
@@ -1225,9 +1226,10 @@ async function submitAllDraftsToHr(){
   if(!drafts.length){ toast("Nothing to submit — save at least one item first."); return; }
   if(!confirm(`Submit ${drafts.length} item${drafts.length===1?"":"s"} to HR? You won't be able to edit them after this.`)) return;
 
+  const batchId = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
   state.loading = true; render();
   const { error } = await sb.from("ts_purchases")
-    .update({ status: "sent", updated_at: new Date().toISOString() })
+    .update({ status: "sent", batch_id: batchId, updated_at: new Date().toISOString() })
     .eq("supervisor_id", state.user.id).eq("status", "draft");
   state.loading = false;
   toast(error ? "Could not submit. Try again." : `${drafts.length} item${drafts.length===1?"":"s"} sent to HR.`);
@@ -1259,6 +1261,16 @@ async function deletePurchaseHr(id){
   const { error } = await sb.from("ts_purchases").delete().eq("id", id);
   state.loading = false;
   toast(error ? "Could not remove. Try again." : "Purchase removed.");
+  await loadHrPurchases();
+  render();
+}
+
+async function deletePurchaseBatchHr(batchId, itemCount){
+  if(!confirm(`Permanently remove this whole submission (${itemCount} item${itemCount===1?"":"s"})? This cannot be undone.`)) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_purchases").delete().eq("batch_id", batchId);
+  state.loading = false;
+  toast(error ? "Could not remove. Try again." : "Submission removed.");
   await loadHrPurchases();
   render();
 }
@@ -2708,6 +2720,19 @@ function renderProjectsManager(){
   `;
 }
 
+function groupPurchasesByBatch(items){
+  const groups = {};
+  items.forEach(p => {
+    const key = p.batch_id || `single-${p.id}`; // older records without a batch_id get their own group
+    if(!groups[key]) groups[key] = { batchId: key, items: [], date: p.purchase_date, createdAt: p.updated_at || p.created_at, supervisorName: p.ts_employees?.name };
+    groups[key].items.push(p);
+    if(p.purchase_date > groups[key].date) groups[key].date = p.purchase_date;
+  });
+  return Object.values(groups)
+    .map(g => ({ ...g, total: g.items.reduce((s,p)=>s+(Number(p.total_amount)||0),0) }))
+    .sort((a,b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+}
+
 function firstLastName(n){
   const parts = (n || "").trim().split(/\s+/);
   if(parts.length <= 2) return parts.join(" ");
@@ -2958,15 +2983,29 @@ function renderPurchaseForm(){
       <td><button class="link-btn" data-delete-purchase-draft="${p.id}" style="color:var(--absent) !important;font-size:11px;" title="Remove">🗑</button></td>
     </tr>`).join("");
 
-  const sentRows = sent.map((p, i) => `
-    <tr>
-      <td style="font-size:9px;text-align:center;">${i+1}</td>
-      <td style="font-size:9px;white-space:nowrap;">${formatDateDMY(p.purchase_date)}</td>
-      <td style="font-size:9px;">${p.item_description}</td>
-      <td style="font-size:9px;">${projectName(p.project_id)}</td>
-      <td style="font-size:9px;">${p.bill_no || "-"}</td>
-      <td style="font-size:9px;text-align:right;font-weight:700;">${Number(p.total_amount).toFixed(2)}</td>
-    </tr>`).join("");
+  const sentBatches = groupPurchasesByBatch(sent);
+  const sentBatchButtons = sentBatches.map((b, i) => {
+    const expanded = state.expandedPurchaseBatch === b.batchId;
+    const itemRows = b.items.map(p => `
+      <tr>
+        <td style="font-size:9px;">${p.item_description}</td>
+        <td style="font-size:9px;">${projectName(p.project_id)}</td>
+        <td style="font-size:9px;">${p.bill_no || "-"}</td>
+        <td style="font-size:9px;text-align:right;font-weight:700;">${Number(p.total_amount).toFixed(2)}</td>
+      </tr>`).join("");
+    return `
+    <button class="btn btn-outline" data-toggle-sent-batch="${b.batchId}" style="margin-top:8px;text-align:left;display:flex;justify-content:space-between;align-items:center;border-color:#1B7A6B;color:#125C4F;">
+      <span>${i+1}. ${b.total.toFixed(2)} SAR (${formatDateDMY(b.date)})</span>
+      <span>${expanded ? "▲" : "▼"}</span>
+    </button>
+    ${expanded ? `
+    <div class="card" style="margin-top:6px;padding:6px 4px 2px;overflow-x:auto;">
+      <table class="grid" style="min-width:360px;">
+        <thead><tr><th style="font-size:8px;">Description</th><th style="font-size:8px;">Project</th><th style="font-size:8px;">Bill No</th><th style="font-size:8px;">Total</th></tr></thead>
+        <tbody>${itemRows}</tbody>
+      </table>
+    </div>` : ""}`;
+  }).join("");
 
   return `
     <button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
@@ -3050,52 +3089,53 @@ function renderPurchaseForm(){
     ${sent.length ? `
     <div class="card" style="margin-top:24px;">
       <h3 style="font-size:14px;">✅ Sent to HR</h3>
+      <div class="meta">Tap a submission to see what's inside it.</div>
     </div>
-    <div class="card" style="margin-top:10px;padding:6px 4px 2px;overflow-x:auto;">
-      <table class="grid" style="min-width:420px;">
-        <thead><tr><th style="font-size:8px;">No.</th><th style="font-size:8px;">Date</th><th style="font-size:8px;">Description</th><th style="font-size:8px;">Project</th><th style="font-size:8px;">Bill No</th><th style="font-size:8px;">Total</th></tr></thead>
-        <tbody>${sentRows}</tbody>
-      </table>
-    </div>` : ""}
+    ${sentBatchButtons}` : ""}
   `;
 }
 
 function renderHrPurchasesList(){
   const items = state.hrPurchases;
-
-  const rows = items.map((p, idx) => `
-    <tr>
-      <td style="font-size:9px;text-align:center;">${idx+1}</td>
-      <td style="font-size:9px;white-space:nowrap;">${formatDateDMY(p.purchase_date)}</td>
-      <td style="font-size:9px;">${p.item_description}</td>
-      <td style="font-size:9px;">${p.ts_projects?.name || "-"}</td>
-      <td style="font-size:9px;">${p.bill_no || "-"}</td>
-      <td style="font-size:9px;text-align:right;">${Number(p.amount).toFixed(2)}</td>
-      <td style="font-size:9px;text-align:right;">${Number(p.vat_amount).toFixed(2)}</td>
-      <td style="font-size:9px;text-align:right;font-weight:700;">${Number(p.total_amount).toFixed(2)}</td>
-      <td><button class="link-btn" data-delete-purchase="${p.id}" style="color:var(--absent) !important;font-size:11px;" title="Remove">🗑</button></td>
-    </tr>`).join("");
-
+  const batches = groupPurchasesByBatch(items);
   const grandTotal = items.reduce((s,p)=>s+(Number(p.total_amount)||0),0);
+
+  const batchBlocks = batches.map((b, i) => {
+    const expanded = state.expandedPurchaseBatch === b.batchId;
+    const itemRows = b.items.map(p => `
+      <tr>
+        <td style="font-size:9px;white-space:nowrap;">${formatDateDMY(p.purchase_date)}</td>
+        <td style="font-size:9px;">${p.item_description}</td>
+        <td style="font-size:9px;">${p.ts_projects?.name || "-"}</td>
+        <td style="font-size:9px;">${p.bill_no || "-"}</td>
+        <td style="font-size:9px;text-align:right;">${Number(p.amount).toFixed(2)}</td>
+        <td style="font-size:9px;text-align:right;">${Number(p.vat_amount).toFixed(2)}</td>
+        <td style="font-size:9px;text-align:right;font-weight:700;">${Number(p.total_amount).toFixed(2)}</td>
+      </tr>`).join("");
+    return `
+    <div style="margin-top:8px;">
+      <button class="btn btn-outline" data-toggle-sent-batch="${b.batchId}" style="text-align:left;display:flex;justify-content:space-between;align-items:center;border-color:var(--blue-light);color:var(--blue);">
+        <span>${i+1}. ${firstLastName(b.supervisorName)} — ${b.total.toFixed(2)} SAR (${formatDateDMY(b.date)})</span>
+        <span>${expanded ? "▲" : "▼"}</span>
+      </button>
+      ${expanded ? `
+      <div class="card" style="margin-top:6px;padding:6px 4px 2px;overflow-x:auto;">
+        <table class="grid" style="min-width:520px;">
+          <thead><tr><th style="font-size:8px;">Date</th><th style="font-size:8px;">Description</th><th style="font-size:8px;">Project</th><th style="font-size:8px;">Bill No</th><th style="font-size:8px;">Amount</th><th style="font-size:8px;">VAT</th><th style="font-size:8px;">Total</th></tr></thead>
+          <tbody>${itemRows}</tbody>
+        </table>
+        <button class="link-btn" data-delete-purchase-batch="${b.batchId}" data-batch-count="${b.items.length}" style="color:var(--absent) !important;margin:8px 0 4px;">🗑 Remove this submission</button>
+      </div>` : ""}
+    </div>`;
+  }).join("");
 
   return `
     <button class="back-link-glow" id="backToHrBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     <div class="card">
       <h3>🧾 Purchases / Expenses</h3>
-      <div class="meta">${items.length} item${items.length===1?"":"s"} submitted by supervisors • Total ${grandTotal.toFixed(2)} SAR</div>
+      <div class="meta">${items.length} item${items.length===1?"":"s"} across ${batches.length} submission${batches.length===1?"":"s"} • Total ${grandTotal.toFixed(2)} SAR</div>
     </div>
-    <div class="card" style="margin-top:10px;padding:6px 4px 2px;">
-      ${rows ? `
-      <table class="grid" style="table-layout:fixed;width:100%;">
-        <colgroup><col style="width:6%;"><col style="width:13%;"><col style="width:26%;"><col style="width:14%;"><col style="width:11%;"><col style="width:11%;"><col style="width:9%;"><col style="width:11%;"><col style="width:9%;"></colgroup>
-        <thead><tr>
-          <th style="font-size:8px;">No.</th><th style="font-size:8px;">Date</th>
-          <th style="font-size:8px;">Description</th><th style="font-size:8px;">Project</th><th style="font-size:8px;">Bill No</th>
-          <th style="font-size:8px;">Amount</th><th style="font-size:8px;">VAT</th><th style="font-size:8px;">Total</th><th></th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>` : `<div class="empty-state"><div class="ic">🧾</div>Nothing submitted yet.</div>`}
-    </div>
+    ${batchBlocks || `<div class="empty-state"><div class="ic">🧾</div>Nothing submitted yet.</div>`}
     <button class="btn btn-outline" id="exportPurchasesExcelBtn" style="margin-top:14px;">📊 Export as Excel</button>
     <button class="btn btn-primary" id="exportPurchasesPdfBtn" style="margin-top:8px;background:linear-gradient(135deg,#0F3556,#1B5A96);">📄 Export as PDF (v2)</button>
   `;
@@ -3182,6 +3222,18 @@ function handleDelegatedClick(e){
   if(el("openHrPurchasesBtn")){ state.view = "hr-purchases-list"; loadHrPurchases().then(render); return; }
   const deletePurchaseEl = e.target.closest("[data-delete-purchase]");
   if(deletePurchaseEl){ deletePurchaseHr(deletePurchaseEl.getAttribute("data-delete-purchase")); return; }
+  const toggleSentBatchEl = e.target.closest("[data-toggle-sent-batch]");
+  if(toggleSentBatchEl){
+    const batchId = toggleSentBatchEl.getAttribute("data-toggle-sent-batch");
+    state.expandedPurchaseBatch = state.expandedPurchaseBatch === batchId ? null : batchId;
+    render();
+    return;
+  }
+  const deleteBatchEl = e.target.closest("[data-delete-purchase-batch]");
+  if(deleteBatchEl){
+    deletePurchaseBatchHr(deleteBatchEl.getAttribute("data-delete-purchase-batch"), Number(deleteBatchEl.getAttribute("data-batch-count")) || 0);
+    return;
+  }
   if(el("exportPurchasesExcelBtn")){ generatePurchasesExcel(); return; }
   if(el("exportPurchasesPdfBtn")){ generatePurchasesPdf(); return; }
   const reviewHrTsEl = e.target.closest("[data-review-hr-timesheet]");
