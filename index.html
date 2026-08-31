@@ -138,10 +138,13 @@
   .login-wrap h1{text-align:center;font-size:20px;margin:0 0 4px;color:var(--navy);}
   .login-wrap p.hint{text-align:center;color:var(--muted);font-size:13px;margin:0 0 26px;}
   label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.4px;}
-  input[type=text],input[type=tel],input[type=number],input[type=password],select,textarea{
+  input[type=text],input[type=tel],input[type=number],input[type=password],input[type=date],select,textarea{
     width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;background:#fff;color:var(--ink);
   }
   input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue-light);}
+  .purchase-field input[type=date],.purchase-field input[type=text],.purchase-field input[type=number]{
+    border:2px solid #1B7A6B;background:#F3FBF9;color:#125C4F;font-weight:600;
+  }
   .btn{
     display:block;width:100%;padding:13px 16px;border-radius:10px;border:none;font-size:15px;font-weight:700;cursor:pointer;text-align:center;
   }
@@ -2932,13 +2935,13 @@ function purchaseBadgeInfo(status){
 
 function renderPurchaseForm(){
   const f = state.purchaseFormDraft;
-  const categories = ["Tools","Materials","Consumables","Fuel","Transport","Hand Work","Repair","Other"];
   const amountNum = Number(f.amount) || 0;
   const vatAmt = f.hasVat ? amountNum * 0.15 : 0;
   const total = amountNum + vatAmt;
 
   const drafts = state.myPurchases.filter(p => p.status === "draft");
   const sent = state.myPurchases.filter(p => p.status === "sent");
+  const draftsTotal = drafts.reduce((s,p)=>s+(Number(p.total_amount)||0),0);
 
   const projectName = (id) => (state.projects.find(pr => pr.id === id) || {}).name || "-";
 
@@ -2972,11 +2975,15 @@ function renderPurchaseForm(){
       <div class="meta">Save items here, then submit them all to HR when ready.</div>
     </div>
 
-    <label>Date</label>
-    <input type="date" id="purchaseDate" value="${f.purchaseDate}">
+    <div class="purchase-field">
+      <label style="color:#1B7A6B;">📅 Date</label>
+      <input type="date" id="purchaseDate" value="${f.purchaseDate}">
+    </div>
 
-    <label>Item / Description</label>
-    <input type="text" id="purchaseItem" placeholder="e.g. Drill bits, car repair labor" value="${f.itemDescription}">
+    <div class="purchase-field">
+      <label style="color:#1B7A6B;">📝 Item / Description</label>
+      <input type="text" id="purchaseItem" placeholder="e.g. Drill bits, car repair labor" value="${f.itemDescription}">
+    </div>
 
     <label>Project / Site (optional)</label>
     <select id="purchaseProject">
@@ -2984,11 +2991,15 @@ function renderPurchaseForm(){
       ${state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${f.projectId===p.id?"selected":""}>${p.name}</option>`).join("")}
     </select>
 
-    <label>Bill / Invoice No.</label>
-    <input type="text" id="purchaseBillNo" placeholder="e.g. INV-1234" value="${f.billNo}">
+    <div class="purchase-field">
+      <label style="color:#1B7A6B;">🧾 Bill / Invoice No.</label>
+      <input type="text" id="purchaseBillNo" placeholder="e.g. INV-1234" value="${f.billNo}">
+    </div>
 
-    <label>Amount (SAR, before VAT)</label>
-    <input type="number" step="0.01" min="0" id="purchaseAmount" placeholder="0.00" value="${f.amount}">
+    <div class="purchase-field">
+      <label style="color:#1B7A6B;">💵 Amount (SAR, before VAT)</label>
+      <input type="number" step="0.01" min="0" id="purchaseAmount" placeholder="0.00" value="${f.amount}">
+    </div>
 
     <div class="remarks-card" style="margin-top:12px;">
       <label style="margin-top:0;color:#966109;">💰 VAT</label>
@@ -3001,24 +3012,7 @@ function renderPurchaseForm(){
       </div>
     </div>
 
-    <label style="margin-top:14px;">Category (optional)</label>
-    <select id="purchaseCategory">
-      <option value="">— Select —</option>
-      ${categories.map(c => `<option value="${c}" ${f.category===c?"selected":""}>${c}</option>`).join("")}
-    </select>
-
-    <label>Vendor / Store (optional)</label>
-    <input type="text" id="purchaseVendor" placeholder="Where you bought it" value="${f.vendorName}">
-
-    <label>Payment Method</label>
-    <select id="purchasePayment">
-      <option value="">— Select —</option>
-      <option value="Cash" ${f.paymentMethod==="Cash"?"selected":""}>Cash</option>
-      <option value="Company Card" ${f.paymentMethod==="Company Card"?"selected":""}>Company Card</option>
-      <option value="Other" ${f.paymentMethod==="Other"?"selected":""}>Other</option>
-    </select>
-
-    <label>Receipt Photo</label>
+    <label style="margin-top:14px;">Receipt Photo</label>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
       <div class="leave-photo-circle" style="border-radius:10px;">
         ${f.receiptPhoto ? `<img src="${f.receiptPhoto}" alt="Receipt">` : `<span>🧾</span>`}
@@ -3035,8 +3029,9 @@ function renderPurchaseForm(){
     <div class="bottom-bar">
       <button class="btn btn-submit btn-sm" id="savePurchaseBtn" style="flex:1;">💾 Save Item</button>
     </div>
+    ${drafts.length ? `<button class="btn btn-primary" id="submitAllPurchasesBtn" style="margin-top:10px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">📤 Submit to HR — ${draftsTotal.toFixed(2)} SAR</button>` : ""}
 
-    <div class="card" style="margin-top:70px;">
+    <div class="card" style="margin-top:24px;">
       <h3 style="font-size:14px;">📋 Not Yet Submitted (${drafts.length})</h3>
       <div class="meta">Saved items waiting to be sent to HR.</div>
     </div>
@@ -3051,7 +3046,6 @@ function renderPurchaseForm(){
         <tbody>${draftRows}</tbody>
       </table>` : `<div class="empty-state"><div class="ic">🧾</div>Nothing saved yet.</div>`}
     </div>
-    ${drafts.length ? `<button class="btn btn-primary" id="submitAllPurchasesBtn" style="margin-top:12px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">📤 Submit ${drafts.length} Item${drafts.length===1?"":"s"} to HR</button>` : ""}
 
     ${sent.length ? `
     <div class="card" style="margin-top:24px;">
