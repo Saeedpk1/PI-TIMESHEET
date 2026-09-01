@@ -142,7 +142,7 @@
     width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;background:#fff;color:var(--ink);
   }
   input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue-light);}
-  .purchase-field input[type=date],.purchase-field input[type=text],.purchase-field input[type=number]{
+  .purchase-field input[type=date],.purchase-field input[type=text],.purchase-field input[type=number],.purchase-field select{
     border:2px solid #1B7A6B;background:#F3FBF9;color:#125C4F;font-weight:600;
   }
   .btn{
@@ -3203,56 +3203,54 @@ function renderPurchaseForm(){
 
   return `
     <button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
-    <div class="card" style="background:linear-gradient(135deg,#EAF6F3,#F3FBF9);border:2px solid #1B7A6B;">
-      <h3 style="color:#125C4F;">🧾 ${isEditing ? "Editing Item" : "Record a Purchase"}</h3>
-      <div class="meta">${isEditing ? "Fix the details below, then update it." : "Save items here, then submit them all to HR when ready."}</div>
+    <div class="card" style="background:linear-gradient(135deg,#0F5C4E,#1B7A6B);border:none;">
+      <h3 style="color:#fff;">🧾 ${isEditing ? "Editing Item" : "Record a Purchase"}</h3>
+      <div class="meta" style="color:#D6F0E8;">${isEditing ? "Fix the details below, then update it." : "Save items here, then submit them all to HR when ready."}</div>
     </div>
     ${isEditing ? `<button class="link-btn" id="cancelEditPurchaseBtn" style="margin-bottom:14px;">✕ Cancel edit</button>` : ""}
 
     <input type="file" accept="image/*" capture="environment" id="scanBillInput" style="display:none;">
-    <button type="button" class="btn btn-primary" id="scanBillBtn" style="margin-bottom:16px;background:linear-gradient(135deg,#7A4FBF,#9B6FE0);">📷 Scan Bill with AI</button>
-    <div class="field-note" style="margin-bottom:10px;margin-top:-8px;">Takes a few seconds — always double-check the auto-filled fields.</div>
+    <button type="button" class="btn btn-primary" id="scanBillBtn" style="margin-top:16px;margin-bottom:6px;background:linear-gradient(135deg,#7A4FBF,#B06FE0);box-shadow:0 4px 14px rgba(122,79,191,0.35);">✨ Scan Bill with AI</button>
+    <div class="field-note" style="margin-bottom:14px;">Takes a few seconds — always double-check the auto-filled fields.</div>
 
-    <div class="purchase-field">
-      <label style="color:#1B7A6B;">📅 Date</label>
+    <div class="purchase-field" style="background:#F3FBF9;border-radius:12px;padding:12px;border:2px solid #A9DCCF;">
+      <label style="color:#1B7A6B;margin-top:0;">📅 Date</label>
       <input type="date" id="purchaseDate" value="${f.purchaseDate}">
     </div>
 
-    <div class="purchase-field">
-      <label style="color:#1B7A6B;">📝 Item / Description</label>
+    <div class="purchase-field" style="background:#F3FBF9;border-radius:12px;padding:12px;border:2px solid #A9DCCF;margin-top:10px;">
+      <label style="color:#1B7A6B;margin-top:0;">📝 Item / Description</label>
       <input type="text" id="purchaseItem" placeholder="e.g. Drill bits, car repair labor" value="${f.itemDescription}">
-    </div>
 
-    <label>Project / Site (optional)</label>
-    <select id="purchaseProject">
-      <option value="">— None —</option>
-      ${state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${f.projectId===p.id?"selected":""}>${p.name}</option>`).join("")}
-    </select>
+      <label style="color:#1B7A6B;">📌 Project / Site (optional)</label>
+      <select id="purchaseProject" style="border-color:#A9DCCF;">
+        <option value="">— None —</option>
+        ${state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${f.projectId===p.id?"selected":""}>${p.name}</option>`).join("")}
+      </select>
 
-    <div class="purchase-field">
       <label style="color:#1B7A6B;">🧾 Bill / Invoice No.</label>
       <input type="text" id="purchaseBillNo" placeholder="e.g. INV-1234" value="${f.billNo}">
     </div>
 
-    <div class="purchase-field">
-      <label style="color:#1B7A6B;">💵 Amount (SAR, before VAT)</label>
+    <div class="purchase-field" style="background:#F0F8FF;border-radius:12px;padding:12px;border:2px solid #B8D4EC;margin-top:10px;">
+      <label style="color:#1B5A96;margin-top:0;">💵 Amount (SAR, before VAT)</label>
       <input type="number" step="0.01" min="0" id="purchaseAmount" placeholder="0.00" value="${f.amount}">
     </div>
 
-    <div class="remarks-card" style="margin-top:12px;">
+    <div class="remarks-card" style="margin-top:10px;">
       <label style="margin-top:0;color:#966109;">💰 VAT</label>
       <div class="checklist" style="margin-bottom:0;">
         <label><input type="checkbox" id="purchaseHasVat" ${f.hasVat?"checked":""}> This purchase has 15% VAT</label>
       </div>
       <div class="field-note">Untick this for labor-only jobs (e.g. car repair hand work) with no VAT.</div>
-      <div style="margin-top:10px;font-size:13px;">
-        VAT amount: <b id="purchaseVatDisplay">${vatAmt.toFixed(2)} SAR</b> &nbsp;•&nbsp; Total: <b id="purchaseTotalDisplay">${total.toFixed(2)} SAR</b>
+      <div style="margin-top:10px;font-size:13px;background:#fff;border-radius:8px;padding:8px 10px;border:1px solid #F0C766;">
+        VAT amount: <b id="purchaseVatDisplay" style="color:#966109;">${vatAmt.toFixed(2)} SAR</b> &nbsp;•&nbsp; Total: <b id="purchaseTotalDisplay" style="color:#1C8A4E;">${total.toFixed(2)} SAR</b>
       </div>
     </div>
 
-    <label style="margin-top:14px;">Receipt Photo</label>
+    <label style="margin-top:16px;">📷 Receipt Photo</label>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
-      <div class="leave-photo-circle" style="border-radius:10px;">
+      <div class="leave-photo-circle" style="border-radius:10px;border-color:#A9DCCF;">
         ${f.receiptPhoto ? `<img src="${f.receiptPhoto}" alt="Receipt">` : `<span>🧾</span>`}
       </div>
       <div style="flex:1;">
@@ -3261,17 +3259,17 @@ function renderPurchaseForm(){
       </div>
     </div>
 
-    <label>Notes (optional)</label>
+    <label>🗒️ Notes (optional)</label>
     <textarea id="purchaseNotes" rows="2" placeholder="Anything extra to note...">${f.notes}</textarea>
 
     <button class="btn btn-submit" id="savePurchaseBtn" style="margin-top:16px;">💾 ${isEditing ? "Update Item" : "Save Item"}</button>
-    ${drafts.length ? `<button class="btn btn-primary" id="submitAllPurchasesBtn" style="margin-top:10px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">📤 Submit to HR — ${draftsTotal.toFixed(2)} SAR</button>` : ""}
+    ${drafts.length ? `<button class="btn btn-primary" id="submitAllPurchasesBtn" style="margin-top:10px;background:linear-gradient(135deg,#1B7A6B,#25A88F);box-shadow:0 4px 14px rgba(27,122,107,0.3);">📤 Submit to HR — ${draftsTotal.toFixed(2)} SAR</button>` : ""}
 
-    <div class="card" style="margin-top:24px;background:linear-gradient(135deg,#FFF3D9,#FFF9EC);border:2px solid #F0C766;">
-      <h3 style="font-size:14px;color:#7A5A0A;">📋 Not Yet Submitted (${drafts.length})</h3>
-      <div class="meta">Saved items waiting to be sent to HR.</div>
+    <div class="card" style="margin-top:24px;background:linear-gradient(135deg,#E8A33D,#F0C766);border:none;">
+      <h3 style="font-size:14px;color:#fff;">📋 Not Yet Submitted (${drafts.length})</h3>
+      <div class="meta" style="color:#FFF3D9;">Saved items waiting to be sent to HR.</div>
     </div>
-    <div class="card" style="margin-top:10px;padding:6px 4px 2px;overflow-x:auto;">
+    <div class="card" style="margin-top:10px;padding:6px 4px 2px;overflow-x:auto;border:2px solid #F0C766;">
       ${draftRows ? `
       <table class="grid" style="min-width:640px;">
         <colgroup>
@@ -3288,9 +3286,9 @@ function renderPurchaseForm(){
     </div>
 
     ${sent.length ? `
-    <div class="card" style="margin-top:24px;">
-      <h3 style="font-size:14px;">✅ Sent to HR</h3>
-      <div class="meta">Tap a submission to see what's inside it.</div>
+    <div class="card" style="margin-top:24px;background:linear-gradient(135deg,var(--navy),var(--blue));border:none;">
+      <h3 style="font-size:14px;color:#fff;">✅ Sent to HR</h3>
+      <div class="meta" style="color:#DCEAFB;">Tap a submission to see what's inside it.</div>
     </div>
     ${sentBatchButtons}` : ""}
   `;
