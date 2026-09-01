@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>Timesheets — Professional Installation Co</title>
-<!-- build-marker: salary-round-v4 -->
+<!-- build-marker: salary-allowance-v5 -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1B5A96">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -1904,6 +1904,20 @@ async function generateWpsPayroll(payrollGroup){
   render();
 }
 
+// Fixed monthly OTHR allowances (income column) for specific employees.
+// Match key = lowercase substring checked against the employee's full name.
+// To add/remove someone, edit this list — amount goes in OTHR, note becomes the cell comment.
+const SALARY_OTHR_ALLOWANCES = [
+  { match: "iqbal hussain", amount: 300, note: "Driving" },
+  { match: "madhavadas",    amount: 400, note: "Driving + Phone" },
+  { match: "vinesh",        amount: 300, note: "Driving" },
+  { match: "dipin das",     amount: 300, note: "Driving" }
+];
+function getOthrAllowance(empName){
+  const n = (empName || "").toLowerCase().trim();
+  return SALARY_OTHR_ALLOWANCES.find(a => n.includes(a.match)) || null;
+}
+
 async function generateSalarySheet(){
   const shortName = (n) => (n || "").trim().split(/\s+/).slice(0, 2).join(" ");
   state.loading = true; render();
@@ -2031,6 +2045,7 @@ async function generateSalarySheet(){
       groupRecords.forEach((r, i) => {
         const row = firstDataRow + i;
         const wr = ws.getRow(row);
+        const allowance = getOthrAllowance(r.emp.name);
         wr.values = [
           i + 1,
           shortName(r.emp.name),
@@ -2040,7 +2055,7 @@ async function generateSalarySheet(){
           r.present,
           r.ot,
           { formula: `ROUND(E${row}/208*G${row}*1.25,0)` },
-          0,
+          allowance ? allowance.amount : 0,
           { formula: `E${row}+H${row}+I${row}` },
           r.absent,
           { formula: `ROUND(E${row}/26*K${row},0)` },
@@ -2049,6 +2064,9 @@ async function generateSalarySheet(){
           { formula: `ROUND(MIN(${Math.round(Number(r.emp.gosi_amount) > 0 ? Number(r.emp.gosi_amount) : (Number(r.emp.basic_salary) || 0))},N${row}),0)` },
           { formula: `N${row}-O${row}` }
         ];
+        if(allowance){
+          wr.getCell(9).note = allowance.note; // OTHR column comment, e.g. "Driving" or "Driving + Phone"
+        }
         wr.eachCell({ includeEmpty: true }, (cell, colNum) => {
           cell.border = allBorders;
           cell.alignment = { horizontal: colNum <= 4 ? "left" : "center", vertical: "middle" };
