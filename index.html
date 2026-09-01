@@ -1822,8 +1822,9 @@ async function generateWpsPayroll(payrollGroup){
           .eq("employee_id", emp.id).gte("entry_date", start).lte("entry_date", end);
         let present = 0, ot = 0, absent = 0;
         (entryRows || []).forEach(r => {
-          if(r.status === "Present"){ present++; ot += Number(r.overtime_hours) || 0; }
+          if(r.status === "Present"){ present++; }
           else if(r.status === "Absent"){ absent++; }
+          ot += Number(r.overtime_hours) || 0; // OT counts on any day, including Fridays/off-days worked
         });
         const basicSalary = Number(emp.basic_salary) || 0;
         const otAmt = basicSalary/208*ot*1.25;
@@ -1934,9 +1935,9 @@ async function generateSalarySheet(){
       let present = 0, ot = 0, absent = 0;
       const projectDays = {};
       (entryRows || []).forEach(r => {
+        ot += Number(r.overtime_hours) || 0; // OT counts on any day, including Fridays/off-days worked
         if(r.status === "Present"){
           present++;
-          ot += Number(r.overtime_hours) || 0;
           if(r.project_id){
             const pname = projectName(r.project_id) || "";
             if(pname) projectDays[pname] = (projectDays[pname] || 0) + 1;
@@ -2039,7 +2040,7 @@ async function generateSalarySheet(){
           r.present,
           r.ot,
           { formula: `E${row}/208*G${row}*1.25` },
-          0,
+          Number(r.emp.other_allowance) || 0,
           { formula: `E${row}+H${row}+I${row}` },
           r.absent,
           { formula: `E${row}/26*K${row}` },
@@ -2048,6 +2049,9 @@ async function generateSalarySheet(){
           { formula: `MIN(${(Number(r.emp.gosi_amount) > 0 ? Number(r.emp.gosi_amount) : (Number(r.emp.basic_salary) || 0))},N${row})` },
           { formula: `N${row}-O${row}` }
         ];
+        if(r.emp.other_allowance_note){
+          wr.getCell(9).note = r.emp.other_allowance_note;
+        }
         wr.eachCell({ includeEmpty: true }, (cell, colNum) => {
           cell.border = allBorders;
           cell.alignment = { horizontal: colNum <= 4 ? "left" : "center", vertical: "middle" };
