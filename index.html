@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>Timesheets — Professional Installation Co</title>
-<!-- build-marker: arabic-v2 -->
+<!-- build-marker: ot-fix-v3 -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1B5A96">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -1822,8 +1822,9 @@ async function generateWpsPayroll(payrollGroup){
           .eq("employee_id", emp.id).gte("entry_date", start).lte("entry_date", end);
         let present = 0, ot = 0, absent = 0;
         (entryRows || []).forEach(r => {
-          if(r.status === "Present"){ present++; ot += Number(r.overtime_hours) || 0; }
+          if(r.status === "Present"){ present++; }
           else if(r.status === "Absent"){ absent++; }
+          ot += Number(r.overtime_hours) || 0; // OT counts on any day, matching employee timesheet totals
         });
         const basicSalary = Number(emp.basic_salary) || 0;
         const otAmt = basicSalary/208*ot*1.25;
@@ -1934,9 +1935,9 @@ async function generateSalarySheet(){
       let present = 0, ot = 0, absent = 0;
       const projectDays = {};
       (entryRows || []).forEach(r => {
+        ot += Number(r.overtime_hours) || 0; // OT counts on any day, matching employee timesheet totals
         if(r.status === "Present"){
           present++;
-          ot += Number(r.overtime_hours) || 0;
           if(r.project_id){
             const pname = projectName(r.project_id) || "";
             if(pname) projectDays[pname] = (projectDays[pname] || 0) + 1;
