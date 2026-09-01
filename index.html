@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>Timesheets — Professional Installation Co</title>
-<!-- build-marker: ot-fix-v3 -->
+<!-- build-marker: salary-round-v4 -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1B5A96">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -2036,24 +2036,24 @@ async function generateSalarySheet(){
           shortName(r.emp.name),
           groupName === "Al falak" ? "AL FALAK" : (groupName === "Saudi" ? "SAUDI" : "PI"),
           r.projectLabel,
-          Number(r.emp.basic_salary) || 0,
+          Math.round(Number(r.emp.basic_salary) || 0),
           r.present,
           r.ot,
-          { formula: `E${row}/208*G${row}*1.25` },
+          { formula: `ROUND(E${row}/208*G${row}*1.25,0)` },
           0,
           { formula: `E${row}+H${row}+I${row}` },
           r.absent,
-          { formula: `E${row}/26*K${row}` },
+          { formula: `ROUND(E${row}/26*K${row},0)` },
           0,
           { formula: `J${row}-L${row}-M${row}` },
-          { formula: `MIN(${(Number(r.emp.gosi_amount) > 0 ? Number(r.emp.gosi_amount) : (Number(r.emp.basic_salary) || 0))},N${row})` },
+          { formula: `ROUND(MIN(${Math.round(Number(r.emp.gosi_amount) > 0 ? Number(r.emp.gosi_amount) : (Number(r.emp.basic_salary) || 0))},N${row}),0)` },
           { formula: `N${row}-O${row}` }
         ];
         wr.eachCell({ includeEmpty: true }, (cell, colNum) => {
           cell.border = allBorders;
           cell.alignment = { horizontal: colNum <= 4 ? "left" : "center", vertical: "middle" };
           if(colNum >= 5 && colNum !== 6 && colNum !== 7 && colNum !== 11){
-            cell.numFmt = "#,##0.00";
+            cell.numFmt = "#,##0";
           }
           if(r.isApproved){
             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: APPROVED_GREEN } };
@@ -2083,7 +2083,7 @@ async function generateSalarySheet(){
         cell.font = { bold: true };
         cell.border = { top: { style: "double", color: { argb: NAVY } }, bottom: thinBorder, left: thinBorder, right: thinBorder };
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEAF2FA" } };
-        cell.numFmt = "#,##0.00";
+        cell.numFmt = "#,##0";
       });
       ws.mergeCells(totalRow, 1, totalRow, 9);
       ws.getCell(totalRow, 1).alignment = { horizontal: "right" };
