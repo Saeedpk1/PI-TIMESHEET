@@ -507,8 +507,8 @@ async function loadEmployeeMonth(){
     const dstr = fmtDate(y,m,day);
     const existing = (entryRows||[]).find(r=>r.entry_date===dstr);
     entries[dstr] = existing
-      ? { status: existing.status, overtime_hours: existing.overtime_hours, project_id: existing.project_id || "" }
-      : { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0, project_id: "" };
+      ? { status: existing.status, overtime_hours: existing.overtime_hours, project_id: existing.project_id || "", medical_report_photo: existing.medical_report_photo || "" }
+      : { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0, project_id: "", medical_report_photo: "" };
   }
   state.entries = entries;
   state.submission = sub || null;
@@ -1163,6 +1163,47 @@ function clearLeaveSigPad(){
 async function loadMyPurchases(){
   const { data } = await sb.from("ts_purchases").select("*").eq("supervisor_id", state.user.id).order("created_at", { ascending: false });
   state.myPurchases = data || [];
+}
+
+let medicalReportTargetDate = null;
+
+function saveMedicalReportPhoto(dstr, dataUrl){
+  if(state.entries[dstr]){
+    state.entries[dstr].medical_report_photo = dataUrl;
+  }
+  render();
+  // Save immediately so the report isn't lost even if the draft isn't saved right away
+  sb.from("ts_timesheet_entries").upsert({
+    employee_id: state.user.id,
+    entry_date: dstr,
+    status: state.entries[dstr]?.status || "Sick",
+    overtime_hours: state.entries[dstr]?.overtime_hours || 0,
+    project_id: state.entries[dstr]?.project_id || null,
+    medical_report_photo: dataUrl,
+    updated_at: new Date().toISOString()
+  }, { onConflict: "employee_id,entry_date" }).then(({ error }) => {
+    toast(error ? "Could not save report. Try again." : "Medical report attached.");
+  });
+}
+
+function handleMedicalReportFile(file){
+  if(!file || !medicalReportTargetDate) return;
+  const dstr = medicalReportTargetDate;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAXW = 900;
+      const scale = Math.min(1, MAXW / img.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width * scale; canvas.height = img.height * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      saveMedicalReportPhoto(dstr, canvas.toDataURL("image/jpeg", 0.8));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
 }
 
 function handlePurchasePhotoFile(file){
@@ -2551,8 +2592,13 @@ function renderEmployeeView(){
         <select class="status-select st-${v.status}" data-date="${dstr}" data-field="status" ${locked?"disabled":""}>
           <option value="Present" ${v.status==="Present"?"selected":""}>${ar ? "حاضر" : "Present"}</option>
           <option value="Absent" ${v.status==="Absent"?"selected":""}>${ar ? "غائب" : "Absent"}</option>
+          <option value="Sick" ${v.status==="Sick"?"selected":""}>${ar ? "مريض" : "Sick"}</option>
           <option value="Friday" ${v.status==="Friday"?"selected":""}>${ar ? "عطلة" : "Off"}</option>
         </select>
+        ${v.status==="Sick" ? `
+        <button type="button" class="link-btn" data-upload-medical="${dstr}" style="font-size:8.5px;padding:2px 4px;margin-top:2px;color:${v.medical_report_photo ? "var(--present)" : "var(--absent)"} !important;white-space:nowrap;">
+          ${v.medical_report_photo ? "✓ Report attached" : "📎 Upload report"}
+        </button>` : ""}
       </td>
       <td>
         <select class="status-select project-select" data-date="${dstr}" data-field="project_id" ${locked?"disabled":""}>
@@ -2574,6 +2620,10 @@ function renderEmployeeView(){
     ${isSelfSubmit ? `<button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">${ar ? "› رجوع" : "‹ Back"}</button>` : ""}
     ${renderMonthNav("employee")}
     ${banner}
+    <div class="status-banner" style="background:#FFF3D9;border:2px solid #F0C766;color:#7A5A0A;">
+      ${ar ? "📋 يُصرف راتب الإجازة المرضية فقط عند إرفاق تقرير طبي معتمد من الطبيب." : "📋 Sick leave is paid only when a certified medical report from a doctor is provided."}
+    </div>
+    <input type="file" accept="image/*" id="medicalReportInput" style="display:none;">
     <div class="summary-grid">
       <div class="summary-item s-present"><div class="n">${totals.present}</div><div class="l">${ar ? "حاضر" : "Present"}</div></div>
       <div class="summary-item s-absent"><div class="n">${totals.absent}</div><div class="l">${ar ? "غائب" : "Absent"}</div></div>
@@ -2744,6 +2794,7 @@ function renderHrTimesheetReview(){
         <select class="status-select st-${v.status} hr-ts-status" data-date="${dstr}">
           <option value="Present" ${v.status==="Present"?"selected":""}>Present</option>
           <option value="Absent" ${v.status==="Absent"?"selected":""}>Absent</option>
+          <option value="Sick" ${v.status==="Sick"?"selected":""}>Sick</option>
           <option value="Friday" ${v.status==="Friday"?"selected":""}>Off</option>
         </select>
       </td>
@@ -3379,6 +3430,12 @@ function handleDelegatedClick(e){
   if(el("wpsAlFalakBtn")){ generateWpsPayroll("AL_FALAK"); return; }
   if(el("openPurchaseFormBtn")){ state.view = "purchase-form"; loadMyPurchases().then(render); return; }
   if(el("purchasePhotoBtn")){ document.getElementById("purchasePhotoInput")?.click(); return; }
+  const uploadMedicalEl = e.target.closest("[data-upload-medical]");
+  if(uploadMedicalEl){
+    medicalReportTargetDate = uploadMedicalEl.getAttribute("data-upload-medical");
+    document.getElementById("medicalReportInput")?.click();
+    return;
+  }
   if(el("scanBillBtn")){ document.getElementById("scanBillInput")?.click(); return; }
   if(el("savePurchaseBtn")){ savePurchase(); return; }
   if(el("submitAllPurchasesBtn")){ submitAllDraftsToHr(); return; }
@@ -3485,6 +3542,7 @@ function handleDelegatedChange(e){
   if(e.target.id === "purchasePayment"){ state.purchaseFormDraft.paymentMethod = e.target.value; return; }
   if(e.target.id === "purchaseHasVat"){ state.purchaseFormDraft.hasVat = e.target.checked; render(); return; }
   if(e.target.id === "purchasePhotoInput"){ handlePurchasePhotoFile(e.target.files && e.target.files[0]); return; }
+  if(e.target.id === "medicalReportInput"){ handleMedicalReportFile(e.target.files && e.target.files[0]); return; }
   if(e.target.id === "scanBillInput"){ scanPurchaseBill(e.target.files && e.target.files[0]); return; }
   if(e.target.id === "leavePhotoInput"){ handleLeavePhotoFile(e.target.files && e.target.files[0]); return; }
 }
