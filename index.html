@@ -327,6 +327,7 @@ let state = {
   selectedLeaveRequest: null,
   myPurchases: [],
   purchaseFormDraft: { purchaseDate: "", category: "", itemDescription: "", projectId: "", billNo: "", vendorName: "", amount: "", hasVat: true, paymentMethod: "", notes: "", receiptPhoto: "" },
+  editingPurchaseId: null,
   expandedPurchaseBatch: null,
   hrPurchases: [],
   editingLeaveRequestId: null,
@@ -1240,7 +1241,6 @@ async function scanPurchaseBill(file){
   try{
     const aiResult = await tryAiScanBill(file);
     console.log("AI scan result:", aiResult);
-    alert("Raw AI result:\n" + JSON.stringify(aiResult, null, 2));
     if(aiResult.amount !== null && aiResult.amount !== undefined) state.purchaseFormDraft.amount = String(aiResult.amount);
     if(aiResult.has_vat !== undefined) state.purchaseFormDraft.hasVat = !!aiResult.has_vat;
     if(aiResult.bill_no) state.purchaseFormDraft.billNo = aiResult.bill_no;
@@ -1275,9 +1275,7 @@ async function savePurchase(){
   const vatAmt = f.hasVat ? Math.round(amountNum * 0.15 * 100) / 100 : 0;
   const total = Math.round((amountNum + vatAmt) * 100) / 100;
 
-  state.loading = true; render();
-  const { error } = await sb.from("ts_purchases").insert({
-    supervisor_id: state.user.id,
+  const payload = {
     purchase_date: f.purchaseDate || new Date().toISOString().slice(0,10),
     category: f.category || null,
     item_description: f.itemDescription.trim(),
@@ -1290,14 +1288,22 @@ async function savePurchase(){
     total_amount: total,
     payment_method: f.paymentMethod || null,
     receipt_photo: f.receiptPhoto || null,
-    notes: f.notes || null,
-    status: "draft"
-  });
+    notes: f.notes || null
+  };
+
+  state.loading = true; render();
+  let error;
+  if(state.editingPurchaseId){
+    ({ error } = await sb.from("ts_purchases").update(payload).eq("id", state.editingPurchaseId));
+  }else{
+    ({ error } = await sb.from("ts_purchases").insert({ ...payload, supervisor_id: state.user.id, status: "draft" }));
+  }
   state.loading = false;
   if(error) console.error("Purchase save error:", error);
-  toast(error ? "Error: " + (error.message || "unknown") : "Saved.");
+  toast(error ? "Error: " + (error.message || "unknown") : (state.editingPurchaseId ? "Item updated." : "Saved."));
   if(!error){
     state.purchaseFormDraft = { purchaseDate: "", category: "", itemDescription: "", projectId: "", billNo: "", vendorName: "", amount: "", hasVat: true, paymentMethod: "", notes: "", receiptPhoto: "" };
+    state.editingPurchaseId = null;
   }
   await loadMyPurchases();
   render();
@@ -1327,6 +1333,33 @@ async function deletePurchaseDraft(id){
   state.loading = false;
   toast(error ? "Could not remove. Try again." : "Removed.");
   await loadMyPurchases();
+  render();
+}
+
+function startEditPurchaseDraft(id){
+  const item = state.myPurchases.find(p => p.id === id);
+  if(!item) return;
+  state.editingPurchaseId = id;
+  state.purchaseFormDraft = {
+    purchaseDate: item.purchase_date || "",
+    category: item.category || "",
+    itemDescription: item.item_description || "",
+    projectId: item.project_id || "",
+    billNo: item.bill_no || "",
+    vendorName: item.vendor_name || "",
+    amount: String(item.amount || ""),
+    hasVat: !!item.has_vat,
+    paymentMethod: item.payment_method || "",
+    notes: item.notes || "",
+    receiptPhoto: item.receipt_photo || ""
+  };
+  render();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function cancelEditPurchaseDraft(){
+  state.editingPurchaseId = null;
+  state.purchaseFormDraft = { purchaseDate: "", category: "", itemDescription: "", projectId: "", billNo: "", vendorName: "", amount: "", hasVat: true, paymentMethod: "", notes: "", receiptPhoto: "" };
   render();
 }
 
@@ -3060,6 +3093,7 @@ function purchaseBadgeInfo(status){
 
 function renderPurchaseForm(){
   const f = state.purchaseFormDraft;
+  const isEditing = !!state.editingPurchaseId;
   const amountNum = Number(f.amount) || 0;
   const vatAmt = f.hasVat ? amountNum * 0.15 : 0;
   const total = amountNum + vatAmt;
@@ -3080,7 +3114,10 @@ function renderPurchaseForm(){
       <td style="font-size:9px;text-align:right;">${Number(p.amount).toFixed(2)}</td>
       <td style="font-size:9px;text-align:right;">${Number(p.vat_amount).toFixed(2)}</td>
       <td style="font-size:9px;text-align:right;font-weight:700;">${Number(p.total_amount).toFixed(2)}</td>
-      <td><button class="link-btn" data-delete-purchase-draft="${p.id}" style="color:var(--absent) !important;font-size:11px;" title="Remove">🗑</button></td>
+      <td>
+        <button class="link-btn" data-edit-purchase-draft="${p.id}" style="color:var(--blue) !important;font-size:11px;" title="Edit">✎</button>
+        <button class="link-btn" data-delete-purchase-draft="${p.id}" style="color:var(--absent) !important;font-size:11px;" title="Remove">🗑</button>
+      </td>
     </tr>`).join("");
 
   const sentBatches = groupPurchasesByBatch(sent);
@@ -3111,12 +3148,13 @@ function renderPurchaseForm(){
   return `
     <button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     <div class="card" style="background:linear-gradient(135deg,#EAF6F3,#F3FBF9);border:2px solid #1B7A6B;">
-      <h3 style="color:#125C4F;">🧾 Record a Purchase</h3>
-      <div class="meta">Save items here, then submit them all to HR when ready.</div>
+      <h3 style="color:#125C4F;">🧾 ${isEditing ? "Editing Item" : "Record a Purchase"}</h3>
+      <div class="meta">${isEditing ? "Fix the details below, then update it." : "Save items here, then submit them all to HR when ready."}</div>
     </div>
+    ${isEditing ? `<button class="link-btn" id="cancelEditPurchaseBtn" style="margin-bottom:14px;">✕ Cancel edit</button>` : ""}
 
     <input type="file" accept="image/*" capture="environment" id="scanBillInput" style="display:none;">
-    <button type="button" class="btn btn-primary" id="scanBillBtn" style="margin-bottom:16px;background:linear-gradient(135deg,#7A4FBF,#9B6FE0);">📷 Scan Bill with AI [v4]</button>
+    <button type="button" class="btn btn-primary" id="scanBillBtn" style="margin-bottom:16px;background:linear-gradient(135deg,#7A4FBF,#9B6FE0);">📷 Scan Bill with AI</button>
     <div class="field-note" style="margin-bottom:10px;margin-top:-8px;">Takes a few seconds — always double-check the auto-filled fields.</div>
 
     <div class="purchase-field">
@@ -3170,7 +3208,7 @@ function renderPurchaseForm(){
     <label>Notes (optional)</label>
     <textarea id="purchaseNotes" rows="2" placeholder="Anything extra to note...">${f.notes}</textarea>
 
-    <button class="btn btn-submit" id="savePurchaseBtn" style="margin-top:16px;">💾 Save Item</button>
+    <button class="btn btn-submit" id="savePurchaseBtn" style="margin-top:16px;">💾 ${isEditing ? "Update Item" : "Save Item"}</button>
     ${drafts.length ? `<button class="btn btn-primary" id="submitAllPurchasesBtn" style="margin-top:10px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">📤 [v3] Submit to HR — ${draftsTotal.toFixed(2)} SAR</button>` : ""}
 
     <div class="card" style="margin-top:24px;">
@@ -3341,6 +3379,9 @@ function handleDelegatedClick(e){
   if(el("submitAllPurchasesBtn")){ submitAllDraftsToHr(); return; }
   const deletePurchaseDraftEl = e.target.closest("[data-delete-purchase-draft]");
   if(deletePurchaseDraftEl){ deletePurchaseDraft(deletePurchaseDraftEl.getAttribute("data-delete-purchase-draft")); return; }
+  const editPurchaseDraftEl = e.target.closest("[data-edit-purchase-draft]");
+  if(editPurchaseDraftEl){ startEditPurchaseDraft(editPurchaseDraftEl.getAttribute("data-edit-purchase-draft")); return; }
+  if(el("cancelEditPurchaseBtn")){ cancelEditPurchaseDraft(); return; }
   if(el("openHrPurchasesBtn")){ state.view = "hr-purchases-list"; loadHrPurchases().then(render); return; }
   const deletePurchaseEl = e.target.closest("[data-delete-purchase]");
   if(deletePurchaseEl){ deletePurchaseHr(deletePurchaseEl.getAttribute("data-delete-purchase")); return; }
