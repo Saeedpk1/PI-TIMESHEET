@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>Timesheets — Professional Installation Co</title>
-<!-- build-marker: purchase-btn-spacing-v7 -->
+<!-- build-marker: sick-leave-report-v8 -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1B5A96">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -306,7 +306,8 @@ let state = {
   loginRole: "employee",
   view: "login",
   monthDate: new Date(),
-  entries: {},           // date -> {status, overtime_hours, project_id}
+  entries: {},           // date -> {status, overtime_hours, project_id, sick_report}
+  pendingSickReportDate: null, // which date's row is waiting on the sick-report file picker
   submission: null,
   supervisorEmployees: [],
   selectedEmployee: null,
@@ -507,8 +508,8 @@ async function loadEmployeeMonth(){
     const dstr = fmtDate(y,m,day);
     const existing = (entryRows||[]).find(r=>r.entry_date===dstr);
     entries[dstr] = existing
-      ? { status: existing.status, overtime_hours: existing.overtime_hours, project_id: existing.project_id || "" }
-      : { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0, project_id: "" };
+      ? { status: existing.status, overtime_hours: existing.overtime_hours, project_id: existing.project_id || "", sick_report: existing.sick_report_url || "" }
+      : { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0, project_id: "", sick_report: "" };
   }
   state.entries = entries;
   state.submission = sub || null;
@@ -533,6 +534,7 @@ async function saveDraft(silent){
     status: v.status,
     overtime_hours: Number(v.overtime_hours) || 0,
     project_id: v.project_id || null,
+    sick_report_url: v.sick_report || null,
     updated_at: new Date().toISOString()
   }));
   const { error } = await sb.from("ts_timesheet_entries").upsert(rows, { onConflict: "employee_id,entry_date" });
@@ -1165,6 +1167,27 @@ async function loadMyPurchases(){
   state.myPurchases = data || [];
 }
 
+function handleSickReportFile(file){
+  if(!file || !state.pendingSickReportDate) return;
+  const dstr = state.pendingSickReportDate;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAXW = 900;
+      const scale = Math.min(1, MAXW / img.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width * scale; canvas.height = img.height * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      setEntry(dstr, "sick_report", canvas.toDataURL("image/jpeg", 0.8));
+      state.pendingSickReportDate = null;
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function handlePurchasePhotoFile(file){
   if(!file) return;
   const reader = new FileReader();
@@ -1547,8 +1570,8 @@ async function openHrTimesheetReview(employeeId){
     const dstr = fmtDate(hy, hm-1, day);
     const existing = (entryRows||[]).find(r=>r.entry_date===dstr);
     entries[dstr] = existing
-      ? { status: existing.status, overtime_hours: existing.overtime_hours, project_id: existing.project_id || "" }
-      : { status: isFriday(hy,hm-1,day) ? "Friday" : "Present", overtime_hours: 0, project_id: "" };
+      ? { status: existing.status, overtime_hours: existing.overtime_hours, project_id: existing.project_id || "", sick_report: existing.sick_report_url || "" }
+      : { status: isFriday(hy,hm-1,day) ? "Friday" : "Present", overtime_hours: 0, project_id: "", sick_report: "" };
   }
   state.hrSelectedEmployee = sub.ts_employees ? { ...sub.ts_employees, id: employeeId } : { id: employeeId };
   state.hrTimesheetEntries = entries;
@@ -1576,6 +1599,7 @@ async function saveHrTimesheetEdit(){
     status: v.status,
     overtime_hours: Number(v.overtime_hours) || 0,
     project_id: v.project_id || null,
+    sick_report_url: v.sick_report || null,
     updated_at: new Date().toISOString()
   }));
   const { error: e1 } = await sb.from("ts_timesheet_entries").upsert(rows, { onConflict: "employee_id,entry_date" });
@@ -2565,6 +2589,7 @@ function renderEmployeeView(){
         <select class="status-select st-${v.status}" data-date="${dstr}" data-field="status" ${locked?"disabled":""}>
           <option value="Present" ${v.status==="Present"?"selected":""}>${ar ? "حاضر" : "Present"}</option>
           <option value="Absent" ${v.status==="Absent"?"selected":""}>${ar ? "غائب" : "Absent"}</option>
+          <option value="Sick" ${v.status==="Sick"?"selected":""}>${ar ? "مريض" : "Sick"}</option>
           <option value="Friday" ${v.status==="Friday"?"selected":""}>${ar ? "عطلة" : "Off"}</option>
         </select>
       </td>
@@ -2581,13 +2606,31 @@ function renderEmployeeView(){
           <button type="button" class="ot-btn" data-date="${dstr}" data-dir="up" ${locked?"disabled":""}>+</button>
         </div>
       </td>
-    </tr>`;
+    </tr>
+    ${v.status === "Sick" ? `
+    <tr class="sick-report-row">
+      <td colspan="4" style="padding:6px 8px 10px;background:#FFF8ED;border-bottom:1px solid var(--line);">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          ${v.sick_report ? `<img src="${v.sick_report}" alt="Report" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--line);">` : ""}
+          <button type="button" class="btn btn-outline btn-sm sick-report-btn" data-date="${dstr}" ${locked?"disabled":""} style="font-size:11px;padding:6px 10px;">
+            ${v.sick_report ? (ar ? "📎 تغيير التقرير" : "📎 Change report") : (ar ? "📎 إرفاق تقرير الطبيب" : "📎 Attach doctor's report")}
+          </button>
+          ${v.sick_report && !locked ? `<button type="button" class="link-btn sick-report-remove" data-date="${dstr}" style="color:var(--absent) !important;font-size:11px;" title="${ar ? "إزالة" : "Remove"}">🗑</button>` : ""}
+        </div>
+      </td>
+    </tr>` : ""}`;
   }
 
   return `
     ${isSelfSubmit ? `<button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">${ar ? "› رجوع" : "‹ Back"}</button>` : ""}
     ${renderMonthNav("employee")}
     ${banner}
+    <div class="sick-leave-notice" style="display:flex;gap:8px;align-items:flex-start;background:#FFF3D9;border:1px solid #E8A33D;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;line-height:1.5;color:#7A4E0E;">
+      <span style="font-size:16px;">🩺</span>
+      <span>${ar
+        ? "ملاحظة: يتم صرف راتب الإجازة المرضية فقط عند إرفاق تقرير طبي رسمي من الطبيب. اختر \"مريض\" من القائمة أدناه ثم أرفق صورة من التقرير."
+        : "Note: Sick leave is only paid when supported by an official doctor's report. Select \"Sick\" below, then attach a photo of the report."}</span>
+    </div>
     <div class="summary-grid">
       <div class="summary-item s-present"><div class="n">${totals.present}</div><div class="l">${ar ? "حاضر" : "Present"}</div></div>
       <div class="summary-item s-absent"><div class="n">${totals.absent}</div><div class="l">${ar ? "غائب" : "Absent"}</div></div>
@@ -2602,6 +2645,7 @@ function renderEmployeeView(){
         <tbody>${rows}</tbody>
       </table>
     </div>
+    <input type="file" accept="image/*" id="sickReportInput" style="display:none;">
     <div class="remarks-card">
       <label style="margin-top:0;color:#966109;">${ar ? "📝 ملاحظات" : "📝 Remarks / Notes"}</label>
       <textarea id="remarksInput" rows="3" placeholder="${ar ? "أي ملاحظات إضافية لهذا الشهر..." : "Anything extra you want to note for this month..."}" ${locked?"disabled":""}>${locked ? (state.submission?.remarks || "") : (state.remarksDraft || "")}</textarea>
@@ -2748,7 +2792,7 @@ function renderHrTimesheetReview(){
   let rows = "";
   for(let day=1; day<=nd; day++){
     const dstr = fmtDate(hy, hm-1, day);
-    const v = state.hrTimesheetEntries[dstr] || { status: "Present", overtime_hours: 0, project_id: "" };
+    const v = state.hrTimesheetEntries[dstr] || { status: "Present", overtime_hours: 0, project_id: "", sick_report: "" };
     const fri = isFriday(hy, hm-1, day);
     const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${v.project_id===p.id?"selected":""}>${p.name}</option>`).join("");
     rows += `
@@ -2758,6 +2802,7 @@ function renderHrTimesheetReview(){
         <select class="status-select st-${v.status} hr-ts-status" data-date="${dstr}">
           <option value="Present" ${v.status==="Present"?"selected":""}>Present</option>
           <option value="Absent" ${v.status==="Absent"?"selected":""}>Absent</option>
+          <option value="Sick" ${v.status==="Sick"?"selected":""}>Sick</option>
           <option value="Friday" ${v.status==="Friday"?"selected":""}>Off</option>
         </select>
       </td>
@@ -2774,7 +2819,15 @@ function renderHrTimesheetReview(){
           <button type="button" class="ot-btn hr-ts-ot-btn" data-date="${dstr}" data-dir="up">+</button>
         </div>
       </td>
-    </tr>`;
+    </tr>
+    ${v.status === "Sick" ? `
+    <tr>
+      <td colspan="4" style="padding:4px 8px 8px;background:#FFF8ED;font-size:11px;">
+        ${v.sick_report
+          ? `<a href="${v.sick_report}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:700;">📎 View attached doctor's report</a>`
+          : `<span style="color:var(--absent);font-weight:700;">⚠️ No doctor's report attached — do not pay unless confirmed separately</span>`}
+      </td>
+    </tr>` : ""}`;
   }
 
   return `
@@ -3393,6 +3446,17 @@ function handleDelegatedClick(e){
   if(el("wpsAlFalakBtn")){ generateWpsPayroll("AL_FALAK"); return; }
   if(el("openPurchaseFormBtn")){ state.view = "purchase-form"; loadMyPurchases().then(render); return; }
   if(el("purchasePhotoBtn")){ document.getElementById("purchasePhotoInput")?.click(); return; }
+  const sickReportBtnEl = e.target.closest(".sick-report-btn");
+  if(sickReportBtnEl){
+    state.pendingSickReportDate = sickReportBtnEl.getAttribute("data-date");
+    document.getElementById("sickReportInput")?.click();
+    return;
+  }
+  const sickReportRemoveEl = e.target.closest(".sick-report-remove");
+  if(sickReportRemoveEl){
+    setEntry(sickReportRemoveEl.getAttribute("data-date"), "sick_report", "");
+    return;
+  }
   if(el("scanBillBtn")){ document.getElementById("scanBillInput")?.click(); return; }
   if(el("savePurchaseBtn")){ savePurchase(); return; }
   if(el("submitAllPurchasesBtn")){ submitAllDraftsToHr(); return; }
@@ -3499,6 +3563,7 @@ function handleDelegatedChange(e){
   if(e.target.id === "purchasePayment"){ state.purchaseFormDraft.paymentMethod = e.target.value; return; }
   if(e.target.id === "purchaseHasVat"){ state.purchaseFormDraft.hasVat = e.target.checked; render(); return; }
   if(e.target.id === "purchasePhotoInput"){ handlePurchasePhotoFile(e.target.files && e.target.files[0]); return; }
+  if(e.target.id === "sickReportInput"){ handleSickReportFile(e.target.files && e.target.files[0]); return; }
   if(e.target.id === "scanBillInput"){ scanPurchaseBill(e.target.files && e.target.files[0]); return; }
   if(e.target.id === "leavePhotoInput"){ handleLeavePhotoFile(e.target.files && e.target.files[0]); return; }
 }
