@@ -329,6 +329,7 @@ let state = {
   purchaseFormDraft: { purchaseDate: "", category: "", itemDescription: "", projectId: "", billNo: "", vendorName: "", amount: "", hasVat: true, paymentMethod: "", notes: "", receiptPhoto: "" },
   editingPurchaseId: null,
   expandedPurchaseBatch: null,
+  viewingPhotoUrl: null,
   hrPurchases: [],
   editingLeaveRequestId: null,
   projects: [],           // {id, name, active}
@@ -2515,10 +2516,20 @@ function render(){
   else if(state.view === "hr-purchases-list") body = renderHrPurchasesList();
   else if(state.view === "supervisor-leave-review") body = renderSupervisorLeaveReview();
 
-  root.innerHTML = header + `<main>${body}</main>`;
+  root.innerHTML = header + `<main>${body}</main>` + renderPhotoOverlay();
   attachViewEvents();
   if(state.view === "supervisor-signature") initSigPad();
   if(state.view === "leave-form") initLeaveSigPad();
+}
+
+function renderPhotoOverlay(){
+  if(!state.viewingPhotoUrl) return "";
+  return `
+    <div id="photoOverlay" style="position:fixed;inset:0;background:rgba(15,20,25,0.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;">
+      <button id="closePhotoOverlayBtn" style="position:absolute;top:16px;right:16px;background:#fff;border:none;border-radius:50%;width:38px;height:38px;font-size:18px;font-weight:800;color:#0F3556;cursor:pointer;">✕</button>
+      <img src="${state.viewingPhotoUrl}" style="max-width:100%;max-height:85vh;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,0.5);">
+    </div>
+  `;
 }
 function renderMain(){
   // re-render just current view without reloading data (used on local edits)
@@ -3171,6 +3182,7 @@ function renderPurchaseForm(){
       <td style="font-size:9px;text-align:right;color:#966109;">${Number(p.vat_amount).toFixed(2)}</td>
       <td style="font-size:10px;text-align:right;font-weight:800;color:#1C8A4E;">${Number(p.total_amount).toFixed(2)}</td>
       <td style="white-space:nowrap;">
+        ${p.receipt_photo ? `<button class="link-btn" data-view-purchase-photo="${p.id}" style="color:#7A4FBF !important;font-size:14px;padding:6px 5px;" title="View Photo">📷</button>` : ""}
         <button class="link-btn" data-edit-purchase-draft="${p.id}" style="color:var(--blue) !important;font-size:14px;padding:6px 5px;margin-right:2px;" title="Edit">✎</button>
         <button class="link-btn" data-delete-purchase-draft="${p.id}" style="color:var(--absent) !important;font-size:14px;padding:6px 5px;" title="Remove">🗑</button>
       </td>
@@ -3259,9 +3271,6 @@ function renderPurchaseForm(){
       </div>
     </div>
 
-    <label>🗒️ Notes (optional)</label>
-    <textarea id="purchaseNotes" rows="2" placeholder="Anything extra to note...">${f.notes}</textarea>
-
     <button class="btn btn-submit" id="savePurchaseBtn" style="margin-top:16px;">💾 ${isEditing ? "Update Item" : "Save Item"}</button>
     ${drafts.length ? `<button class="btn btn-primary" id="submitAllPurchasesBtn" style="margin-top:10px;background:linear-gradient(135deg,#1B7A6B,#25A88F);box-shadow:0 4px 14px rgba(27,122,107,0.3);">📤 Submit to HR — ${draftsTotal.toFixed(2)} SAR</button>` : ""}
 
@@ -3318,6 +3327,7 @@ function renderHrPurchasesList(){
         <td style="font-size:9px;text-align:right;">${Number(p.amount).toFixed(2)}</td>
         <td style="font-size:9px;text-align:right;">${Number(p.vat_amount).toFixed(2)}</td>
         <td style="font-size:9px;text-align:right;font-weight:700;">${Number(p.total_amount).toFixed(2)}</td>
+        <td>${p.receipt_photo ? `<button class="link-btn" data-view-purchase-photo="${p.id}" style="color:#7A4FBF !important;font-size:13px;padding:2px 4px;" title="View Photo">📷</button>` : ""}</td>
       </tr>`).join("");
     return `
     <div style="margin-top:8px;">
@@ -3327,8 +3337,8 @@ function renderHrPurchasesList(){
       </button>
       ${expanded ? `
       <div class="card" style="margin-top:6px;padding:6px 4px 2px;overflow-x:auto;">
-        <table class="grid" style="min-width:520px;">
-          <thead><tr><th style="font-size:8px;">Date</th><th style="font-size:8px;">Description</th><th style="font-size:8px;">Project</th><th style="font-size:8px;">Bill No</th><th style="font-size:8px;">Amount</th><th style="font-size:8px;">VAT</th><th style="font-size:8px;">Total</th></tr></thead>
+        <table class="grid" style="min-width:560px;">
+          <thead><tr><th style="font-size:8px;">Date</th><th style="font-size:8px;">Description</th><th style="font-size:8px;">Project</th><th style="font-size:8px;">Bill No</th><th style="font-size:8px;">Amount</th><th style="font-size:8px;">VAT</th><th style="font-size:8px;">Total</th><th></th></tr></thead>
           <tbody>${itemRows}</tbody>
         </table>
         <button class="link-btn" data-delete-purchase-batch="${b.batchId}" data-batch-count="${b.items.length}" style="color:var(--absent) !important;margin:8px 0 4px;">🗑 Remove this submission</button>
@@ -3445,6 +3455,13 @@ function handleDelegatedClick(e){
   if(deletePurchaseDraftEl){ deletePurchaseDraft(deletePurchaseDraftEl.getAttribute("data-delete-purchase-draft")); return; }
   const editPurchaseDraftEl = e.target.closest("[data-edit-purchase-draft]");
   if(editPurchaseDraftEl){ startEditPurchaseDraft(editPurchaseDraftEl.getAttribute("data-edit-purchase-draft")); return; }
+  const viewPhotoEl = e.target.closest("[data-view-purchase-photo]");
+  if(viewPhotoEl){
+    const item = state.myPurchases.find(p => p.id === viewPhotoEl.getAttribute("data-view-purchase-photo")) || state.hrPurchases.find(p => p.id === viewPhotoEl.getAttribute("data-view-purchase-photo"));
+    if(item?.receipt_photo){ state.viewingPhotoUrl = item.receipt_photo; render(); }
+    return;
+  }
+  if(el("closePhotoOverlayBtn") || el("photoOverlay")){ state.viewingPhotoUrl = null; render(); return; }
   if(el("cancelEditPurchaseBtn")){ cancelEditPurchaseDraft(); return; }
   if(el("openHrPurchasesBtn")){ state.view = "hr-purchases-list"; loadHrPurchases().then(render); return; }
   const deletePurchaseEl = e.target.closest("[data-delete-purchase]");
