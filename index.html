@@ -3162,14 +3162,14 @@ function renderPurchaseForm(){
 
   const draftRows = drafts.map((p, i) => `
     <tr>
-      <td style="font-size:9px;text-align:center;">${i+1}</td>
-      <td style="font-size:9px;white-space:nowrap;">${formatDateDMY(p.purchase_date)}</td>
-      <td style="font-size:9px;">${p.item_description}</td>
-      <td style="font-size:9px;">${projectName(p.project_id)}</td>
-      <td style="font-size:9px;">${p.bill_no || "-"}</td>
-      <td style="font-size:9px;text-align:right;">${Number(p.amount).toFixed(2)}</td>
-      <td style="font-size:9px;text-align:right;">${Number(p.vat_amount).toFixed(2)}</td>
-      <td style="font-size:9px;text-align:right;font-weight:700;">${Number(p.total_amount).toFixed(2)}</td>
+      <td style="font-size:9px;text-align:center;color:#1B7A6B;font-weight:800;background:#F3FBF9;">${i+1}</td>
+      <td style="font-size:9px;white-space:nowrap;color:#5B7C99;">${formatDateDMY(p.purchase_date)}</td>
+      <td style="font-size:10px;font-weight:700;color:#0F3556;">${p.item_description}</td>
+      <td style="font-size:9px;color:#1B5A96;">${projectName(p.project_id)}</td>
+      <td style="font-size:9px;color:var(--muted);">${p.bill_no || "-"}</td>
+      <td style="font-size:9px;text-align:right;color:var(--muted);">${Number(p.amount).toFixed(2)}</td>
+      <td style="font-size:9px;text-align:right;color:#966109;">${Number(p.vat_amount).toFixed(2)}</td>
+      <td style="font-size:10px;text-align:right;font-weight:800;color:#1C8A4E;">${Number(p.total_amount).toFixed(2)}</td>
       <td style="white-space:nowrap;">
         <button class="link-btn" data-edit-purchase-draft="${p.id}" style="color:var(--blue) !important;font-size:14px;padding:6px 5px;margin-right:2px;" title="Edit">✎</button>
         <button class="link-btn" data-delete-purchase-draft="${p.id}" style="color:var(--absent) !important;font-size:14px;padding:6px 5px;" title="Remove">🗑</button>
@@ -3265,19 +3265,23 @@ function renderPurchaseForm(){
     <textarea id="purchaseNotes" rows="2" placeholder="Anything extra to note...">${f.notes}</textarea>
 
     <button class="btn btn-submit" id="savePurchaseBtn" style="margin-top:16px;">💾 ${isEditing ? "Update Item" : "Save Item"}</button>
-    ${drafts.length ? `<button class="btn btn-primary" id="submitAllPurchasesBtn" style="margin-top:10px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">📤 [v3] Submit to HR — ${draftsTotal.toFixed(2)} SAR</button>` : ""}
+    ${drafts.length ? `<button class="btn btn-primary" id="submitAllPurchasesBtn" style="margin-top:10px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">📤 Submit to HR — ${draftsTotal.toFixed(2)} SAR</button>` : ""}
 
-    <div class="card" style="margin-top:24px;">
-      <h3 style="font-size:14px;">📋 Not Yet Submitted (${drafts.length})</h3>
+    <div class="card" style="margin-top:24px;background:linear-gradient(135deg,#FFF3D9,#FFF9EC);border:2px solid #F0C766;">
+      <h3 style="font-size:14px;color:#7A5A0A;">📋 Not Yet Submitted (${drafts.length})</h3>
       <div class="meta">Saved items waiting to be sent to HR.</div>
     </div>
     <div class="card" style="margin-top:10px;padding:6px 4px 2px;overflow-x:auto;">
       ${draftRows ? `
-      <table class="grid" style="min-width:600px;">
+      <table class="grid" style="min-width:640px;">
+        <colgroup>
+          <col style="width:5%;"><col style="width:10%;"><col style="width:26%;"><col style="width:13%;">
+          <col style="width:10%;"><col style="width:10%;"><col style="width:8%;"><col style="width:10%;"><col style="width:8%;">
+        </colgroup>
         <thead><tr>
-          <th style="font-size:8px;">No.</th><th style="font-size:8px;">Date</th><th style="font-size:8px;">Description</th>
-          <th style="font-size:8px;">Project</th><th style="font-size:8px;">Bill No</th><th style="font-size:8px;">Amount</th>
-          <th style="font-size:8px;">VAT</th><th style="font-size:8px;">Total</th><th></th>
+          <th style="font-size:8px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">No.</th><th style="font-size:8px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">Date</th><th style="font-size:8px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">Description</th>
+          <th style="font-size:8px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">Project</th><th style="font-size:8px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">Bill No</th><th style="font-size:8px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">Amount</th>
+          <th style="font-size:8px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">VAT</th><th style="font-size:8px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">Total</th><th style="background:linear-gradient(135deg,#1B7A6B,#25A88F);"></th>
         </tr></thead>
         <tbody>${draftRows}</tbody>
       </table>` : `<div class="empty-state"><div class="ic">🧾</div>Nothing saved yet.</div>`}
