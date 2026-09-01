@@ -250,7 +250,8 @@
   .remarks-card label{font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;}
   .remarks-card textarea{width:100%;padding:10px 12px;border:1.5px solid #F0C766;border-radius:8px;font-size:13.5px;font-family:inherit;resize:vertical;background:#fff;color:var(--ink);box-sizing:border-box;}
   .remarks-card textarea:disabled{background:#FDF6E8;color:var(--muted);}
-  .sig-pad-wrap{border:1.5px dashed var(--line);border-radius:10px;background:#FAFBFC;}
+  .sig-pad-wrap{border:1.5px dashed var(--line);border-radius:10px;background:#FAFBFC;height:150px;overflow:hidden;}
+  .sig-pad-wrap canvas{width:100%;height:100%;display:block;}
   canvas#sigCanvas{width:100%;height:160px;display:block;touch-action:none;border-radius:10px;}
   .sig-preview{border:1.5px solid var(--line);border-radius:10px;padding:10px;background:#FAFBFC;text-align:center;}
   .sig-preview img{max-height:70px;}
@@ -2982,8 +2983,8 @@ function renderLeaveForm(){
     ${isEditing ? `<button class="link-btn" id="cancelEditLeaveBtn" style="margin-bottom:14px;">✕ Cancel edit</button>` : ""}
     ${editingReq && editingReq.hr_note ? `<div class="status-banner status-rejected">↩️ HR sent this back: ${editingReq.hr_note}</div>` : ""}
 
-    <label>Photo</label>
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
+    <label>📷 Photo</label>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
       <div class="leave-photo-circle">
         ${f.photoDataUrl ? `<img src="${f.photoDataUrl}" alt="Photo">` : `<span>📷</span>`}
       </div>
@@ -2993,29 +2994,35 @@ function renderLeaveForm(){
       </div>
     </div>
 
-    <label>Last Vacation Date</label>
-    <input type="date" id="leaveLastVacation" value="${f.lastVacationDate}">
-    ${f.lastVacationDate ? `<div class="field-note">📅 ${humanDuration(f.lastVacationDate)}</div>` : ""}
+    <div style="background:#F0F8FF;border:2px solid #B8D4EC;border-radius:12px;padding:12px;">
+      <label style="margin-top:0;color:#1B5A96;">🗓️ Last Vacation Date</label>
+      <input type="date" id="leaveLastVacation" value="${f.lastVacationDate}" style="border-color:#B8D4EC;">
+      ${f.lastVacationDate ? `<div class="field-note">📅 ${humanDuration(f.lastVacationDate)}</div>` : ""}
 
-    <label>Mobile Number</label>
-    <input type="tel" id="leaveMobile" placeholder="05xxxxxxxx" value="${f.mobileNumber}">
+      <label style="color:#1B5A96;">📱 Mobile Number</label>
+      <input type="tel" id="leaveMobile" placeholder="05xxxxxxxx" value="${f.mobileNumber}" style="border-color:#B8D4EC;">
 
-    <label>Home Mobile No (optional)</label>
-    <input type="tel" id="leaveHomeMobile" placeholder="Optional" value="${f.homeMobileNumber}">
+      <label style="color:#1B5A96;">☎️ Home Mobile No (optional)</label>
+      <input type="tel" id="leaveHomeMobile" placeholder="Optional" value="${f.homeMobileNumber}" style="border-color:#B8D4EC;">
+    </div>
 
-    <div class="row-between" style="gap:10px;margin-top:14px;">
-      <div style="flex:1;">
-        <label>First Day of Leave</label>
-        <input type="date" id="leaveFirstDay" value="${f.firstDay}">
+    <div style="background:#F3FBF9;border:2px solid #A9DCCF;border-radius:12px;padding:12px;margin-top:12px;">
+      <div class="row-between" style="gap:10px;">
+        <div style="flex:1;">
+          <label style="margin-top:0;color:#1B7A6B;">▶️ First Day of Leave</label>
+          <input type="date" id="leaveFirstDay" value="${f.firstDay}" style="border-color:#A9DCCF;">
+        </div>
+        <div style="flex:1;">
+          <label style="margin-top:0;color:#1B7A6B;">⏹️ Last Day of Leave</label>
+          <input type="date" id="leaveLastDay" value="${f.lastDay}" style="border-color:#A9DCCF;">
+        </div>
       </div>
-      <div style="flex:1;">
-        <label>Last Day of Leave</label>
-        <input type="date" id="leaveLastDay" value="${f.lastDay}">
+      <div style="margin-top:8px;font-size:13px;background:#fff;border-radius:8px;padding:8px 10px;border:1px solid #A9DCCF;">
+        Number of days: <b style="color:#1B7A6B;">${days || "-"}</b>
       </div>
     </div>
-    <div class="field-note">Number of days: <b>${days || "-"}</b></div>
 
-    <div class="remarks-card" style="margin-top:16px;">
+    <div class="remarks-card" style="margin-top:12px;">
       <label style="margin-top:0;color:#966109;">🧰 Tool Box Declaration</label>
       <div class="checklist" style="margin-bottom:10px;">
         <label><input type="radio" name="hasToolBox" id="leaveToolBoxYes" value="yes" ${f.hasToolBox==="yes"?"checked":""}> I have a tool box — Yes</label>
@@ -3026,16 +3033,16 @@ function renderLeaveForm(){
       <div class="field-note">If any tool is missing, the amount will be deducted from my salary.</div>
     </div>
 
-    <label style="margin-top:16px;">Employee Signature</label>
+    <label style="margin-top:16px;">✍️ Employee Signature</label>
     ${isEditing ? `<div class="field-note">Your previous signature is shown below — leave as-is or clear and re-sign.</div>` : ""}
     <div class="sig-pad-wrap"><canvas id="leaveSigCanvas"></canvas></div>
-    <div class="bottom-bar">
+    <div style="display:flex;gap:10px;margin-top:12px;">
       <button class="btn btn-outline btn-sm" id="clearLeaveSigBtn" style="flex:1;">Clear</button>
       <button class="btn btn-submit btn-sm" id="submitLeaveBtn" style="flex:1;">✅ ${isEditing ? "Update Application" : "Submit Application"}</button>
     </div>
 
-    <div class="card" style="margin-top:70px;">
-      <h3 style="font-size:14px;">My Leave Applications</h3>
+    <div class="card" style="margin-top:28px;background:linear-gradient(135deg,var(--navy),var(--blue));border:none;">
+      <h3 style="color:#fff;font-size:14px;">My Leave Applications</h3>
     </div>
     <div style="margin-top:6px;">${historyRows}</div>
   `;
