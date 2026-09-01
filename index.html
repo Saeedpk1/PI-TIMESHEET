@@ -2442,6 +2442,7 @@ async function buildCombinedPdf(included, titleText, filename){
     state.loading = false;
     console.error("PDF generation error:", e);
     toast("PDF error: " + (e && e.message ? e.message : "unknown"));
+    alert("PDF error detail:\n" + (e && e.message ? e.message : String(e)));
     render();
   }
 }
