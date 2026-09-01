@@ -267,6 +267,11 @@
   @keyframes spin{to{transform:rotate(360deg);}}
 
   .link-btn{background:none;border:none;color:var(--blue);font-size:13px;font-weight:700;cursor:pointer;padding:0;}
+  .icon-sq{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;border:none;font-size:13px;cursor:pointer;margin-right:4px;}
+  .icon-sq:last-child{margin-right:0;}
+  .icon-sq-photo{background:#F0E7FA;}
+  .icon-sq-edit{background:#E3EFFB;}
+  .icon-sq-delete{background:#FCE7E7;}
   .install-btn{color:#B8860B !important;font-weight:800 !important;border-color:#B8860B !important;}
   .install-link{color:#D4A017 !important;font-weight:800 !important;opacity:1 !important;}
 </style>
@@ -3181,10 +3186,10 @@ function renderPurchaseForm(){
       <td style="font-size:9px;text-align:right;color:var(--muted);">${Number(p.amount).toFixed(2)}</td>
       <td style="font-size:9px;text-align:right;color:#966109;">${Number(p.vat_amount).toFixed(2)}</td>
       <td style="font-size:10px;text-align:right;font-weight:800;color:#1C8A4E;">${Number(p.total_amount).toFixed(2)}</td>
-      <td style="white-space:nowrap;padding-left:4px;">
-        ${p.receipt_photo ? `<button class="link-btn" data-view-purchase-photo="${p.id}" style="color:#7A4FBF !important;font-size:15px;padding:5px 3px;" title="View Photo">📷</button>` : ""}
-        <button class="link-btn" data-edit-purchase-draft="${p.id}" style="color:var(--blue) !important;font-size:15px;padding:5px 3px;" title="Edit">✎</button>
-        <button class="link-btn" data-delete-purchase-draft="${p.id}" style="color:var(--absent) !important;font-size:15px;padding:5px 3px;" title="Remove">🗑</button>
+      <td style="white-space:nowrap;padding-left:2px;padding-right:2px;">
+        ${p.receipt_photo ? `<button class="icon-sq icon-sq-photo" data-view-purchase-photo="${p.id}" title="View Photo">📷</button>` : ""}
+        <button class="icon-sq icon-sq-edit" data-edit-purchase-draft="${p.id}" title="Edit">✎</button>
+        <button class="icon-sq icon-sq-delete" data-delete-purchase-draft="${p.id}" title="Remove">🗑</button>
       </td>
     </tr>`).join("");
 
@@ -3282,8 +3287,8 @@ function renderPurchaseForm(){
       ${draftRows ? `
       <table class="grid" style="min-width:640px;">
         <colgroup>
-          <col style="width:5%;"><col style="width:9%;"><col style="width:23%;"><col style="width:11%;">
-          <col style="width:9%;"><col style="width:8%;"><col style="width:7%;"><col style="width:9%;"><col style="width:19%;">
+          <col style="width:5%;"><col style="width:9%;"><col style="width:27%;"><col style="width:11%;">
+          <col style="width:9%;"><col style="width:8%;"><col style="width:7%;"><col style="width:9%;"><col style="width:15%;">
         </colgroup>
         <thead><tr>
           <th style="font-size:8px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">No.</th><th style="font-size:8px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">Date</th><th style="font-size:8px;background:linear-gradient(135deg,#1B7A6B,#25A88F);">Description</th>
@@ -3327,7 +3332,7 @@ function renderHrPurchasesList(){
         <td style="font-size:9px;text-align:right;">${Number(p.amount).toFixed(2)}</td>
         <td style="font-size:9px;text-align:right;">${Number(p.vat_amount).toFixed(2)}</td>
         <td style="font-size:9px;text-align:right;font-weight:700;">${Number(p.total_amount).toFixed(2)}</td>
-        <td>${p.receipt_photo ? `<button class="link-btn" data-view-purchase-photo="${p.id}" style="color:#7A4FBF !important;font-size:13px;padding:2px 4px;" title="View Photo">📷</button>` : ""}</td>
+        <td>${p.receipt_photo ? `<button class="icon-sq icon-sq-photo" data-view-purchase-photo="${p.id}" title="View Photo">📷</button>` : ""}</td>
       </tr>`).join("");
     return `
     <div style="margin-top:8px;">
