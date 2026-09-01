@@ -328,12 +328,6 @@ let state = {
   myPurchases: [],
   purchaseFormDraft: { purchaseDate: "", category: "", itemDescription: "", projectId: "", billNo: "", vendorName: "", amount: "", hasVat: true, paymentMethod: "", notes: "", receiptPhoto: "" },
   editingPurchaseId: null,
-  myDailyReportEntries: [],
-  myDailyAttendance: { present: 0, absent: 0 },
-  dailyReportProjectId: "",
-  dailyReportNote: "",
-  hrDailyReportDate: "",
-  hrDailyReports: [],
   expandedPurchaseBatch: null,
   hrPurchases: [],
   editingLeaveRequestId: null,
@@ -1525,138 +1519,6 @@ async function generateMyPurchaseBatchPdf(batchId){
   await buildPurchasesPdf(items, `My_Purchases_${dateLabel.replace(/-/g,"")}.pdf`, `My Submitted Expenses — ${dateLabel}`);
 }
 
-/* ---------------- Daily Project Reports (supervisors) ---------------- */
-async function getTodayAttendanceForSupervisor(supervisorId){
-  const today = new Date().toISOString().slice(0,10);
-  const { data: staff } = await sb.from("ts_employees").select("id").eq("supervisor_id", supervisorId).eq("active", true);
-  const ids = (staff||[]).map(s=>s.id);
-  if(!ids.length) return { present: 0, absent: 0 };
-  const { data: entries } = await sb.from("ts_timesheet_entries").select("status").in("employee_id", ids).eq("entry_date", today);
-  const present = (entries||[]).filter(e=>e.status==="Present").length;
-  const absent = (entries||[]).filter(e=>e.status==="Absent").length;
-  return { present, absent };
-}
-
-async function loadMyDailyReportEntries(){
-  const today = new Date().toISOString().slice(0,10);
-  const { data } = await sb.from("ts_daily_reports")
-    .select("*, ts_projects:project_id(name)")
-    .eq("supervisor_id", state.user.id).eq("report_date", today)
-    .order("created_at", { ascending: true });
-  state.myDailyReportEntries = data || [];
-  state.myDailyAttendance = await getTodayAttendanceForSupervisor(state.user.id);
-}
-
-async function correctNoteWithAi(){
-  const raw = state.dailyReportNote.trim();
-  if(!raw){ toast("Write a note first."); return; }
-  const btn = document.getElementById("correctNoteBtn");
-  if(btn){ btn.disabled = true; btn.textContent = "✨ Improving..."; }
-  try{
-    const resp = await fetch(`${SUPABASE_URL}/functions/v1/smart-endpoint`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-      body: JSON.stringify({ correctText: raw })
-    });
-    const data = await resp.json();
-    if(!resp.ok || data.error) throw new Error(data.error || "Could not improve text");
-    if(data.corrected) state.dailyReportNote = data.corrected;
-    render();
-  }catch(e){
-    console.error("Note correction error:", e);
-    toast("Could not improve the note — try again.");
-  }
-  render();
-}
-
-async function addDailyReportEntry(){
-  if(!state.dailyReportNote.trim()){ toast("Write a status note first."); return; }
-  state.loading = true; render();
-  const today = new Date().toISOString().slice(0,10);
-  const { error } = await sb.from("ts_daily_reports").insert({
-    supervisor_id: state.user.id,
-    report_date: today,
-    project_id: state.dailyReportProjectId || null,
-    status_note: state.dailyReportNote.trim()
-  });
-  state.loading = false;
-  toast(error ? "Could not save. Try again." : "Added.");
-  if(!error){
-    state.dailyReportProjectId = "";
-    state.dailyReportNote = "";
-  }
-  await loadMyDailyReportEntries();
-  render();
-}
-
-async function deleteDailyReportEntry(id){
-  if(!confirm("Remove this update?")) return;
-  state.loading = true; render();
-  const { error } = await sb.from("ts_daily_reports").delete().eq("id", id);
-  state.loading = false;
-  toast(error ? "Could not remove. Try again." : "Removed.");
-  await loadMyDailyReportEntries();
-  render();
-}
-
-async function loadHrDailyReports(){
-  const date = state.hrDailyReportDate || new Date().toISOString().slice(0,10);
-  state.hrDailyReportDate = date;
-  const { data } = await sb.from("ts_daily_reports")
-    .select("*, ts_employees:supervisor_id(name), ts_projects:project_id(name)")
-    .eq("report_date", date)
-    .order("created_at", { ascending: true });
-  state.hrDailyReports = data || [];
-}
-
-async function generateDailyReportPdf(){
-  const items = state.hrDailyReports;
-  if(!items.length){ toast("Nothing to export for this date."); return; }
-  state.loading = true; render();
-  try{
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    drawLetterhead(doc, "");
-    doc.setFont("helvetica","bold"); doc.setFontSize(15); doc.setTextColor(15,53,86);
-    doc.text(`Daily Report — ${formatDateDMY(state.hrDailyReportDate)}`, 40, 76);
-
-    const bySupervisor = {};
-    items.forEach(r => {
-      const key = r.ts_employees?.name || "Unknown";
-      if(!bySupervisor[key]) bySupervisor[key] = [];
-      bySupervisor[key].push(r);
-    });
-
-    let y = 100;
-    Object.entries(bySupervisor).forEach(([name, rows]) => {
-      if(y > 720){ doc.addPage(); y = 60; }
-      doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.setTextColor(27,90,150);
-      doc.text(name, 40, y);
-      y += 16;
-      rows.forEach(r => {
-        if(y > 750){ doc.addPage(); y = 60; }
-        doc.setFont("helvetica","bold"); doc.setFontSize(9.5); doc.setTextColor(30,38,48);
-        const proj = r.ts_projects?.name || "General";
-        doc.text(proj + ":", 50, y);
-        doc.setFont("helvetica","normal");
-        const lines = doc.splitTextToSize(r.status_note, 460);
-        doc.text(lines, 50 + doc.getTextWidth(proj + ":  "), y);
-        y += 14 * lines.length + 4;
-      });
-      y += 10;
-    });
-
-    stampFooters(doc);
-    doc.save(`Daily_Report_${state.hrDailyReportDate}.pdf`);
-    toast("Daily report PDF downloaded.");
-  }catch(e){
-    console.error("Daily report PDF error:", e);
-    toast("PDF error: " + (e && e.message ? e.message : "unknown"));
-  }
-  state.loading = false;
-  render();
-}
-
 /* ---------------- HR flow ---------------- */
 async function loadHrMonth(){
   state.loading = true; render();
@@ -2605,8 +2467,6 @@ function render(){
   else if(state.view === "hr-timesheet-review") body = renderHrTimesheetReview();
   else if(state.view === "purchase-form") body = renderPurchaseForm();
   else if(state.view === "hr-purchases-list") body = renderHrPurchasesList();
-  else if(state.view === "daily-report-form") body = renderDailyReportForm();
-  else if(state.view === "hr-daily-reports-list") body = renderHrDailyReportsList();
   else if(state.view === "supervisor-leave-review") body = renderSupervisorLeaveReview();
 
   root.innerHTML = header + `<main>${body}</main>`;
@@ -2787,8 +2647,7 @@ function renderSupervisorList(){
       <button class="link-btn install-link" id="sigSettingsBtn" style="color:#FFE7B0 !important;">${ar ? (state.savedSignature ? "✎ تحديث التوقيع" : "✎ إعداد التوقيع") : (state.savedSignature ? "✎ Update signature" : "✎ Set up signature")}</button>
     </div>
     <button id="openSupervisorLeaveListBtn" style="display:block;width:100%;margin-bottom:10px;padding:10px 16px;border-radius:10px;border:2px solid #E8A33D;background:#FFF3D9;color:#966109;font-weight:800;font-size:13.5px;cursor:pointer;">🌴 ${ar ? "طلبات الإجازة" : "Leave Requests"}</button>
-    <button id="openPurchaseFormBtn" style="display:block;width:100%;margin-bottom:10px;padding:10px 16px;border-radius:10px;border:2px solid #1B7A6B;background:#EAF6F3;color:#125C4F;font-weight:800;font-size:13.5px;cursor:pointer;">🧾 ${ar ? "تسجيل مشتريات" : "Record Purchase"}</button>
-    <button id="openDailyReportBtn" style="display:block;width:100%;margin-bottom:14px;padding:10px 16px;border-radius:10px;border:2px solid #0F3556;background:#E7F1FC;color:#0F3556;font-weight:800;font-size:13.5px;cursor:pointer;">📋 ${ar ? "التقرير اليومي" : "Daily Report"}</button>
+    <button id="openPurchaseFormBtn" style="display:block;width:100%;margin-bottom:14px;padding:10px 16px;border-radius:10px;border:2px solid #1B7A6B;background:#EAF6F3;color:#125C4F;font-weight:800;font-size:13.5px;cursor:pointer;">🧾 ${ar ? "تسجيل مشتريات" : "Record Purchase"}</button>
     <div>${rows}</div>
   `;
 }
@@ -2971,7 +2830,6 @@ function renderHrView(){
     <button class="btn btn-primary btn-compact" id="wpsPiSaudiBtn" style="margin-top:8px;background:linear-gradient(135deg,#0F3556,#1B5A96);">🏦 Generate WPS Payroll — PI + Saudi</button>
     <button class="btn btn-primary btn-compact" id="wpsAlFalakBtn" style="margin-top:5px;background:linear-gradient(135deg,#4A2E0F,#6B4423);">🏦 Generate WPS Payroll — Al Falak</button>
     <button class="btn btn-outline btn-compact" id="openHrPurchasesBtn" style="margin-top:5px;border-color:#1B7A6B;color:#125C4F;">🧾 Purchase / Expense Approvals</button>
-    <button class="btn btn-outline btn-compact" id="openHrDailyReportsBtn" style="margin-top:5px;border-color:#0F3556;color:#0F3556;">📋 Daily Reports</button>
   `;
 }
 
@@ -3231,82 +3089,6 @@ function purchaseBadgeInfo(status){
     approved: { cls: "badge-approved", label: "Approved" },
     rejected: { cls: "badge-rejected", label: "Rejected" }
   }[status] || { cls: "badge-draft", label: status };
-}
-
-function renderDailyReportForm(){
-  const rows = state.myDailyReportEntries.map(r => `
-    <div style="border:2px solid #1B7A6B;border-radius:10px;padding:12px;margin-top:10px;background:#F3FBF9;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-        <div style="flex:1;">
-          <div style="font-size:10px;color:#1B7A6B;font-weight:700;">${r.ts_projects?.name || "GENERAL"}</div>
-          <div style="font-size:13px;color:#0F3556;margin-top:4px;">${r.status_note}</div>
-        </div>
-        <button class="link-btn" data-delete-daily-report="${r.id}" style="color:var(--absent) !important;font-size:14px;flex-shrink:0;" title="Remove">🗑</button>
-      </div>
-    </div>`).join("");
-
-  return `
-    <button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
-    <div class="card" style="background:linear-gradient(135deg,#0F3556,#1B5A96);">
-      <div style="color:#fff;font-weight:800;font-size:15px;">📋 Daily Report</div>
-      <div style="color:#DCEAFB;font-size:12px;margin-top:2px;">${monthLabel(new Date())} ${new Date().getDate()}</div>
-    </div>
-    <div id="dailyAttendanceBox" class="card" style="margin-top:10px;background:#F3F8FD;border:1px solid #B8D4EC;">
-      <div style="font-size:11px;color:#5B7C99;font-weight:700;">TODAY'S ATTENDANCE</div>
-      <div style="font-size:13px;color:#0F3556;margin-top:4px;font-weight:700;">${state.myDailyAttendance.present} Present &nbsp;•&nbsp; ${state.myDailyAttendance.absent} Absent</div>
-    </div>
-
-    <label style="margin-top:16px;color:#1B7A6B;">Project</label>
-    <select id="dailyReportProject">
-      <option value="">— General / No specific project —</option>
-      ${state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${state.dailyReportProjectId===p.id?"selected":""}>${p.name}</option>`).join("")}
-    </select>
-
-    <label style="color:#1B7A6B;">Status Note</label>
-    <textarea id="dailyReportNote" rows="3" placeholder="e.g. controller and trunking fixing today">${state.dailyReportNote}</textarea>
-    <button type="button" class="btn btn-outline btn-sm" id="correctNoteBtn" style="margin-top:8px;width:100%;">✨ Improve with AI</button>
-
-    <button class="btn btn-submit" id="addDailyReportBtn" style="margin-top:14px;">+ Add Project Update</button>
-
-    ${rows ? `
-    <div class="card" style="margin-top:24px;">
-      <h3 style="font-size:14px;">Today's Updates (${state.myDailyReportEntries.length})</h3>
-    </div>
-    ${rows}` : ""}
-  `;
-}
-
-function renderHrDailyReportsList(){
-  const date = state.hrDailyReportDate || new Date().toISOString().slice(0,10);
-  const bySupervisor = {};
-  state.hrDailyReports.forEach(r => {
-    const key = r.ts_employees?.name || "Unknown";
-    if(!bySupervisor[key]) bySupervisor[key] = [];
-    bySupervisor[key].push(r);
-  });
-
-  const sections = Object.entries(bySupervisor).map(([name, rows]) => `
-    <div class="card" style="margin-top:14px;background:linear-gradient(135deg,var(--navy),var(--blue));">
-      <div style="font-size:13px;color:#fff;font-weight:800;">👤 ${firstLastName(name)}</div>
-    </div>
-    ${rows.map(r => `
-      <div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;background:#fff;">
-        <div style="font-size:10px;color:var(--blue);font-weight:700;">${r.ts_projects?.name || "GENERAL"}</div>
-        <div style="font-size:13px;color:var(--ink);margin-top:4px;">${r.status_note}</div>
-      </div>`).join("")}
-  `).join("");
-
-  return `
-    <button class="back-link-glow" id="backToHrBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
-    <div class="card">
-      <h3>📋 Daily Reports</h3>
-      <div class="meta">All supervisors' project updates for the selected date.</div>
-    </div>
-    <label style="margin-top:14px;">Date</label>
-    <input type="date" id="hrDailyReportDateInput" value="${date}">
-    ${sections || `<div class="empty-state" style="margin-top:14px;"><div class="ic">📋</div>No reports submitted for this date yet.</div>`}
-    ${state.hrDailyReports.length ? `<button class="btn btn-primary" id="exportDailyReportPdfBtn" style="margin-top:18px;background:linear-gradient(135deg,#0F3556,#1B5A96);">📄 Export as PDF</button>` : ""}
-  `;
 }
 
 function renderPurchaseForm(){
@@ -3601,13 +3383,6 @@ function handleDelegatedClick(e){
   if(editPurchaseDraftEl){ startEditPurchaseDraft(editPurchaseDraftEl.getAttribute("data-edit-purchase-draft")); return; }
   if(el("cancelEditPurchaseBtn")){ cancelEditPurchaseDraft(); return; }
   if(el("openHrPurchasesBtn")){ state.view = "hr-purchases-list"; loadHrPurchases().then(render); return; }
-  if(el("openDailyReportBtn")){ state.view = "daily-report-form"; loadMyDailyReportEntries().then(render); return; }
-  if(el("addDailyReportBtn")){ addDailyReportEntry(); return; }
-  if(el("correctNoteBtn")){ correctNoteWithAi(); return; }
-  const deleteDailyReportEl = e.target.closest("[data-delete-daily-report]");
-  if(deleteDailyReportEl){ deleteDailyReportEntry(deleteDailyReportEl.getAttribute("data-delete-daily-report")); return; }
-  if(el("openHrDailyReportsBtn")){ state.view = "hr-daily-reports-list"; loadHrDailyReports().then(render); return; }
-  if(el("exportDailyReportPdfBtn")){ generateDailyReportPdf(); return; }
   const deletePurchaseEl = e.target.closest("[data-delete-purchase]");
   if(deletePurchaseEl){ deletePurchaseHr(deletePurchaseEl.getAttribute("data-delete-purchase")); return; }
   const toggleSentBatchEl = e.target.closest("[data-toggle-sent-batch]");
@@ -3704,8 +3479,6 @@ function handleDelegatedChange(e){
   if(e.target.id === "purchaseProject"){ state.purchaseFormDraft.projectId = e.target.value; return; }
   if(e.target.id === "purchasePayment"){ state.purchaseFormDraft.paymentMethod = e.target.value; return; }
   if(e.target.id === "purchaseHasVat"){ state.purchaseFormDraft.hasVat = e.target.checked; render(); return; }
-  if(e.target.id === "dailyReportProject"){ state.dailyReportProjectId = e.target.value; return; }
-  if(e.target.id === "hrDailyReportDateInput"){ state.hrDailyReportDate = e.target.value; loadHrDailyReports().then(render); return; }
   if(e.target.id === "purchasePhotoInput"){ handlePurchasePhotoFile(e.target.files && e.target.files[0]); return; }
   if(e.target.id === "scanBillInput"){ scanPurchaseBill(e.target.files && e.target.files[0]); return; }
   if(e.target.id === "leavePhotoInput"){ handleLeavePhotoFile(e.target.files && e.target.files[0]); return; }
@@ -3764,7 +3537,6 @@ function handleDelegatedInput(e){
   }
   if(e.target.id === "purchaseBillNo"){ state.purchaseFormDraft.billNo = e.target.value; }
   if(e.target.id === "purchaseNotes"){ state.purchaseFormDraft.notes = e.target.value; }
-  if(e.target.id === "dailyReportNote"){ state.dailyReportNote = e.target.value; }
 }
 
 function attachViewEvents(){
