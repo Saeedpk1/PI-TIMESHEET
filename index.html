@@ -2379,10 +2379,10 @@ async function buildCombinedPdf(included, titleText, filename){
     const total = totals.regularHours + otAdjusted;
     return [
       emp?.name || "Employee",
-      totals.regularHours.toFixed(1),
-      totals.ot.toFixed(1),
-      otAdjusted.toFixed(1),
-      total.toFixed(1)
+      Math.round(totals.regularHours).toString(),
+      Math.round(totals.ot).toString(),
+      Math.round(otAdjusted).toString(),
+      Math.round(total).toString()
     ];
   });
   if(rosterRows.length){
