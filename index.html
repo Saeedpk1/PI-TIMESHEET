@@ -46,6 +46,7 @@
       if(i >= urls.length){ onAllFailed(); return; }
       var s = document.createElement('script');
       s.src = urls[i];
+      s.async = false; // preserve execution order relative to other dynamically-inserted scripts (jsPDF must run before its autoTable plugin)
       s.onload = onDone;
       s.onerror = function(){ i++; tryNext(); };
       document.head.appendChild(s);
@@ -2328,6 +2329,12 @@ async function buildCombinedPdf(included, titleText, filename){
   const nd = new Date(y, m, 0).getDate();
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "a4" });
+  if(typeof doc.autoTable !== "function"){
+    state.loading = false;
+    toast("PDF table library not loaded yet — please wait a moment and try again.");
+    render();
+    return;
+  }
 
   // ---- Pass 1: fetch every employee's data and compute the company-wide project summary ----
   const employeeData = [];
