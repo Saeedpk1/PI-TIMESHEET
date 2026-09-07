@@ -907,6 +907,7 @@ async function approveLeaveHr(reqId){
   }).eq("id", reqId);
   state.loading = false;
   toast(error ? "Could not approve. Try again." : "Leave request fully approved.");
+  if(!error && state.view === "hr-leave-review") state.view = "hr-leave-list";
   await loadHrLeaveRequests();
   render();
 }
@@ -920,6 +921,7 @@ async function rejectLeaveHr(reqId){
   }).eq("id", reqId);
   state.loading = false;
   toast(error ? "Could not reject. Try again." : "Leave request rejected.");
+  if(!error && state.view === "hr-leave-review") state.view = "hr-leave-list";
   await loadHrLeaveRequests();
   render();
 }
@@ -949,6 +951,7 @@ async function resendLeaveForEditing(reqId){
   }).eq("id", reqId);
   state.loading = false;
   toast(error ? "Could not send back. Try again." : "Sent back to the employee for editing.");
+  if(!error && state.view === "hr-leave-review") state.view = "hr-leave-list";
   await loadHrLeaveRequests();
   render();
 }
@@ -1080,7 +1083,13 @@ async function generateLeavePdf(reqId){
     doc.text("EMPLOYEE SIGNATURE", sigBoxX, sigBoxY - 4);
     doc.setDrawColor(200,210,222); doc.setLineWidth(0.7);
     doc.rect(sigBoxX, sigBoxY, sigBoxW, sigBoxH);
-    if(req.employee_signature){ try{ doc.addImage(req.employee_signature, "PNG", sigBoxX + 5, sigBoxY + 5, sigBoxW - 10, sigBoxH - 10); }catch(e){} }
+    if(req.employee_signature){
+      try{ doc.addImage(req.employee_signature, "PNG", sigBoxX + 5, sigBoxY + 5, sigBoxW - 10, sigBoxH - 10); }
+      catch(e){ console.error("Employee signature draw error:", e); }
+    }else{
+      doc.setFont("helvetica","italic"); doc.setFontSize(8); doc.setTextColor(...GREY);
+      doc.text("No signature on file", sigBoxX + 8, sigBoxY + sigBoxH/2 + 3);
+    }
     y += 90 + 16;
 
     // ---- Section D: 1st Approval ----
@@ -2379,10 +2388,10 @@ async function buildCombinedPdf(included, titleText, filename){
     const total = totals.regularHours + otAdjusted;
     return [
       emp?.name || "Employee",
-      Math.round(totals.regularHours).toString(),
-      Math.round(totals.ot).toString(),
-      Math.round(otAdjusted).toString(),
-      Math.round(total).toString()
+      totals.regularHours.toFixed(1),
+      totals.ot.toFixed(1),
+      otAdjusted.toFixed(1),
+      total.toFixed(1)
     ];
   });
   if(rosterRows.length){
@@ -2528,6 +2537,7 @@ function render(){
   else if(state.view === "purchase-form") body = renderPurchaseForm();
   else if(state.view === "hr-purchases-list") body = renderHrPurchasesList();
   else if(state.view === "supervisor-leave-review") body = renderSupervisorLeaveReview();
+  else if(state.view === "hr-leave-review") body = renderHrLeaveReview();
 
   root.innerHTML = header + `<main>${body}</main>` + renderPhotoOverlay();
   attachViewEvents();
@@ -3106,6 +3116,7 @@ function renderHrLeaveList(){
       </div>
       <span class="badge ${b.cls}">${b.label}</span>
       <div style="width:100%;display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;">
+        <button class="link-btn" data-view-leave-hr="${r.id}" style="color:var(--blue) !important;">👁 View</button>
         ${actionable ? `
           <button class="link-btn" data-approve-leave-hr="${r.id}" style="color:var(--present) !important;">✓ Approve</button>
           <button class="link-btn" data-reject-leave-hr="${r.id}" style="color:var(--absent) !important;">✕ Reject</button>
@@ -3127,6 +3138,7 @@ function renderHrLeaveList(){
       <td style="white-space:nowrap;font-size:9.5px;">${r.first_day.slice(5)}→${r.last_day.slice(5)} <span style="color:var(--muted);">(${r.number_of_days}d)</span></td>
       <td><span class="badge ${b.cls}" style="white-space:nowrap;font-size:8px;padding:2px 5px;">${shortStatusLabel[r.status] || r.status}</span></td>
       <td style="white-space:nowrap;">
+        <button class="link-btn" data-view-leave-hr="${r.id}" style="color:var(--blue) !important;font-size:12px;padding:0 2px;" title="View">👁</button>
         ${r.status === "hr_approved" ? `<button class="link-btn" data-download-leave="${r.id}" style="font-size:12px;padding:0 2px;" title="Download PDF">⬇</button>` : ""}
         ${canResend ? `<button class="link-btn" data-resend-leave="${r.id}" style="color:#966109 !important;font-size:12px;padding:0 2px;" title="Resend for editing">↩</button>` : ""}
         <button class="link-btn" data-delete-leave-hr="${r.id}" style="color:var(--absent) !important;font-size:12px;padding:0 2px;" title="Remove">🗑</button>
@@ -3165,6 +3177,30 @@ function renderSupervisorLeaveReview(){
     <div class="bottom-bar">
       <button class="btn btn-send-back btn-sm" data-reject-leave-sup="${req.id}" style="flex:1;">↩️ Send back</button>
       <button class="btn btn-approve-sign btn-sm" data-approve-leave-sup="${req.id}" style="flex:1;">✍️ Approve & sign</button>
+    </div>
+  `;
+}
+
+function renderHrLeaveReview(){
+  const req = state.selectedLeaveRequest;
+  if(!req) return `<div class="empty-state">Nothing selected.</div>`;
+  const actionable = req.status === "supervisor_approved";
+  const canResend = req.status === "supervisor_approved" || req.status === "hr_approved";
+  return `
+    <button class="back-link-glow" id="backToHrLeaveListBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    ${renderLeaveReviewModal(req)}
+    ${req.supervisor_signature ? `
+    <div class="card" style="margin-top:10px;">
+      <div class="meta">Supervisor signature</div>
+      <div class="sig-preview" style="margin-top:6px;"><img src="${req.supervisor_signature}" alt="Supervisor signature"></div>
+    </div>` : ""}
+    <div class="bottom-bar" style="flex-wrap:wrap;">
+      ${actionable ? `
+        <button class="btn btn-send-back btn-sm" data-reject-leave-hr="${req.id}" style="flex:1;">✕ Reject</button>
+        <button class="btn btn-approve-sign btn-sm" data-approve-leave-hr="${req.id}" style="flex:1;">✓ Approve</button>
+      ` : ""}
+      ${req.status === "hr_approved" ? `<button class="btn btn-outline btn-sm" data-download-leave="${req.id}" style="flex:1;">⬇ PDF</button>` : ""}
+      ${canResend ? `<button class="btn btn-outline btn-sm" data-resend-leave="${req.id}" style="flex:1;">↩️ Resend for editing</button>` : ""}
     </div>
   `;
 }
@@ -3513,6 +3549,15 @@ function handleDelegatedClick(e){
     return;
   }
   if(el("backToLeaveListBtn")){ state.view = "supervisor-leave-list"; render(); return; }
+  if(el("backToHrLeaveListBtn")){ state.view = "hr-leave-list"; loadHrLeaveRequests().then(render); return; }
+  const viewLeaveHrEl = e.target.closest("[data-view-leave-hr]");
+  if(viewLeaveHrEl){
+    const reqId = viewLeaveHrEl.getAttribute("data-view-leave-hr");
+    state.selectedLeaveRequest = state.hrLeaveRequests.find(r=>r.id===reqId);
+    state.view = "hr-leave-review";
+    render();
+    return;
+  }
   const approveLeaveSupEl = e.target.closest("[data-approve-leave-sup]");
   if(approveLeaveSupEl){ approveLeaveSupervisor(approveLeaveSupEl.getAttribute("data-approve-leave-sup")); return; }
   const rejectLeaveSupEl = e.target.closest("[data-reject-leave-sup]");
