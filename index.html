@@ -715,6 +715,7 @@ function startEditLeaveRequest(reqId){
   const req = state.myLeaveRequests.find(r=>r.id===reqId);
   if(!req) return;
   state.editingLeaveRequestId = reqId;
+  leaveSigSnapshot = null;
   state.leaveFormDraft = {
     lastVacationDate: req.last_vacation_date || "",
     mobileNumber: req.mobile_number || "",
@@ -732,6 +733,7 @@ function startEditLeaveRequest(reqId){
 
 function cancelEditLeaveRequest(){
   state.editingLeaveRequestId = null;
+  leaveSigSnapshot = null;
   state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", photoDataUrl: "", photoCircleDataUrl: "", existingSignature: "" };
   render();
 }
@@ -774,8 +776,15 @@ async function submitLeaveRequest(){
   const isEditing = !!state.editingLeaveRequestId;
   if(!canvas || (!leaveSigHasStroke && !isEditing)){ toast("Please sign the declaration before submitting."); return; }
 
+  // Capture the signature before anything else re-renders the form (which would rebuild the canvas).
+  let signatureData = f.existingSignature;
+  if(leaveSigHasStroke){
+    try{ signatureData = canvas.toDataURL("image/png"); }
+    catch(e){ console.error("Signature capture error:", e); signatureData = leaveSigSnapshot || f.existingSignature; }
+  }
+  if(!signatureData && !isEditing){ toast("Please sign the declaration before submitting."); return; }
+
   state.loading = true; render();
-  const signatureData = leaveSigHasStroke ? canvas.toDataURL("image/png") : f.existingSignature;
   const days = leaveDaysBetween(f.firstDay, f.lastDay);
   const payload = {
     application_date: new Date().toISOString().slice(0,10),
@@ -816,6 +825,7 @@ async function submitLeaveRequest(){
   if(!error){
     state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", photoDataUrl: "", photoCircleDataUrl: "", existingSignature: "" };
     leaveSigHasStroke = false;
+    leaveSigSnapshot = null;
     state.editingLeaveRequestId = null;
   }
   await loadMyLeaveRequests();
@@ -1133,26 +1143,36 @@ async function generateLeavePdf(reqId){
   render();
 }
 
-let leaveSigCtx=null, leaveSigDrawing=false, leaveSigHasStroke=false;
+let leaveSigCtx=null, leaveSigDrawing=false, leaveSigHasStroke=false, leaveSigSnapshot=null;
 function initLeaveSigPad(){
   const canvas = document.getElementById("leaveSigCanvas");
   if(!canvas) return;
-  const ratio = window.devicePixelRatio || 1;
-  canvas.width = canvas.clientWidth * ratio;
-  canvas.height = canvas.clientHeight * ratio;
+  let ratio = window.devicePixelRatio || 1;
+  let w = canvas.clientWidth, h = canvas.clientHeight;
+  // Guard against a 0x0 canvas if this runs before layout has settled (would silently produce a blank signature).
+  if(!w || !h){
+    requestAnimationFrame(initLeaveSigPad);
+    return;
+  }
+  canvas.width = w * ratio;
+  canvas.height = h * ratio;
   leaveSigCtx = canvas.getContext("2d");
   leaveSigCtx.scale(ratio, ratio);
   leaveSigCtx.lineWidth = 2.2;
   leaveSigCtx.lineCap = "round";
   leaveSigCtx.strokeStyle = "#0F3556";
-  leaveSigHasStroke = false;
 
-  // If editing an existing application, show their prior signature as a starting point —
-  // they can leave it as-is (submit works without redrawing) or clear and re-sign.
-  if(state.leaveFormDraft.existingSignature){
+  // Restore whatever was already drawn before this rebuild (e.g. another field on the form
+  // just changed and triggered a re-render) so an in-progress signature is never silently lost.
+  // leaveSigSnapshot (an unsaved stroke made in this session) takes priority over the record's
+  // previously-saved signature (shown when editing an existing application).
+  const toRestore = leaveSigSnapshot || state.leaveFormDraft.existingSignature;
+  const hadUnsavedStroke = !!leaveSigSnapshot;
+  leaveSigHasStroke = hadUnsavedStroke;
+  if(toRestore){
     const img = new Image();
     img.onload = () => { leaveSigCtx.drawImage(img, 0, 0, canvas.clientWidth, canvas.clientHeight); };
-    img.src = state.leaveFormDraft.existingSignature;
+    img.src = toRestore;
   }
 
   const pos = (e)=>{
@@ -1162,7 +1182,12 @@ function initLeaveSigPad(){
   };
   const start = (e)=>{ e.preventDefault(); leaveSigDrawing=true; const p=pos(e); leaveSigCtx.beginPath(); leaveSigCtx.moveTo(p.x,p.y); };
   const move = (e)=>{ if(!leaveSigDrawing) return; e.preventDefault(); const p=pos(e); leaveSigCtx.lineTo(p.x,p.y); leaveSigCtx.stroke(); leaveSigHasStroke=true; };
-  const end = ()=>{ leaveSigDrawing=false; };
+  const end = ()=>{
+    if(!leaveSigDrawing) return;
+    leaveSigDrawing=false;
+    // Snapshot immediately so the stroke survives if some other field's change re-renders the form.
+    try{ leaveSigSnapshot = canvas.toDataURL("image/png"); }catch(e){ console.error("Signature snapshot error:", e); }
+  };
 
   canvas.addEventListener("mousedown", start);
   canvas.addEventListener("mousemove", move);
@@ -1174,6 +1199,7 @@ function initLeaveSigPad(){
 function clearLeaveSigPad(){
   const canvas = document.getElementById("leaveSigCanvas");
   if(canvas && leaveSigCtx){ leaveSigCtx.clearRect(0,0,canvas.width,canvas.height); leaveSigHasStroke=false; }
+  leaveSigSnapshot = null;
 }
 
 /* ---------------- Purchases / Expenses (supervisors) ---------------- */
@@ -3490,7 +3516,7 @@ function handleDelegatedClick(e){
   if(el("combinedPdfBtn")){ generateCombinedPdf(); return; }
   if(el("saudiPdfBtn")){ generateSaudiTimesheetPdf(); return; }
   if(el("saudiArabicPdfBtn")){ generateSaudiArabicPdf(); return; }
-  if(el("openLeaveFormBtn")){ state.view = "leave-form"; loadMyLeaveRequests().then(render); return; }
+  if(el("openLeaveFormBtn")){ leaveSigSnapshot = null; state.view = "leave-form"; loadMyLeaveRequests().then(render); return; }
   if(el("openSupervisorLeaveListBtn")){ state.view = "supervisor-leave-list"; loadSupervisorLeaveRequests().then(render); return; }
   if(el("openHrLeaveListBtn")){ state.view = "hr-leave-list"; loadHrLeaveRequests().then(render); return; }
   if(el("wpsPiSaudiBtn")){ generateWpsPayroll("PI_SAUDI"); return; }
