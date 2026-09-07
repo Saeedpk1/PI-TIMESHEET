@@ -821,7 +821,7 @@ async function submitLeaveRequest(){
   }
 
   state.loading = false;
-  toast(error ? "Could not submit. Try again." : (isEditing ? "Leave application updated and resubmitted." : "Leave application submitted to your supervisor.") + (signatureData ? ` [sig: ${signatureData.length}b]` : " [NO SIGNATURE CAPTURED]"));
+  toast(error ? "Could not submit. Try again." : (isEditing ? "Leave application updated and resubmitted." : "Leave application submitted to your supervisor."));
   if(!error){
     state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", photoDataUrl: "", photoCircleDataUrl: "", existingSignature: "" };
     leaveSigHasStroke = false;
