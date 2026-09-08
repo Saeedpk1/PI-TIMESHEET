@@ -537,7 +537,9 @@ function isDateEditable(dstr){
 
 function setEntry(dstr, field, value){
   if(!state.entries[dstr]) return;
-  if(!isDateEditable(dstr)){
+  const editable = isDateEditable(dstr);
+  alert(`DEBUG\ndate clicked: ${dstr}\ntoday: ${new Date().toDateString()}\neditable: ${editable}`);
+  if(!editable){
     toast("You can only fill in attendance up to tomorrow — this day isn't open yet.");
     renderMain();
     return;
