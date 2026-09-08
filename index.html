@@ -1670,6 +1670,24 @@ function setHrEntry(dstr, field, value){
   render();
 }
 
+async function saveApprovedOt(){
+  const emp = state.hrSelectedEmployee;
+  const sub = state.hrTimesheetSubmission;
+  if(!emp || !sub){ toast("Nothing to save."); return; }
+  const input = document.getElementById("approvedOtInput");
+  const val = Math.max(0, Number(input?.value) || 0);
+  state.loading = true; render();
+  const { error } = await sb.from("ts_timesheet_submissions").update({ approved_ot_hours: val }).eq("id", sub.id);
+  state.loading = false;
+  toast(error ? "Could not save OT hours. Try again." : "Approved OT hours saved.");
+  if(!error){
+    state.hrTimesheetSubmission.approved_ot_hours = val;
+    const inList = state.hrApproved.find(s => s.id === sub.id);
+    if(inList) inList.approved_ot_hours = val;
+  }
+  render();
+}
+
 async function saveHrTimesheetEdit(){
   const emp = state.hrSelectedEmployee;
   if(!emp) return;
@@ -1767,7 +1785,7 @@ async function downloadMyTimesheetPdf(){
       const v = state.entries[dstr] || { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0, project_id: "" };
       const statusLabel = v.status === "Present" ? "P" : v.status;
       if(v.status === "Friday") fridayRows.add(body.length);
-      body.push([ String(day).padStart(2,"0"), dayNameFull(y,m,day), statusLabel, v.status==="Present" ? "8.0" : "0.0", (Number(v.overtime_hours)||0).toFixed(1), projectName(v.project_id) || "-" ]);
+      body.push([ String(day).padStart(2,"0"), dayNameFull(y,m,day), statusLabel, v.status==="Present" ? "8.0" : "0.0", projectName(v.project_id) || "-" ]);
       if(v.status === "Present" && v.project_id){
         const pname = projectName(v.project_id) || "Unassigned";
         empProjectDays[pname] = (empProjectDays[pname] || 0) + 1;
@@ -1775,7 +1793,7 @@ async function downloadMyTimesheetPdf(){
     }
     doc.autoTable({
       startY: 92,
-      head: [["Date","Day","Status","Reg. Hrs","OT Hrs","Project"]],
+      head: [["Date","Day","Status","Reg. Hrs","Project"]],
       body,
       styles: { fontSize: 8, cellPadding: 2.2, minCellHeight: 0, lineColor: [190,205,220], lineWidth: 0.6 },
       headStyles: { fillColor: [27,90,150], textColor: [255,255,255], fontStyle: "bold", halign: "left" },
@@ -1785,7 +1803,7 @@ async function downloadMyTimesheetPdf(){
       tableWidth: "wrap",
       columnStyles: {
         0: { cellWidth: 38 }, 1: { cellWidth: 80 }, 2: { cellWidth: 50 },
-        3: { cellWidth: 62 }, 4: { cellWidth: 58 }, 5: { cellWidth: 227 }
+        3: { cellWidth: 62 }, 4: { cellWidth: 285 }
       },
       pageBreak: "avoid",
       rowPageBreak: "avoid",
@@ -1799,9 +1817,10 @@ async function downloadMyTimesheetPdf(){
     });
 
     const totals = computeTotals(state.entries);
+    const approvedOt = Number(state.submission?.approved_ot_hours) || 0;
     let y2 = doc.lastAutoTable.finalY + 16;
     doc.setFontSize(9); doc.setTextColor(40,40,40);
-    doc.text(`Present: ${totals.present}   Absent: ${totals.absent}   Sick: ${totals.sick}   Leave: ${totals.leave}   OT hrs: ${totals.ot.toFixed(1)}   Total hrs: ${totals.totalHours.toFixed(1)}`, 40, y2);
+    doc.text(`Present: ${totals.present}   Absent: ${totals.absent}   Sick: ${totals.sick}   Leave: ${totals.leave}   Approved OT hrs: ${approvedOt.toFixed(1)}   Total hrs: ${(totals.regularHours + approvedOt).toFixed(1)}`, 40, y2);
 
     const projectEntries = Object.entries(empProjectDays);
     if(projectEntries.length){
@@ -1926,11 +1945,13 @@ async function generateWpsPayroll(payrollGroup){
       }else{
         const { data: entryRows } = await sb.from("ts_timesheet_entries").select("*")
           .eq("employee_id", emp.id).gte("entry_date", start).lte("entry_date", end);
-        let present = 0, ot = 0, absent = 0;
+        const { data: subRow } = await sb.from("ts_timesheet_submissions").select("approved_ot_hours")
+          .eq("employee_id", emp.id).eq("month", state.hrMonth).maybeSingle();
+        let present = 0, absent = 0;
+        const ot = Number(subRow?.approved_ot_hours) || 0; // set directly by HR once received
         (entryRows || []).forEach(r => {
           if(r.status === "Present"){ present++; }
           else if(r.status === "Absent"){ absent++; }
-          ot += Number(r.overtime_hours) || 0; // OT counts on any day, including Fridays/off-days worked
         });
         const basicSalary = Number(emp.basic_salary) || 0;
         const otAmt = basicSalary/208*ot*1.25;
@@ -2025,9 +2046,11 @@ async function generateSalarySheet(){
     if(empErr) throw empErr;
 
     const { data: approvedSubs, error: subErr } = await sb.from("ts_timesheet_submissions")
-      .select("employee_id").eq("month", state.hrMonth).eq("status", "approved");
+      .select("employee_id, status, approved_ot_hours").eq("month", state.hrMonth);
     if(subErr) throw subErr;
-    const approvedIds = new Set((approvedSubs || []).map(s => s.employee_id));
+    const approvedIds = new Set((approvedSubs || []).filter(s => s.status === "approved").map(s => s.employee_id));
+    const otMap = {};
+    (approvedSubs || []).forEach(s => { otMap[s.employee_id] = Number(s.approved_ot_hours) || 0; });
 
     if(!state.hrmSupervisorId){
       const { data: mohammed } = await sb.from("ts_employees").select("id").eq("iqama_number", "1091504728").maybeSingle();
@@ -2038,10 +2061,10 @@ async function generateSalarySheet(){
     for(const emp of (employees || [])){
       const { data: entryRows } = await sb.from("ts_timesheet_entries").select("*")
         .eq("employee_id", emp.id).gte("entry_date", start).lte("entry_date", end);
-      let present = 0, ot = 0, absent = 0;
+      let present = 0, absent = 0;
+      const ot = otMap[emp.id] || 0; // set directly by HR once received — no longer summed from daily entries
       const projectDays = {};
       (entryRows || []).forEach(r => {
-        ot += Number(r.overtime_hours) || 0; // OT counts on any day, including Fridays/off-days worked
         if(r.status === "Present"){
           present++;
           if(r.project_id){
@@ -2305,7 +2328,6 @@ async function generateSaudiArabicPdf(){
           <td style="padding:3px 6px;border:1px solid #C9D6E3;text-align:center;">${AR_DAY_NAMES[d.getDay()]}</td>
           <td style="padding:3px 6px;border:1px solid #C9D6E3;text-align:center;font-weight:${isFri?"700":"400"};color:${isFri?"#B42828":"#222"};">${AR_STATUS[v.status] || v.status}</td>
           <td style="padding:3px 6px;border:1px solid #C9D6E3;text-align:center;">${v.status==="Present" ? "8.0" : "0.0"}</td>
-          <td style="padding:3px 6px;border:1px solid #C9D6E3;text-align:center;">${(Number(v.overtime_hours)||0).toFixed(1)}</td>
           <td style="padding:3px 6px;border:1px solid #C9D6E3;text-align:center;">${projectName(v.project_id) || "-"}</td>
         </tr>`;
       }
@@ -2320,6 +2342,7 @@ async function generateSaudiArabicPdf(){
         : "معتمد وموقع من قبل المشرف";
       const approvedDate = sub.approved_at ? new Date(sub.approved_at).toLocaleString("ar-SA") : "-";
       const displayName = emp?.name_ar || emp?.name || "";
+      const approvedOt = Number(sub.approved_ot_hours) || 0;
 
       stage.innerHTML = `
         <div dir="rtl" lang="ar" style="font-family:Tahoma,Arial,sans-serif;padding:20px;font-size:12px;color:#222;">
@@ -2339,7 +2362,6 @@ async function generateSaudiArabicPdf(){
                 <th style="padding:5px 4px;border:1px solid #1B5A96;">اليوم</th>
                 <th style="padding:5px 4px;border:1px solid #1B5A96;">الحالة</th>
                 <th style="padding:5px 4px;border:1px solid #1B5A96;">ساعات العمل</th>
-                <th style="padding:5px 4px;border:1px solid #1B5A96;">ساعات إضافية</th>
                 <th style="padding:5px 4px;border:1px solid #1B5A96;">المشروع</th>
               </tr>
             </thead>
@@ -2347,7 +2369,7 @@ async function generateSaudiArabicPdf(){
           </table>
           <div style="margin-top:12px;font-size:11px;">
             أيام الحضور: ${totals.present}&nbsp;&nbsp;&nbsp;أيام الغياب: ${totals.absent}&nbsp;&nbsp;&nbsp;أيام الإجازة: ${totals.leave}&nbsp;&nbsp;&nbsp;
-            إجمالي الساعات الإضافية: ${totals.ot.toFixed(1)}&nbsp;&nbsp;&nbsp;إجمالي الساعات: ${totals.totalHours.toFixed(1)}
+            الساعات الإضافية المعتمدة: ${approvedOt.toFixed(1)}&nbsp;&nbsp;&nbsp;إجمالي الساعات: ${(totals.regularHours + approvedOt).toFixed(1)}
           </div>
           ${projRowsHtml ? `
           <div style="margin-top:12px;font-size:12px;font-weight:700;color:#0F3556;">أيام العمل حسب المشروع</div>
@@ -2431,13 +2453,14 @@ async function buildCombinedPdf(included, titleText, filename){
   doc.text(`Generated ${new Date().toLocaleString()}  •  ${included.length} approved employee(s)`, 40, 96);
 
   const OT_MULTIPLIER = 1.25;
-  const rosterRows = employeeData.map(({ emp, totals }) => {
-    const otAdjusted = totals.ot * OT_MULTIPLIER;
+  const rosterRows = employeeData.map(({ sub, emp, totals }) => {
+    const ot = Number(sub.approved_ot_hours) || 0;
+    const otAdjusted = ot * OT_MULTIPLIER;
     const total = totals.regularHours + otAdjusted;
     return [
       emp?.name || "Employee",
       totals.regularHours.toFixed(1),
-      totals.ot.toFixed(1),
+      ot.toFixed(1),
       otAdjusted.toFixed(1),
       total.toFixed(1)
     ];
@@ -2475,11 +2498,11 @@ async function buildCombinedPdf(included, titleText, filename){
       const v = entries[dstr];
       const statusLabel = v.status === "Present" ? "P" : v.status;
       if(v.status === "Friday") fridayRows.add(body.length);
-      body.push([ String(day).padStart(2,"0"), dayNameFull(y,m-1,day), statusLabel, v.status==="Present" ? "8.0" : "0.0", (Number(v.overtime_hours)||0).toFixed(1), projectName(v.project_id) || "-" ]);
+      body.push([ String(day).padStart(2,"0"), dayNameFull(y,m-1,day), statusLabel, v.status==="Present" ? "8.0" : "0.0", projectName(v.project_id) || "-" ]);
     }
     doc.autoTable({
       startY: 92,
-      head: [["Date","Day","Status","Reg. Hrs","OT Hrs","Project"]],
+      head: [["Date","Day","Status","Reg. Hrs","Project"]],
       body,
       styles: { fontSize: 8, cellPadding: 2.2, minCellHeight: 0, lineColor: [190,205,220], lineWidth: 0.6 },
       headStyles: { fillColor: [27,90,150], textColor: [255,255,255], fontStyle: "bold", halign: "left" },
@@ -2492,8 +2515,7 @@ async function buildCombinedPdf(included, titleText, filename){
         1: { cellWidth: 80 },
         2: { cellWidth: 50 },
         3: { cellWidth: 62 },
-        4: { cellWidth: 58 },
-        5: { cellWidth: 227 }
+        4: { cellWidth: 285 }
       },
       pageBreak: "avoid",
       rowPageBreak: "avoid",
@@ -2508,7 +2530,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
     let y2 = doc.lastAutoTable.finalY + 16;
     doc.setFontSize(9); doc.setTextColor(40,40,40);
-    doc.text(`Present: ${totals.present}   Absent: ${totals.absent}   Sick: ${totals.sick}   Leave: ${totals.leave}   OT hrs: ${totals.ot.toFixed(1)}   Total hrs: ${totals.totalHours.toFixed(1)}`, 40, y2);
+    doc.text(`Present: ${totals.present}   Absent: ${totals.absent}   Sick: ${totals.sick}   Leave: ${totals.leave}   Approved OT hrs: ${(Number(sub.approved_ot_hours)||0).toFixed(1)}   Total hrs: ${(totals.regularHours + (Number(sub.approved_ot_hours)||0)).toFixed(1)}`, 40, y2);
 
     const projectEntries = Object.entries(empProjectDays);
     if(projectEntries.length){
@@ -2689,13 +2711,6 @@ function renderEmployeeView(){
           ${projectOptions}
         </select>
       </td>
-      <td>
-        <div class="ot-stepper">
-          <button type="button" class="ot-btn" data-date="${dstr}" data-dir="down" ${locked?"disabled":""}>−</button>
-          <span class="ot-value">${(Number(v.overtime_hours)||0).toFixed(1)}</span>
-          <button type="button" class="ot-btn" data-date="${dstr}" data-dir="up" ${locked?"disabled":""}>+</button>
-        </div>
-      </td>
     </tr>`;
   }
 
@@ -2716,8 +2731,8 @@ function renderEmployeeView(){
     <button id="openLeaveFormBtn" style="display:block;width:100%;margin-bottom:14px;padding:11px 16px;border-radius:10px;border:2px solid #E8A33D;background:#FFF3D9;color:#966109;font-weight:800;font-size:14px;cursor:pointer;">🌴 ${ar ? "طلب إجازة سنوية" : "Apply for Annual Leave"}</button>
     <div class="card" style="padding:8px 6px 4px;">
       <table class="grid">
-        <colgroup><col style="width:15%;"><col style="width:27%;"><col style="width:33%;"><col style="width:20%;"></colgroup>
-        <thead><tr><th>${ar?"التاريخ":"Date"}</th><th>${ar?"الحالة":"Status"}</th><th>${ar?"المشروع":"Project"}</th><th>${ar?"إضافي":"OT"}</th></tr></thead>
+        <colgroup><col style="width:18%;"><col style="width:37%;"><col style="width:45%;"></colgroup>
+        <thead><tr><th>${ar?"التاريخ":"Date"}</th><th>${ar?"الحالة":"Status"}</th><th>${ar?"المشروع":"Project"}</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -2888,15 +2903,10 @@ function renderHrTimesheetReview(){
           ${projectOptions}
         </select>
       </td>
-      <td>
-        <div class="ot-stepper">
-          <button type="button" class="ot-btn hr-ts-ot-btn" data-date="${dstr}" data-dir="down">−</button>
-          <span class="ot-value">${(Number(v.overtime_hours)||0).toFixed(1)}</span>
-          <button type="button" class="ot-btn hr-ts-ot-btn" data-date="${dstr}" data-dir="up">+</button>
-        </div>
-      </td>
     </tr>`;
   }
+
+  const approvedOt = Number(state.hrTimesheetSubmission?.approved_ot_hours) || 0;
 
   return `
     <button class="back-link-glow" id="backToHrBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
@@ -2904,16 +2914,24 @@ function renderHrTimesheetReview(){
       <h3>${emp.name || ""}</h3>
       <div class="meta">${emp.employee_no || ""} ${emp.project_site ? "• " + emp.project_site : ""} • ${monthLabel(new Date(hy, hm-1, 1))}</div>
     </div>
-    <div class="status-banner status-submitted">✎ Editing here sends this timesheet back to the supervisor for re-approval.</div>
+    <div class="card" style="border:2px solid var(--blue-light);background:#F3F8FD;">
+      <div class="meta" style="font-weight:800;color:var(--navy);margin-bottom:6px;">💰 Approved OT hours (for salary calculation)</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="number" min="0" step="0.5" id="approvedOtInput" value="${approvedOt}" style="flex:1;padding:9px 10px;border:2px solid var(--line);border-radius:8px;font-size:14px;font-weight:700;">
+        <button class="btn btn-submit btn-sm" id="saveApprovedOtBtn" style="flex-shrink:0;">💾 Save</button>
+      </div>
+      <div class="meta" style="margin-top:6px;font-size:10.5px;">Entered directly by HR once OT is confirmed — saves immediately, no supervisor re-approval needed.</div>
+    </div>
+    <div class="status-banner status-submitted">✎ Editing status/project here sends this timesheet back to the supervisor for re-approval.</div>
     <div class="summary-grid">
       <div class="summary-item s-present"><div class="n">${totals.present}</div><div class="l">Present</div></div>
       <div class="summary-item s-absent"><div class="n">${totals.absent}</div><div class="l">Absent</div></div>
-      <div class="summary-item s-ot"><div class="n">${totals.ot.toFixed(1)}</div><div class="l">OT Hrs</div></div>
+      <div class="summary-item s-total"><div class="n">${(totals.regularHours + approvedOt).toFixed(1)}</div><div class="l">Total Hrs</div></div>
     </div>
     <div class="card" style="padding:8px 6px 4px;">
       <table class="grid">
-        <colgroup><col style="width:15%;"><col style="width:27%;"><col style="width:33%;"><col style="width:25%;"></colgroup>
-        <thead><tr><th>Date</th><th>Status</th><th>Project</th><th>OT</th></tr></thead>
+        <colgroup><col style="width:18%;"><col style="width:37%;"><col style="width:45%;"></colgroup>
+        <thead><tr><th>Date</th><th>Status</th><th>Project</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -3502,26 +3520,6 @@ function handleDelegatedClick(e){
 
   if(el("mySelfTimesheetBtn")){ state.view = "employee"; loadEmployeeMonth(); return; }
   if(el("downloadMyPdfBtn")){ downloadMyTimesheetPdf(); return; }
-  const hrTsOtBtnEarly = e.target.closest(".hr-ts-ot-btn");
-  if(hrTsOtBtnEarly){
-    const dstr = hrTsOtBtnEarly.getAttribute("data-date");
-    const dir = hrTsOtBtnEarly.getAttribute("data-dir");
-    const current = Number((state.hrTimesheetEntries[dstr] || {}).overtime_hours) || 0;
-    setHrEntry(dstr, "overtime_hours", stepOtValue(current, dir));
-    return;
-  }
-  const otBtn = e.target.closest(".ot-btn");
-  if(otBtn && !otBtn.disabled){
-    const dstr = otBtn.getAttribute("data-date");
-    if(!isDateEditable(dstr)){
-      toast("This entry period has expired — you can only fill in today and yesterday.");
-      return;
-    }
-    const dir = otBtn.getAttribute("data-dir");
-    const current = Number((state.entries[dstr] || {}).overtime_hours) || 0;
-    setEntry(dstr, "overtime_hours", stepOtValue(current, dir));
-    return;
-  }
   if(el("manageProjectsBtn")){ state.view = "hr-projects"; render(); return; }
   const deleteSubBtn = e.target.closest("[data-delete-sub]");
   if(deleteSubBtn){ deleteTimesheetSubmission(deleteSubBtn.getAttribute("data-delete-sub")); return; }
@@ -3594,6 +3592,7 @@ function handleDelegatedClick(e){
   const reviewHrTsEl = e.target.closest("[data-review-hr-timesheet]");
   if(reviewHrTsEl){ openHrTimesheetReview(reviewHrTsEl.getAttribute("data-review-hr-timesheet")); return; }
   if(el("saveHrTimesheetBtn")){ saveHrTimesheetEdit(); return; }
+  if(el("saveApprovedOtBtn")){ saveApprovedOt(); return; }
   const reviewLeaveEl = e.target.closest("[data-review-leave]");
   if(reviewLeaveEl){
     const reqId = reviewLeaveEl.getAttribute("data-review-leave");
@@ -3702,21 +3701,6 @@ async function handleAddProjectFromEmployee(dstr, selectEl){
   toast(`"${name}" added and selected.`);
 }
 
-const OT_ALLOWED = [0, 0.5, 1, 1.5, 2];
-for(let n=3; n<=50; n++) OT_ALLOWED.push(n);
-function stepOtValue(current, dir){
-  const idx = OT_ALLOWED.findIndex(v => Math.abs(v - current) < 0.001);
-  if(dir === "up"){
-    if(idx === -1) return OT_ALLOWED.find(v => v > current) ?? OT_ALLOWED[OT_ALLOWED.length-1];
-    return OT_ALLOWED[Math.min(idx+1, OT_ALLOWED.length-1)];
-  }else{
-    if(idx === -1){
-      const lower = [...OT_ALLOWED].reverse().find(v => v < current);
-      return lower !== undefined ? lower : 0;
-    }
-    return OT_ALLOWED[Math.max(idx-1, 0)];
-  }
-}
 function handleDelegatedInput(e){
   if(e.target.id === "remarksInput"){
     state.remarksDraft = e.target.value; // no re-render here, so the cursor position isn't lost while typing
