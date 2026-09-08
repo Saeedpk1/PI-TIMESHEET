@@ -3645,7 +3645,6 @@ function renderCombinedReports(){
   const isCeo = state.user.role === "ceo";
   const dateLabel = new Date(state.combinedReportsDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
   const isToday = state.combinedReportsDate === new Date().toISOString().slice(0,10);
-  const shortDate = new Date(state.combinedReportsDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
   const rows = state.combinedReports.map(r => {
     const team = (r.team_member_names || []);
@@ -3654,25 +3653,23 @@ function renderCombinedReports(){
       : "-";
     return `
     <tr>
-      <td style="font-weight:700;color:var(--ksa-green-dark);">${r.ts_projects?.name || "-"}</td>
+      <td style="font-weight:700;color:var(--ksa-green-dark);vertical-align:top;">${r.ts_projects?.name || "-"}</td>
       <td style="vertical-align:top;">${teamList}</td>
-      <td style="white-space:nowrap;">${shortDate}</td>
-      <td>${r.polished_notes || r.raw_notes || ""}</td>
-      <td style="text-align:center;font-weight:800;">${team.length}</td>
+      <td style="vertical-align:top;">${r.polished_notes || r.raw_notes || ""}</td>
+      <td style="text-align:center;font-weight:800;vertical-align:top;">${team.length}</td>
     </tr>`;
   }).join("");
 
   const body = state.combinedReports.length ? `
-    <div class="card" style="margin-top:6px;padding:6px 4px 2px;overflow-x:auto;border:2px solid var(--ksa-gold-light);">
-      <table class="grid" style="min-width:640px;">
-        <colgroup><col style="width:16%;"><col style="width:22%;"><col style="width:10%;"><col style="width:42%;"><col style="width:10%;"></colgroup>
+    <div class="card" style="margin-top:6px;padding:6px 4px 2px;border:2px solid var(--ksa-gold-light);">
+      <table class="grid" style="font-size:8px;">
+        <colgroup><col style="width:18%;"><col style="width:22%;"><col style="width:47%;"><col style="width:13%;"></colgroup>
         <thead>
           <tr>
             <th>Project</th>
             <th>Team</th>
-            <th>Date</th>
             <th>Progress</th>
-            <th>Total Emp</th>
+            <th>Emp</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
