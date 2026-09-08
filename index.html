@@ -110,6 +110,11 @@
     --friday:#D9480F;
     --radius:12px;
     --shadow:0 2px 10px rgba(15,53,86,0.08);
+    --ksa-green:#006C35;
+    --ksa-green-dark:#004D26;
+    --ksa-gold:#C9A227;
+    --ksa-gold-light:#E9D08F;
+    --ksa-cream:#FBF8F0;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -208,6 +213,63 @@
   tr.friday-row td{background:#FDF3EE;}
   tr.future-locked-row td{opacity:.5;}
   tr.future-locked-row select, tr.future-locked-row .ot-stepper{cursor:not-allowed;}
+
+  .ceo-hero{
+    background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));
+    border:2px solid var(--ksa-gold);
+    border-radius:16px;
+    padding:22px 18px;
+    margin-bottom:18px;
+    color:#fff;
+    position:relative;
+    overflow:hidden;
+    box-shadow:0 4px 16px rgba(0,77,38,0.25);
+  }
+  .ceo-hero::before{
+    content:"";
+    position:absolute; inset:0;
+    background-image:
+      linear-gradient(45deg, rgba(201,162,39,0.10) 25%, transparent 25%),
+      linear-gradient(-45deg, rgba(201,162,39,0.10) 25%, transparent 25%);
+    background-size:22px 22px;
+    pointer-events:none;
+  }
+  .ceo-hero .eyebrow{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--ksa-gold-light);font-weight:700;position:relative;}
+  .ceo-hero h2{margin:4px 0 2px;font-size:20px;font-weight:800;position:relative;}
+  .ceo-hero .sub{font-size:12.5px;color:rgba(255,255,255,0.88);position:relative;}
+  .ceo-tile{
+    display:flex; align-items:center; gap:14px;
+    background:var(--ksa-cream);
+    border:2px solid var(--ksa-gold-light);
+    border-radius:14px;
+    padding:16px;
+    margin-bottom:12px;
+    cursor:pointer;
+    transition:border-color .15s;
+  }
+  .ceo-tile:active{border-color:var(--ksa-gold);}
+  .ceo-tile .icon{
+    width:44px;height:44px;border-radius:10px;
+    background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));
+    display:flex;align-items:center;justify-content:center;
+    font-size:20px;flex-shrink:0;
+  }
+  .ceo-tile .body{flex:1;min-width:0;}
+  .ceo-tile .title{font-weight:800;font-size:14.5px;color:var(--ksa-green-dark);}
+  .ceo-tile .desc{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .ceo-tile .count{
+    background:var(--ksa-gold);color:#fff;font-weight:800;font-size:12px;
+    border-radius:999px;padding:3px 9px;flex-shrink:0;
+  }
+  .ceo-soon{
+    border:2px dashed var(--line);
+    border-radius:14px;
+    padding:16px;
+    text-align:center;
+    color:var(--muted);
+    font-size:12.5px;
+  }
+  .ceo-gold-btn{color:var(--ksa-green-dark) !important;}
 
   .status-banner{padding:12px 14px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px;border:2px solid transparent;}
   .status-draft{background:#F1F3F5;color:var(--muted);}
@@ -481,11 +543,11 @@ async function doLogin(iqama){
     const mohammed = (data || []).find(row => (row.iqama_number || "") === "1091504728");
     state.hrmSupervisorId = mohammed ? mohammed.id : null;
     await loadProjects();
-    state.view = match.role === "employee" ? "employee" : (match.role === "supervisor" ? "supervisor" : (match.role === "ceo" ? "ceo-leave-list" : "hr"));
+    state.view = match.role === "employee" ? "employee" : (match.role === "supervisor" ? "supervisor" : (match.role === "ceo" ? "ceo-home" : "hr"));
     if(state.view === "employee") await loadEmployeeMonth();
     if(state.view === "supervisor") await loadSupervisorList();
     if(state.view === "hr") await loadHrMonth();
-    if(state.view === "ceo-leave-list") await loadCeoLeaveRequests();
+    if(state.view === "ceo-home") await loadCeoLeaveRequests();
     render();
   }catch(e){
     state.loading = false;
@@ -2673,6 +2735,7 @@ function render(){
   else if(state.view === "hr-purchases-list") body = renderHrPurchasesList();
   else if(state.view === "supervisor-leave-review") body = renderSupervisorLeaveReview();
   else if(state.view === "hr-leave-review") body = renderHrLeaveReview();
+  else if(state.view === "ceo-home") body = renderCeoHome();
   else if(state.view === "ceo-leave-list") body = renderCeoLeaveList();
   else if(state.view === "ceo-leave-review") body = renderCeoLeaveReview();
 
@@ -3362,6 +3425,26 @@ function renderHrLeaveReview(){
   `;
 }
 
+function renderCeoHome(){
+  const pendingCount = state.ceoLeaveRequests.filter(r=>r.status==="sent_to_ceo").length;
+  return `
+    <div class="ceo-hero">
+      <div class="eyebrow">Professional Installation Co.</div>
+      <h2>مرحباً، ${state.user.name}</h2>
+      <div class="sub">Executive overview and approvals</div>
+    </div>
+    <div class="ceo-tile" id="openCeoLeaveBtn">
+      <div class="icon">🌴</div>
+      <div class="body">
+        <div class="title">Leave Requests</div>
+        <div class="desc">Review and approve applications sent by HR</div>
+      </div>
+      ${pendingCount ? `<div class="count">${pendingCount}</div>` : ""}
+    </div>
+    <div class="ceo-soon">More sections will appear here soon.</div>
+  `;
+}
+
 function renderCeoLeaveList(){
   const pending = state.ceoLeaveRequests.filter(r=>r.status==="sent_to_ceo");
   const others = state.ceoLeaveRequests.filter(r=>r.status!=="sent_to_ceo");
@@ -3380,11 +3463,12 @@ function renderCeoLeaveList(){
   }).join("");
 
   return `
-    <div class="card" style="padding:14px 16px;margin-bottom:14px;background:linear-gradient(135deg,#E7F1FC,#F3F8FD);border:2px solid var(--blue-light);">
-      <div style="font-weight:800;font-size:14.5px;color:var(--navy);">🌴 Leave Requests</div>
-      <div class="meta">Sent to you by HR for final approval.</div>
+    <button class="back-link-glow" id="backToCeoHomeBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);">
+      <div style="font-weight:800;font-size:14.5px;color:#fff;">🌴 Leave Requests</div>
+      <div class="meta" style="color:rgba(255,255,255,0.85);">Sent to you by HR for final approval.</div>
     </div>
-    <button class="link-btn install-link" id="sigSettingsBtn" style="color:var(--navy) !important;margin-bottom:14px;display:inline-block;">${state.savedSignature ? "✎ Update signature" : "✎ Set up signature"}</button>
+    <button class="link-btn install-link ceo-gold-btn" id="sigSettingsBtn" style="margin-bottom:14px;display:inline-block;">${state.savedSignature ? "✎ Update signature" : "✎ Set up signature"}</button>
     <div>${pending.map(r=>{
       const b = leaveBadgeInfo(r.status);
       return `
@@ -3696,7 +3780,7 @@ function handleDelegatedClick(e){
   if(el("backToTeamBtn")){
     if(state.user.role === "hr"){ state.view = "hr"; loadHrMonth(); }
     else if(state.user.role === "supervisor"){ state.view = "supervisor"; loadSupervisorList(); }
-    else if(state.user.role === "ceo"){ state.view = "ceo-leave-list"; loadCeoLeaveRequests(); }
+    else if(state.user.role === "ceo"){ state.view = "ceo-home"; loadCeoLeaveRequests(); }
     else { state.view = "employee"; loadEmployeeMonth(); }
     return;
   }
@@ -3795,6 +3879,8 @@ function handleDelegatedClick(e){
   const resendLeaveEl = e.target.closest("[data-resend-leave]");
   if(resendLeaveEl){ resendLeaveForEditing(resendLeaveEl.getAttribute("data-resend-leave")); return; }
   if(el("backToCeoLeaveListBtn")){ state.view = "ceo-leave-list"; loadCeoLeaveRequests(); return; }
+  if(el("openCeoLeaveBtn")){ state.view = "ceo-leave-list"; render(); return; }
+  if(el("backToCeoHomeBtn")){ state.view = "ceo-home"; loadCeoLeaveRequests(); return; }
   const viewLeaveCeoEl = e.target.closest("[data-view-leave-ceo]");
   if(viewLeaveCeoEl){
     const reqId = viewLeaveCeoEl.getAttribute("data-view-leave-ceo");
@@ -3931,11 +4017,11 @@ async function init(){
     const { data: mohammed } = await sb.from("ts_employees").select("id").eq("iqama_number", "1091504728").maybeSingle();
     state.hrmSupervisorId = mohammed ? mohammed.id : null;
     await loadProjects();
-    state.view = state.user.role === "employee" ? "employee" : (state.user.role === "supervisor" ? "supervisor" : (state.user.role === "ceo" ? "ceo-leave-list" : "hr"));
+    state.view = state.user.role === "employee" ? "employee" : (state.user.role === "supervisor" ? "supervisor" : (state.user.role === "ceo" ? "ceo-home" : "hr"));
     if(state.view === "employee") await loadEmployeeMonth();
     else if(state.view === "supervisor") await loadSupervisorList();
     else if(state.view === "hr") await loadHrMonth();
-    else if(state.view === "ceo-leave-list") await loadCeoLeaveRequests();
+    else if(state.view === "ceo-home") await loadCeoLeaveRequests();
   }
   render();
 }
