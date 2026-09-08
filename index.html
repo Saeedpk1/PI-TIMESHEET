@@ -3649,10 +3649,13 @@ function renderCombinedReports(){
 
   const rows = state.combinedReports.map(r => {
     const team = (r.team_member_names || []);
+    const teamList = team.length
+      ? team.map((n,i) => `${i+1}. ${firstName(n)}`).join("<br>")
+      : "-";
     return `
     <tr>
       <td style="font-weight:700;color:var(--ksa-green-dark);">${r.ts_projects?.name || "-"}</td>
-      <td>${team.map(firstName).join(", ") || "-"}</td>
+      <td style="vertical-align:top;">${teamList}</td>
       <td style="white-space:nowrap;">${shortDate}</td>
       <td>${r.polished_notes || r.raw_notes || ""}</td>
       <td style="text-align:center;font-weight:800;">${team.length}</td>
