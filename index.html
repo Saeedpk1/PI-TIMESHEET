@@ -206,6 +206,8 @@
   .ot-stepper .ot-value{flex:1;text-align:center;font-size:8.5px;font-weight:800;color:var(--blue);}
   .basic-hrs-display{text-align:center;font-size:10px;font-weight:800;color:var(--blue);background:#F3F8FD;border:2px solid var(--blue-light);border-radius:6px;padding:3px 2px;}
   tr.friday-row td{background:#FDF3EE;}
+  tr.future-locked-row td{opacity:.5;}
+  tr.future-locked-row select, tr.future-locked-row .ot-stepper{cursor:not-allowed;}
 
   .status-banner{padding:12px 14px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px;border:2px solid transparent;}
   .status-draft{background:#F1F3F5;color:var(--muted);}
@@ -525,8 +527,21 @@ async function loadEmployeeMonth(){
   render();
 }
 
+function isDateEditable(dstr){
+  const [y,m,d] = dstr.split("-").map(Number);
+  const entryDate = new Date(y, m-1, d);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate()+1);
+  return entryDate <= tomorrow;
+}
+
 function setEntry(dstr, field, value){
   if(!state.entries[dstr]) return;
+  if(!isDateEditable(dstr)){
+    toast("You can only fill in attendance up to tomorrow — this day isn't open yet.");
+    renderMain();
+    return;
+  }
   state.entries[dstr][field] = value;
   renderMain();
 }
@@ -2643,11 +2658,12 @@ function renderEmployeeView(){
     const dstr = fmtDate(y,m,day);
     const v = state.entries[dstr] || { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0, project_id: "" };
     const fri = isFriday(y,m,day);
+    const futureLocked = !isDateEditable(dstr);
     const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${v.project_id===p.id?"selected":""}>${p.name}</option>`).join("") + `<option value="__new__">${ar ? "+ جديد…" : "+ New…"}</option>`;
     const dayLabel = ar ? AR_DAY_SHORT[new Date(y,m,day).getDay()] : dayName(y,m,day);
     rows += `
-    <tr class="${fri?'friday-row':''}">
-      <td class="date-cell">${String(day).padStart(2,"0")}<small>${dayLabel}</small></td>
+    <tr class="${fri?'friday-row':''}${futureLocked?' future-locked-row':''}">
+      <td class="date-cell">${String(day).padStart(2,"0")}<small>${dayLabel}</small>${futureLocked ? `<span title="${ar ? "غير متاح بعد" : "Not open yet"}" style="opacity:.55;">🔒</span>` : ""}</td>
       <td>
         <select class="status-select st-${v.status}" data-date="${dstr}" data-field="status" ${locked?"disabled":""}>
           <option value="Present" ${v.status==="Present"?"selected":""}>${ar ? "حاضر" : "Present"}</option>
@@ -3489,6 +3505,10 @@ function handleDelegatedClick(e){
   const otBtn = e.target.closest(".ot-btn");
   if(otBtn && !otBtn.disabled){
     const dstr = otBtn.getAttribute("data-date");
+    if(!isDateEditable(dstr)){
+      toast("You can only fill in attendance up to tomorrow — this day isn't open yet.");
+      return;
+    }
     const dir = otBtn.getAttribute("data-dir");
     const current = Number((state.entries[dstr] || {}).overtime_hours) || 0;
     setEntry(dstr, "overtime_hours", stepOtValue(current, dir));
