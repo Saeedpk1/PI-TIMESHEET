@@ -330,7 +330,7 @@ let state = {
   hrTimesheetSubmission: null,
   hrmSupervisorId: null, // Mohammed Mutlaq Al Morqi's id, for the separate SAUDI TIME SHEET export
   myLeaveRequests: [],
-  leaveFormDraft: { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", photoDataUrl: "", photoCircleDataUrl: "" },
+  leaveFormDraft: { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", hasSiteId: false, photoDataUrl: "", photoCircleDataUrl: "" },
   supervisorLeaveRequests: [],
   hrLeaveRequests: [],
   ceoLeaveRequests: [],
@@ -743,6 +743,7 @@ function startEditLeaveRequest(reqId){
     lastDay: req.last_day || "",
     hasToolBox: req.has_tool_box === true ? "yes" : (req.has_tool_box === false ? "no" : ""),
     toolBoxHandoverTo: req.tool_box_handover_to || "",
+    hasSiteId: req.has_site_id === true,
     photoDataUrl: req.employee_photo || "",
     photoCircleDataUrl: req.employee_photo_circle || "",
     existingSignature: req.employee_signature || ""
@@ -753,7 +754,7 @@ function startEditLeaveRequest(reqId){
 function cancelEditLeaveRequest(){
   state.editingLeaveRequestId = null;
   leaveSigSnapshot = null;
-  state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", photoDataUrl: "", photoCircleDataUrl: "", existingSignature: "" };
+  state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", hasSiteId: false, photoDataUrl: "", photoCircleDataUrl: "", existingSignature: "" };
   render();
 }
 
@@ -814,6 +815,7 @@ async function submitLeaveRequest(){
     last_day: f.lastDay,
     number_of_days: days,
     has_tool_box: f.hasToolBox === "yes" ? true : (f.hasToolBox === "no" ? false : null),
+    has_site_id: !!f.hasSiteId,
     tool_box_handover_to: f.toolBoxHandoverTo || null,
     employee_signature: signatureData,
     employee_photo: f.photoDataUrl || null,
@@ -842,7 +844,7 @@ async function submitLeaveRequest(){
   state.loading = false;
   toast(error ? "Could not submit. Try again." : (isEditing ? "Leave application updated and resubmitted." : "Leave application submitted to your supervisor."));
   if(!error){
-    state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", photoDataUrl: "", photoCircleDataUrl: "", existingSignature: "" };
+    state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", hasSiteId: false, photoDataUrl: "", photoCircleDataUrl: "", existingSignature: "" };
     leaveSigHasStroke = false;
     leaveSigSnapshot = null;
     state.editingLeaveRequestId = null;
@@ -1109,8 +1111,7 @@ async function generateLeavePdf(reqId){
 
     // ---- Section A: Employee Details ----
     sectionHeader("A", "Employee Details");
-    const lastVacDuration = humanDuration(req.last_vacation_date, req.application_date);
-    cardBody(lastVacDuration ? 100 : 72);
+    cardBody(72);
     const colW = CONTENT_W / 2;
     fieldPair("Employee Name", emp?.name || "-", MARGIN + 14, y + 20, colW);
     fieldPair("ID No / Iqama", emp?.iqama_number || "-", MARGIN + colW + 4, y + 20, colW - 60);
@@ -1127,12 +1128,7 @@ async function generateLeavePdf(reqId){
       doc.setDrawColor(...BLUE); doc.setLineWidth(1.2);
       doc.circle(pcx, pcy, pr, "S");
     }
-    if(lastVacDuration){
-      fieldPair("Time Since Last Vacation", lastVacDuration, MARGIN + 14, y + 76, colW);
-      y += 100 + 14;
-    }else{
-      y += 72 + 14;
-    }
+    y += 72 + 14;
 
     doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(...GREY);
     doc.text(`Mobile: ${req.mobile_number || "-"}     Home Mobile: ${req.home_mobile_number || "-"}`, MARGIN, y);
@@ -1155,13 +1151,19 @@ async function generateLeavePdf(reqId){
 
     // ---- Section C: Employee Declaration ----
     sectionHeader("C", "Employee Declaration");
-    cardBody(90);
+    cardBody(100);
     doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(...INK);
     const hasBox = req.has_tool_box === true ? "YES" : req.has_tool_box === false ? "NO" : "-";
+    const hasSiteId = req.has_site_id === true ? "YES" : req.has_site_id === false ? "NO" : "-";
     const declColW = colW - 20;
     doc.text(`I have a tool box:  ${hasBox}`, MARGIN + 14, y + 20, { maxWidth: declColW });
     const handoverLines = doc.splitTextToSize(`I will hand over the complete tool box to Mr. ${req.tool_box_handover_to || "-"} — if any tool is missing, the amount will be deducted from my salary.`, declColW);
     doc.text(handoverLines, MARGIN + 14, y + 38);
+    doc.text(`I have my Site ID:  ${hasSiteId}`, MARGIN + 14, y + 74, { maxWidth: declColW });
+    if(req.has_site_id === true){
+      doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(...INK);
+      doc.text("I will hand over my Site ID to my supervisor.", MARGIN + 14, y + 88, { maxWidth: declColW });
+    }
 
     const sigBoxX = MARGIN + colW + 10, sigBoxW = colW - 24, sigBoxH = 46, sigBoxY = y + 18;
     doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(...GREY);
@@ -1175,12 +1177,12 @@ async function generateLeavePdf(reqId){
       doc.setFont("helvetica","italic"); doc.setFontSize(8); doc.setTextColor(...GREY);
       doc.text("No signature on file", sigBoxX + 8, sigBoxY + sigBoxH/2 + 3);
     }
-    y += 90 + 16;
+    y += 100 + 16;
 
     // ---- Section D: 1st Approval ----
     sectionHeader("D", "1st Approval — Supervisor");
     cardBody(90);
-    fieldPair("Line Manager", supName, MARGIN + 14, y + 20, colW);
+    fieldPair("Supervisor", supName, MARGIN + 14, y + 20, colW);
     fieldPair("Approved On", req.supervisor_approved_at ? new Date(req.supervisor_approved_at).toLocaleDateString() : "-", MARGIN + colW + 4, y + 20, colW);
     doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(...GREY);
     doc.text("SUPERVISOR SIGNATURE", MARGIN + 14, y + 44);
@@ -1193,40 +1195,23 @@ async function generateLeavePdf(reqId){
     }
     y += 90 + 16;
 
-    // ---- Section E: 2nd Approval ----
-    sectionHeader("E", "2nd Approval — Employer / HR");
-    cardBody(50);
-    const hrApproved = req.status === "hr_approved" || req.status === "sent_to_ceo" || req.status === "ceo_approved";
+    // ---- Section E: 2nd Approval — CEO ----
+    sectionHeader("E", "2nd Approval — CEO");
+    cardBody(70);
+    const ceoApproved = req.status === "ceo_approved";
     doc.setFont("helvetica","bold"); doc.setFontSize(10.5);
-    doc.setTextColor(...(hrApproved ? GREEN : GREY));
-    doc.text(hrApproved ? "Employer Authorization Granted" : "Pending Employer Authorization", MARGIN + 14, y + 22);
+    doc.setTextColor(...(ceoApproved ? GREEN : GREY));
+    doc.text(ceoApproved ? "CEO Approval Granted" : "Pending CEO Approval", MARGIN + 14, y + 22);
     doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(...INK);
-    doc.text(`Date: ${req.hr_approved_at ? new Date(req.hr_approved_at).toLocaleDateString() : "-"}`, MARGIN + 14, y + 38);
-    if(req.status === "rejected" && req.hr_rejection_reason){
+    doc.text(`Date: ${req.ceo_approved_at ? new Date(req.ceo_approved_at).toLocaleDateString() : "-"}`, MARGIN + 14, y + 38);
+    doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(...GREY);
+    doc.text("CEO SIGNATURE", MARGIN + colW + 4, y + 24);
+    doc.setDrawColor(200,210,222); doc.setLineWidth(0.7);
+    doc.rect(MARGIN + colW + 4, y + 28, colW - 20, 28);
+    if(req.ceo_signature){ try{ doc.addImage(req.ceo_signature, "PNG", MARGIN + colW + 8, y + 30, colW - 28, 24); }catch(e){ console.error("CEO signature draw error:", e); } }
+    if(req.status === "rejected" && req.ceo_rejection_reason){
       doc.setFont("helvetica","italic"); doc.setFontSize(8.5); doc.setTextColor(...RED);
-      doc.text(`Rejected: ${req.hr_rejection_reason}`, MARGIN + colW + 4, y + 30, { maxWidth: colW - 14 });
-    }
-    y += 50 + 16;
-
-    // ---- Section F: 3rd Approval — CEO ----
-    if(req.sent_to_ceo_at){
-      sectionHeader("F", "3rd Approval — CEO");
-      cardBody(70);
-      const ceoApproved = req.status === "ceo_approved";
-      doc.setFont("helvetica","bold"); doc.setFontSize(10.5);
-      doc.setTextColor(...(ceoApproved ? GREEN : GREY));
-      doc.text(ceoApproved ? "CEO Approval Granted" : "Pending CEO Approval", MARGIN + 14, y + 22);
-      doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(...INK);
-      doc.text(`Date: ${req.ceo_approved_at ? new Date(req.ceo_approved_at).toLocaleDateString() : "-"}`, MARGIN + 14, y + 38);
-      doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(...GREY);
-      doc.text("CEO SIGNATURE", MARGIN + colW + 4, y + 24);
-      doc.setDrawColor(200,210,222); doc.setLineWidth(0.7);
-      doc.rect(MARGIN + colW + 4, y + 28, colW - 20, 28);
-      if(req.ceo_signature){ try{ doc.addImage(req.ceo_signature, "PNG", MARGIN + colW + 8, y + 30, colW - 28, 24); }catch(e){ console.error("CEO signature draw error:", e); } }
-      if(req.status === "rejected" && req.ceo_rejection_reason){
-        doc.setFont("helvetica","italic"); doc.setFontSize(8.5); doc.setTextColor(...RED);
-        doc.text(`Rejected: ${req.ceo_rejection_reason}`, MARGIN + 14, y + 58, { maxWidth: colW - 20 });
-      }
+      doc.text(`Rejected: ${req.ceo_rejection_reason}`, MARGIN + 14, y + 58, { maxWidth: colW - 20 });
     }
 
     stampFooters(doc);
@@ -3203,6 +3188,14 @@ function renderLeaveForm(){
       <div class="field-note">If any tool is missing, the amount will be deducted from my salary.</div>
     </div>
 
+    <div class="remarks-card" style="margin-top:12px;">
+      <label style="margin-top:0;color:#966109;">🪪 Site ID Declaration</label>
+      <div class="checklist">
+        <label><input type="checkbox" id="leaveSiteIdChk" ${f.hasSiteId?"checked":""}> I have my Site ID</label>
+      </div>
+      ${f.hasSiteId ? `<div class="field-note">I will hand over my Site ID to my supervisor.</div>` : ""}
+    </div>
+
     <label style="margin-top:16px;">✍️ Employee Signature</label>
     ${isEditing ? `<div class="field-note">Your previous signature is shown below — leave as-is or clear and re-sign.</div>` : ""}
     <div class="sig-pad-wrap"><canvas id="leaveSigCanvas"></canvas></div>
@@ -3249,7 +3242,7 @@ function renderLeaveReviewModal(req){
       <div class="meta">Applied ${req.application_date} • Last vacation: ${req.last_vacation_date || "-"}</div>
       <div class="meta">Mobile: ${req.mobile_number || "-"} ${req.home_mobile_number ? "• Home: " + req.home_mobile_number : ""}</div>
       <div style="margin-top:10px;font-size:14px;"><b>${req.first_day} → ${req.last_day}</b> (${req.number_of_days} day${req.number_of_days===1?"":"s"})</div>
-      <div class="meta" style="margin-top:6px;">Tool box: ${req.has_tool_box===true?"Yes":req.has_tool_box===false?"No":"-"} ${req.tool_box_handover_to ? "• Handover to: " + req.tool_box_handover_to : ""}</div>
+      <div class="meta" style="margin-top:6px;">Tool box: ${req.has_tool_box===true?"Yes":req.has_tool_box===false?"No":"-"} ${req.tool_box_handover_to ? "• Handover to: " + req.tool_box_handover_to : ""} • Site ID: ${req.has_site_id===true?"Yes":req.has_site_id===false?"No":"-"}</div>
       ${req.employee_signature ? `<div class="sig-preview" style="margin-top:10px;"><img src="${req.employee_signature}" alt="Employee signature"></div>` : ""}
     </div>
   `;
@@ -3420,9 +3413,15 @@ function renderCeoLeaveReview(){
   const req = state.selectedLeaveRequest;
   if(!req) return `<div class="empty-state">Nothing selected.</div>`;
   const actionable = req.status === "sent_to_ceo";
+  const lastVacDuration = humanDuration(req.last_vacation_date, req.application_date);
   return `
     <button class="back-link-glow" id="backToCeoLeaveListBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     ${renderLeaveReviewModal(req)}
+    ${lastVacDuration ? `
+    <div class="card" style="margin-top:10px;border:2px solid var(--blue-light);">
+      <div class="meta">Time since last vacation</div>
+      <div style="font-size:15px;font-weight:800;color:var(--navy);margin-top:2px;">${lastVacDuration}</div>
+    </div>` : ""}
     ${req.supervisor_signature ? `
     <div class="card" style="margin-top:10px;">
       <div class="meta">Supervisor signature</div>
@@ -3855,6 +3854,7 @@ function handleDelegatedChange(e){
   if(e.target.id === "leaveFirstDay"){ state.leaveFormDraft.firstDay = e.target.value; render(); return; }
   if(e.target.id === "leaveLastDay"){ state.leaveFormDraft.lastDay = e.target.value; render(); return; }
   if(e.target.name === "hasToolBox"){ state.leaveFormDraft.hasToolBox = e.target.value; return; }
+  if(e.target.id === "leaveSiteIdChk"){ state.leaveFormDraft.hasSiteId = e.target.checked; return; }
   if(e.target.id === "purchaseDate"){ state.purchaseFormDraft.purchaseDate = e.target.value; return; }
   if(e.target.id === "purchaseCategory"){ state.purchaseFormDraft.category = e.target.value; return; }
   if(e.target.id === "purchaseProject"){ state.purchaseFormDraft.projectId = e.target.value; return; }
