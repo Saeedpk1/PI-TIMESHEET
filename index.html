@@ -396,9 +396,8 @@ let state = {
   supervisorLeaveRequests: [],
   hrLeaveRequests: [],
   ceoLeaveRequests: [],
-  dailyReportDraft: { supervisorId: "", projectId: "", teamIds: [], rawText: "", polishedText: "", polishing: false, absentCount: "" },
-  hrReportSupervisors: [],
-  hrReportTeam: [],
+  dailyReportDraft: { projectId: "", teamIds: [], absentIds: [], rawText: "", polishedText: "", polishing: false },
+  allEmployeesForReport: [],
   myDailyReportsToday: [],
   editingDailyReportId: null,
   combinedReportsDate: new Date().toISOString().slice(0,10),
@@ -1503,27 +1502,19 @@ async function scanPurchaseBill(file){
 
 /* ---------------- Daily project reports ---------------- */
 function resetDailyReportDraft(){
-  state.dailyReportDraft = { supervisorId: "", projectId: "", teamIds: [], rawText: "", polishedText: "", polishing: false, absentCount: "" };
+  state.dailyReportDraft = { projectId: "", teamIds: [], absentIds: [], rawText: "", polishedText: "", polishing: false };
   state.editingDailyReportId = null;
-  state.hrReportTeam = [];
 }
 
-async function loadHrReportSupervisors(){
-  const { data } = await sb.from("ts_employees").select("*").eq("role", "supervisor").eq("active", true).order("name");
-  state.hrReportSupervisors = data || [];
-}
-
-async function loadHrReportTeam(supervisorId){
-  if(!supervisorId){ state.hrReportTeam = []; render(); return; }
-  const { data } = await sb.from("ts_employees").select("*").eq("supervisor_id", supervisorId).eq("active", true).order("name");
-  state.hrReportTeam = data || [];
-  render();
+async function loadAllEmployeesForReport(){
+  const { data } = await sb.from("ts_employees").select("*").eq("active", true).order("name");
+  state.allEmployeesForReport = data || [];
 }
 
 async function loadMyDailyReportsToday(){
   const today = new Date().toISOString().slice(0,10);
   const { data } = await sb.from("ts_daily_reports")
-    .select("*, ts_projects:project_id(name), ts_employees:supervisor_id(name)")
+    .select("*, ts_projects:project_id(name)")
     .eq("report_date", today)
     .order("created_at", { ascending: false });
   state.myDailyReportsToday = data || [];
@@ -1533,7 +1524,7 @@ async function polishDailyReport(){
   const d = state.dailyReportDraft;
   if(!d.rawText || !d.rawText.trim()){ toast("Write a quick note first."); return; }
   const project = state.projects.find(p=>p.id===d.projectId);
-  const teamNames = state.hrReportTeam.filter(e=>d.teamIds.includes(e.id)).map(e=>e.name);
+  const teamNames = state.allEmployeesForReport.filter(e=>d.teamIds.includes(e.id)).map(e=>e.name);
   d.polishing = true; render();
   try{
     const resp = await fetch(`${SUPABASE_URL}/functions/v1/smart-endpoint`, {
@@ -1556,18 +1547,20 @@ async function polishDailyReport(){
 
 async function saveDailyReport(){
   const d = state.dailyReportDraft;
-  if(!d.supervisorId){ toast("Select a supervisor."); return; }
   if(!d.projectId){ toast("Select a project."); return; }
   if(!d.teamIds.length){ toast("Select at least one team member."); return; }
   if(!d.rawText || !d.rawText.trim()){ toast("Write today's progress note."); return; }
-  const teamNames = state.hrReportTeam.filter(e=>d.teamIds.includes(e.id)).map(e=>e.name);
+  const teamNames = state.allEmployeesForReport.filter(e=>d.teamIds.includes(e.id)).map(e=>e.name);
+  const absentNames = state.allEmployeesForReport.filter(e=>d.absentIds.includes(e.id)).map(e=>e.name);
   const payload = {
-    supervisor_id: d.supervisorId,
+    supervisor_id: state.user.id,
     report_date: new Date().toISOString().slice(0,10),
     project_id: d.projectId,
     team_member_ids: d.teamIds,
     team_member_names: teamNames,
-    absent_count: Math.max(0, Number(d.absentCount) || 0),
+    absent_ids: d.absentIds,
+    absent_names: absentNames,
+    absent_count: absentNames.length,
     raw_notes: d.rawText,
     polished_notes: d.polishedText || d.rawText,
     updated_at: new Date().toISOString()
@@ -1582,10 +1575,7 @@ async function saveDailyReport(){
   state.loading = false;
   toast(error ? "Could not save. Try again." : "Progress report saved.");
   if(!error){
-    const keepSupervisor = d.supervisorId;
     resetDailyReportDraft();
-    state.dailyReportDraft.supervisorId = keepSupervisor;
-    await loadHrReportTeam(keepSupervisor);
     await loadMyDailyReportsToday();
   }
   render();
@@ -1596,15 +1586,13 @@ function startEditDailyReport(reportId){
   if(!r) return;
   state.editingDailyReportId = reportId;
   state.dailyReportDraft = {
-    supervisorId: r.supervisor_id || "",
     projectId: r.project_id || "",
     teamIds: r.team_member_ids || [],
+    absentIds: r.absent_ids || [],
     rawText: r.raw_notes || "",
     polishedText: r.polished_notes || "",
-    polishing: false,
-    absentCount: r.absent_count != null ? String(r.absent_count) : ""
+    polishing: false
   };
-  loadHrReportTeam(r.supervisor_id);
   render();
 }
 
@@ -3084,17 +3072,20 @@ function renderSupervisorList(){
 function renderDailyReportForm(){
   const d = state.dailyReportDraft;
   const isEditing = !!state.editingDailyReportId;
-  const supervisorOptions = state.hrReportSupervisors.map(s => `<option value="${s.id}" ${d.supervisorId===s.id?"selected":""}>${s.name}</option>`).join("");
   const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${d.projectId===p.id?"selected":""}>${p.name}</option>`).join("");
-  const teamChecks = state.hrReportTeam.map(e => `
+  const teamChecks = state.allEmployeesForReport.map(e => `
     <label><input type="checkbox" class="daily-report-team-chk" value="${e.id}" ${d.teamIds.includes(e.id)?"checked":""}> ${e.name}</label>
-  `).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>${d.supervisorId ? "No team members under this supervisor." : "Select a supervisor first."}</div>`;
+  `).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>No employees found.</div>`;
+  const absentChecks = state.allEmployeesForReport.map(e => `
+    <label><input type="checkbox" class="daily-report-absent-chk" value="${e.id}" ${d.absentIds.includes(e.id)?"checked":""}> ${e.name}</label>
+  `).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>No employees found.</div>`;
 
   const todayReportsHtml = state.myDailyReportsToday.map(r => `
     <div class="emp-list-item li-approved">
       <div style="flex:1;min-width:0;">
-        <div class="name">${r.ts_projects?.name || "Project"} <span style="font-weight:400;color:var(--muted);">— ${r.ts_employees?.name || ""}</span></div>
-        <div class="sub">${(r.team_member_names||[]).join(", ")}${r.absent_count ? ` • Absent: ${r.absent_count}` : ""}</div>
+        <div class="name">${r.ts_projects?.name || "Project"}</div>
+        <div class="sub">${(r.team_member_names||[]).join(", ")}</div>
+        ${(r.absent_names||[]).length ? `<div class="sub" style="color:var(--absent);">Absent: ${(r.absent_names||[]).join(", ")}</div>` : ""}
         <div class="sub" style="margin-top:4px;font-style:italic;">${r.polished_notes || r.raw_notes || ""}</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:4px;">
@@ -3110,13 +3101,7 @@ function renderDailyReportForm(){
       <div class="meta" style="color:rgba(255,255,255,0.85);">${new Date().toDateString()}</div>
     </div>
 
-    <label style="margin-top:14px;">Supervisor</label>
-    <select id="dailyReportSupervisor">
-      <option value="">Select supervisor</option>
-      ${supervisorOptions}
-    </select>
-
-    <label style="margin-top:12px;">Project</label>
+    <label style="margin-top:14px;">Project</label>
     <select id="dailyReportProject">
       <option value="">Select project</option>
       ${projectOptions}
@@ -3127,8 +3112,10 @@ function renderDailyReportForm(){
       ${teamChecks}
     </div>
 
-    <label style="margin-top:12px;">How many absent today (on this project)</label>
-    <input type="number" min="0" step="1" id="dailyReportAbsent" value="${d.absentCount}" placeholder="0">
+    <label style="margin-top:12px;">Absent today</label>
+    <div class="checklist" style="background:#FDF3F1;border:2px solid #F3C9C0;border-radius:10px;padding:12px;max-height:220px;overflow-y:auto;">
+      ${absentChecks}
+    </div>
 
     <label style="margin-top:12px;">Today's progress (rough notes)</label>
     <textarea id="dailyReportRaw" rows="3" placeholder="e.g. template installation and shifting">${d.rawText}</textarea>
@@ -3690,41 +3677,41 @@ function renderCombinedReports(){
   let totalEmp = 0, totalAbsent = 0;
   const rows = state.combinedReports.map(r => {
     const team = (r.team_member_names || []);
-    const absent = Number(r.absent_count) || 0;
+    const absentNames = (r.absent_names || []);
     totalEmp += team.length;
-    totalAbsent += absent;
+    totalAbsent += absentNames.length;
     const teamList = team.length
       ? team.map((n,i) => `${i+1}. ${firstName(n)}`).join("<br>")
       : "-";
+    const absentList = absentNames.length
+      ? `<div style="margin-top:6px;font-weight:700;color:var(--absent);">Absent:</div>` + absentNames.map((n,i) => `${i+1}. ${firstName(n)}`).join("<br>")
+      : "";
     const bg = colorForProjectName(r.ts_projects?.name || "");
     return `
     <tr>
       <td style="font-weight:700;color:var(--ksa-green-dark);vertical-align:top;background:${bg};">${r.ts_projects?.name || "-"}</td>
-      <td style="vertical-align:top;background:${bg};">${teamList}</td>
+      <td style="vertical-align:top;background:${bg};">${teamList}${absentList}</td>
       <td style="vertical-align:top;background:${bg};">${r.polished_notes || r.raw_notes || ""}</td>
-      <td style="text-align:center;font-weight:800;vertical-align:top;background:${bg};">${team.length}</td>
-      <td style="text-align:center;font-weight:800;vertical-align:top;background:${bg};color:var(--absent);">${absent}</td>
+      <td style="text-align:center;font-weight:800;vertical-align:top;background:${bg};">${team.length}${absentNames.length ? `<div style="font-weight:700;color:var(--absent);font-size:8px;">(${absentNames.length} abs)</div>` : ""}</td>
     </tr>`;
   }).join("");
 
   const totalsRow = state.combinedReports.length ? `
     <tr>
       <td colspan="3" style="font-weight:800;background:var(--ksa-gold-light);color:var(--ksa-green-dark);text-align:right;">TOTAL</td>
-      <td style="text-align:center;font-weight:800;background:var(--ksa-gold-light);color:var(--ksa-green-dark);">${totalEmp}</td>
-      <td style="text-align:center;font-weight:800;background:var(--ksa-gold-light);color:var(--absent);">${totalAbsent}</td>
+      <td style="text-align:center;font-weight:800;background:var(--ksa-gold-light);color:var(--ksa-green-dark);">${totalEmp}${totalAbsent ? `<div style="font-weight:700;color:var(--absent);font-size:8px;">(${totalAbsent} abs)</div>` : ""}</td>
     </tr>` : "";
 
   const body = state.combinedReports.length ? `
     <div class="card" style="margin-top:6px;padding:6px 4px 2px;border:2px solid var(--ksa-gold-light);">
       <table class="grid" style="font-size:8px;">
-        <colgroup><col style="width:16%;"><col style="width:20%;"><col style="width:42%;"><col style="width:11%;"><col style="width:11%;"></colgroup>
+        <colgroup><col style="width:16%;"><col style="width:26%;"><col style="width:45%;"><col style="width:13%;"></colgroup>
         <thead>
           <tr>
             <th>Project</th>
             <th>Team</th>
             <th>Progress</th>
             <th>Emp</th>
-            <th>Absent</th>
           </tr>
         </thead>
         <tbody>${rows}${totalsRow}</tbody>
@@ -4189,7 +4176,7 @@ function handleDelegatedClick(e){
   if(el("openDailyReportBtn")){
     resetDailyReportDraft();
     state.view = "daily-report-form";
-    Promise.all([loadHrReportSupervisors(), loadMyDailyReportsToday()]).then(render);
+    Promise.all([loadAllEmployeesForReport(), loadMyDailyReportsToday()]).then(render);
     return;
   }
 
@@ -4269,18 +4256,19 @@ function handleDelegatedChange(e){
   if(e.target.id === "leaveLastDay"){ state.leaveFormDraft.lastDay = e.target.value; render(); return; }
   if(e.target.name === "hasToolBox"){ state.leaveFormDraft.hasToolBox = e.target.value; return; }
   if(e.target.id === "leaveSiteIdChk"){ state.leaveFormDraft.hasSiteId = e.target.checked; return; }
-  if(e.target.id === "dailyReportSupervisor"){
-    state.dailyReportDraft.supervisorId = e.target.value;
-    state.dailyReportDraft.teamIds = [];
-    loadHrReportTeam(e.target.value);
-    return;
-  }
   if(e.target.id === "dailyReportProject"){ state.dailyReportDraft.projectId = e.target.value; return; }
   if(e.target.classList.contains("daily-report-team-chk")){
     const id = e.target.value;
     const ids = state.dailyReportDraft.teamIds;
     if(e.target.checked){ if(!ids.includes(id)) ids.push(id); }
     else{ state.dailyReportDraft.teamIds = ids.filter(x=>x!==id); }
+    return;
+  }
+  if(e.target.classList.contains("daily-report-absent-chk")){
+    const id = e.target.value;
+    const ids = state.dailyReportDraft.absentIds;
+    if(e.target.checked){ if(!ids.includes(id)) ids.push(id); }
+    else{ state.dailyReportDraft.absentIds = ids.filter(x=>x!==id); }
     return;
   }
   if(e.target.id === "purchaseDate"){ state.purchaseFormDraft.purchaseDate = e.target.value; return; }
@@ -4334,7 +4322,7 @@ function handleDelegatedInput(e){
   if(e.target.id === "purchaseNotes"){ state.purchaseFormDraft.notes = e.target.value; }
   if(e.target.id === "dailyReportRaw"){ state.dailyReportDraft.rawText = e.target.value; }
   if(e.target.id === "dailyReportPolished"){ state.dailyReportDraft.polishedText = e.target.value; }
-  if(e.target.id === "dailyReportAbsent"){ state.dailyReportDraft.absentCount = e.target.value; }
+
 }
 
 function attachViewEvents(){
