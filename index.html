@@ -396,7 +396,7 @@ let state = {
   supervisorLeaveRequests: [],
   hrLeaveRequests: [],
   ceoLeaveRequests: [],
-  dailyReportDraft: { projectId: "", teamIds: [], rawText: "", polishedText: "", polishing: false },
+  dailyReportDraft: { projectId: "", teamIds: [], rawText: "", polishedText: "", polishing: false, absentCount: "" },
   myDailyReportsToday: [],
   editingDailyReportId: null,
   combinedReportsDate: new Date().toISOString().slice(0,10),
@@ -1501,7 +1501,7 @@ async function scanPurchaseBill(file){
 
 /* ---------------- Daily project reports ---------------- */
 function resetDailyReportDraft(){
-  state.dailyReportDraft = { projectId: "", teamIds: [], rawText: "", polishedText: "", polishing: false };
+  state.dailyReportDraft = { projectId: "", teamIds: [], rawText: "", polishedText: "", polishing: false, absentCount: "" };
   state.editingDailyReportId = null;
 }
 
@@ -1551,6 +1551,7 @@ async function saveDailyReport(){
     project_id: d.projectId,
     team_member_ids: d.teamIds,
     team_member_names: teamNames,
+    absent_count: Math.max(0, Number(d.absentCount) || 0),
     raw_notes: d.rawText,
     polished_notes: d.polishedText || d.rawText,
     updated_at: new Date().toISOString()
@@ -1580,7 +1581,8 @@ function startEditDailyReport(reportId){
     teamIds: r.team_member_ids || [],
     rawText: r.raw_notes || "",
     polishedText: r.polished_notes || "",
-    polishing: false
+    polishing: false,
+    absentCount: r.absent_count != null ? String(r.absent_count) : ""
   };
   render();
 }
@@ -3071,7 +3073,7 @@ function renderDailyReportForm(){
     <div class="emp-list-item li-approved">
       <div style="flex:1;min-width:0;">
         <div class="name">${r.ts_projects?.name || "Project"}</div>
-        <div class="sub">${(r.team_member_names||[]).join(", ")}</div>
+        <div class="sub">${(r.team_member_names||[]).join(", ")}${r.absent_count ? ` • Absent: ${r.absent_count}` : ""}</div>
         <div class="sub" style="margin-top:4px;font-style:italic;">${r.polished_notes || r.raw_notes || ""}</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:4px;">
@@ -3097,6 +3099,9 @@ function renderDailyReportForm(){
     <div class="checklist" style="background:#F8FAFC;border:2px solid var(--line);border-radius:10px;padding:12px;max-height:220px;overflow-y:auto;">
       ${teamChecks}
     </div>
+
+    <label style="margin-top:12px;">How many absent today (on this project)</label>
+    <input type="number" min="0" step="1" id="dailyReportAbsent" value="${d.absentCount}" placeholder="0">
 
     <label style="margin-top:12px;">Today's progress (rough notes)</label>
     <textarea id="dailyReportRaw" rows="3" placeholder="e.g. template installation and shifting">${d.rawText}</textarea>
@@ -3641,38 +3646,60 @@ function renderCeoHome(){
   `;
 }
 
+const PROJECT_ROW_COLORS = ["#FDECEA","#EAF6ED","#EAF1FC","#FDF6E3","#F3EAFB","#E9F7F5","#FDEDF3","#F0F4E8"];
+function colorForProjectName(name){
+  let hash = 0;
+  const s = name || "";
+  for(let i=0;i<s.length;i++) hash = (hash*31 + s.charCodeAt(i)) >>> 0;
+  return PROJECT_ROW_COLORS[hash % PROJECT_ROW_COLORS.length];
+}
+
 function renderCombinedReports(){
   const isCeo = state.user.role === "ceo";
   const dateLabel = new Date(state.combinedReportsDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
   const isToday = state.combinedReportsDate === new Date().toISOString().slice(0,10);
 
+  let totalEmp = 0, totalAbsent = 0;
   const rows = state.combinedReports.map(r => {
     const team = (r.team_member_names || []);
+    const absent = Number(r.absent_count) || 0;
+    totalEmp += team.length;
+    totalAbsent += absent;
     const teamList = team.length
       ? team.map((n,i) => `${i+1}. ${firstName(n)}`).join("<br>")
       : "-";
+    const bg = colorForProjectName(r.ts_projects?.name || "");
     return `
     <tr>
-      <td style="font-weight:700;color:var(--ksa-green-dark);vertical-align:top;">${r.ts_projects?.name || "-"}</td>
-      <td style="vertical-align:top;">${teamList}</td>
-      <td style="vertical-align:top;">${r.polished_notes || r.raw_notes || ""}</td>
-      <td style="text-align:center;font-weight:800;vertical-align:top;">${team.length}</td>
+      <td style="font-weight:700;color:var(--ksa-green-dark);vertical-align:top;background:${bg};">${r.ts_projects?.name || "-"}</td>
+      <td style="vertical-align:top;background:${bg};">${teamList}</td>
+      <td style="vertical-align:top;background:${bg};">${r.polished_notes || r.raw_notes || ""}</td>
+      <td style="text-align:center;font-weight:800;vertical-align:top;background:${bg};">${team.length}</td>
+      <td style="text-align:center;font-weight:800;vertical-align:top;background:${bg};color:var(--absent);">${absent}</td>
     </tr>`;
   }).join("");
+
+  const totalsRow = state.combinedReports.length ? `
+    <tr>
+      <td colspan="3" style="font-weight:800;background:var(--ksa-gold-light);color:var(--ksa-green-dark);text-align:right;">TOTAL</td>
+      <td style="text-align:center;font-weight:800;background:var(--ksa-gold-light);color:var(--ksa-green-dark);">${totalEmp}</td>
+      <td style="text-align:center;font-weight:800;background:var(--ksa-gold-light);color:var(--absent);">${totalAbsent}</td>
+    </tr>` : "";
 
   const body = state.combinedReports.length ? `
     <div class="card" style="margin-top:6px;padding:6px 4px 2px;border:2px solid var(--ksa-gold-light);">
       <table class="grid" style="font-size:8px;">
-        <colgroup><col style="width:18%;"><col style="width:22%;"><col style="width:47%;"><col style="width:13%;"></colgroup>
+        <colgroup><col style="width:16%;"><col style="width:20%;"><col style="width:42%;"><col style="width:11%;"><col style="width:11%;"></colgroup>
         <thead>
           <tr>
             <th>Project</th>
             <th>Team</th>
             <th>Progress</th>
             <th>Emp</th>
+            <th>Absent</th>
           </tr>
         </thead>
-        <tbody>${rows}</tbody>
+        <tbody>${rows}${totalsRow}</tbody>
       </table>
     </div>
   ` : `<div class="empty-state"><div class="ic">📋</div>No reports for this day yet.</div>`;
@@ -4268,6 +4295,7 @@ function handleDelegatedInput(e){
   if(e.target.id === "purchaseNotes"){ state.purchaseFormDraft.notes = e.target.value; }
   if(e.target.id === "dailyReportRaw"){ state.dailyReportDraft.rawText = e.target.value; }
   if(e.target.id === "dailyReportPolished"){ state.dailyReportDraft.polishedText = e.target.value; }
+  if(e.target.id === "dailyReportAbsent"){ state.dailyReportDraft.absentCount = e.target.value; }
 }
 
 function attachViewEvents(){
