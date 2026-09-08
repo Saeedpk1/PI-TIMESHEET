@@ -396,7 +396,9 @@ let state = {
   supervisorLeaveRequests: [],
   hrLeaveRequests: [],
   ceoLeaveRequests: [],
-  dailyReportDraft: { projectId: "", teamIds: [], rawText: "", polishedText: "", polishing: false, absentCount: "" },
+  dailyReportDraft: { supervisorId: "", projectId: "", teamIds: [], rawText: "", polishedText: "", polishing: false, absentCount: "" },
+  hrReportSupervisors: [],
+  hrReportTeam: [],
   myDailyReportsToday: [],
   editingDailyReportId: null,
   combinedReportsDate: new Date().toISOString().slice(0,10),
@@ -1501,15 +1503,28 @@ async function scanPurchaseBill(file){
 
 /* ---------------- Daily project reports ---------------- */
 function resetDailyReportDraft(){
-  state.dailyReportDraft = { projectId: "", teamIds: [], rawText: "", polishedText: "", polishing: false, absentCount: "" };
+  state.dailyReportDraft = { supervisorId: "", projectId: "", teamIds: [], rawText: "", polishedText: "", polishing: false, absentCount: "" };
   state.editingDailyReportId = null;
+  state.hrReportTeam = [];
+}
+
+async function loadHrReportSupervisors(){
+  const { data } = await sb.from("ts_employees").select("*").eq("role", "supervisor").eq("active", true).order("name");
+  state.hrReportSupervisors = data || [];
+}
+
+async function loadHrReportTeam(supervisorId){
+  if(!supervisorId){ state.hrReportTeam = []; render(); return; }
+  const { data } = await sb.from("ts_employees").select("*").eq("supervisor_id", supervisorId).eq("active", true).order("name");
+  state.hrReportTeam = data || [];
+  render();
 }
 
 async function loadMyDailyReportsToday(){
   const today = new Date().toISOString().slice(0,10);
   const { data } = await sb.from("ts_daily_reports")
-    .select("*, ts_projects:project_id(name)")
-    .eq("supervisor_id", state.user.id).eq("report_date", today)
+    .select("*, ts_projects:project_id(name), ts_employees:supervisor_id(name)")
+    .eq("report_date", today)
     .order("created_at", { ascending: false });
   state.myDailyReportsToday = data || [];
 }
@@ -1518,7 +1533,7 @@ async function polishDailyReport(){
   const d = state.dailyReportDraft;
   if(!d.rawText || !d.rawText.trim()){ toast("Write a quick note first."); return; }
   const project = state.projects.find(p=>p.id===d.projectId);
-  const teamNames = state.supervisorEmployees.filter(e=>d.teamIds.includes(e.id)).map(e=>e.name);
+  const teamNames = state.hrReportTeam.filter(e=>d.teamIds.includes(e.id)).map(e=>e.name);
   d.polishing = true; render();
   try{
     const resp = await fetch(`${SUPABASE_URL}/functions/v1/smart-endpoint`, {
@@ -1541,12 +1556,13 @@ async function polishDailyReport(){
 
 async function saveDailyReport(){
   const d = state.dailyReportDraft;
+  if(!d.supervisorId){ toast("Select a supervisor."); return; }
   if(!d.projectId){ toast("Select a project."); return; }
   if(!d.teamIds.length){ toast("Select at least one team member."); return; }
   if(!d.rawText || !d.rawText.trim()){ toast("Write today's progress note."); return; }
-  const teamNames = state.supervisorEmployees.filter(e=>d.teamIds.includes(e.id)).map(e=>e.name);
+  const teamNames = state.hrReportTeam.filter(e=>d.teamIds.includes(e.id)).map(e=>e.name);
   const payload = {
-    supervisor_id: state.user.id,
+    supervisor_id: d.supervisorId,
     report_date: new Date().toISOString().slice(0,10),
     project_id: d.projectId,
     team_member_ids: d.teamIds,
@@ -1566,7 +1582,10 @@ async function saveDailyReport(){
   state.loading = false;
   toast(error ? "Could not save. Try again." : "Progress report saved.");
   if(!error){
+    const keepSupervisor = d.supervisorId;
     resetDailyReportDraft();
+    state.dailyReportDraft.supervisorId = keepSupervisor;
+    await loadHrReportTeam(keepSupervisor);
     await loadMyDailyReportsToday();
   }
   render();
@@ -1577,6 +1596,7 @@ function startEditDailyReport(reportId){
   if(!r) return;
   state.editingDailyReportId = reportId;
   state.dailyReportDraft = {
+    supervisorId: r.supervisor_id || "",
     projectId: r.project_id || "",
     teamIds: r.team_member_ids || [],
     rawText: r.raw_notes || "",
@@ -1584,6 +1604,7 @@ function startEditDailyReport(reportId){
     polishing: false,
     absentCount: r.absent_count != null ? String(r.absent_count) : ""
   };
+  loadHrReportTeam(r.supervisor_id);
   render();
 }
 
@@ -3055,8 +3076,7 @@ function renderSupervisorList(){
       <button class="link-btn install-link" id="sigSettingsBtn" style="color:#FFE7B0 !important;">${ar ? (state.savedSignature ? "✎ تحديث التوقيع" : "✎ إعداد التوقيع") : (state.savedSignature ? "✎ Update signature" : "✎ Set up signature")}</button>
     </div>
     <button id="openSupervisorLeaveListBtn" style="display:block;width:100%;margin-bottom:10px;padding:10px 16px;border-radius:10px;border:2px solid #E8A33D;background:#FFF3D9;color:#966109;font-weight:800;font-size:13.5px;cursor:pointer;">🌴 ${ar ? "طلبات الإجازة" : "Leave Requests"}</button>
-    <button id="openPurchaseFormBtn" style="display:block;width:100%;margin-bottom:10px;padding:10px 16px;border-radius:10px;border:2px solid #1B7A6B;background:#EAF6F3;color:#125C4F;font-weight:800;font-size:13.5px;cursor:pointer;">🧾 ${ar ? "تسجيل مشتريات" : "Record Purchase"}</button>
-    <button id="openDailyReportBtn" style="display:block;width:100%;margin-bottom:14px;padding:10px 16px;border-radius:10px;border:2px solid var(--ksa-gold);background:var(--ksa-cream);color:var(--ksa-green-dark);font-weight:800;font-size:13.5px;cursor:pointer;">📋 ${ar ? "تقرير التقدم اليومي" : "Daily Progress Report"}</button>
+    <button id="openPurchaseFormBtn" style="display:block;width:100%;margin-bottom:14px;padding:10px 16px;border-radius:10px;border:2px solid #1B7A6B;background:#EAF6F3;color:#125C4F;font-weight:800;font-size:13.5px;cursor:pointer;">🧾 ${ar ? "تسجيل مشتريات" : "Record Purchase"}</button>
     <div>${rows}</div>
   `;
 }
@@ -3064,15 +3084,16 @@ function renderSupervisorList(){
 function renderDailyReportForm(){
   const d = state.dailyReportDraft;
   const isEditing = !!state.editingDailyReportId;
+  const supervisorOptions = state.hrReportSupervisors.map(s => `<option value="${s.id}" ${d.supervisorId===s.id?"selected":""}>${s.name}</option>`).join("");
   const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${d.projectId===p.id?"selected":""}>${p.name}</option>`).join("");
-  const teamChecks = state.supervisorEmployees.map(e => `
+  const teamChecks = state.hrReportTeam.map(e => `
     <label><input type="checkbox" class="daily-report-team-chk" value="${e.id}" ${d.teamIds.includes(e.id)?"checked":""}> ${e.name}</label>
-  `).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>No team members yet.</div>`;
+  `).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>${d.supervisorId ? "No team members under this supervisor." : "Select a supervisor first."}</div>`;
 
   const todayReportsHtml = state.myDailyReportsToday.map(r => `
     <div class="emp-list-item li-approved">
       <div style="flex:1;min-width:0;">
-        <div class="name">${r.ts_projects?.name || "Project"}</div>
+        <div class="name">${r.ts_projects?.name || "Project"} <span style="font-weight:400;color:var(--muted);">— ${r.ts_employees?.name || ""}</span></div>
         <div class="sub">${(r.team_member_names||[]).join(", ")}${r.absent_count ? ` • Absent: ${r.absent_count}` : ""}</div>
         <div class="sub" style="margin-top:4px;font-style:italic;">${r.polished_notes || r.raw_notes || ""}</div>
       </div>
@@ -3083,13 +3104,19 @@ function renderDailyReportForm(){
     </div>`).join("");
 
   return `
-    <button class="back-link-glow" id="backToSupervisorBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    <button class="back-link-glow" id="backToHrBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);">
-      <h3 style="color:#fff;">📋 Today's Progress Report</h3>
+      <h3 style="color:#fff;">📋 Daily Progress Report</h3>
       <div class="meta" style="color:rgba(255,255,255,0.85);">${new Date().toDateString()}</div>
     </div>
 
-    <label style="margin-top:14px;">Project</label>
+    <label style="margin-top:14px;">Supervisor</label>
+    <select id="dailyReportSupervisor">
+      <option value="">Select supervisor</option>
+      ${supervisorOptions}
+    </select>
+
+    <label style="margin-top:12px;">Project</label>
     <select id="dailyReportProject">
       <option value="">Select project</option>
       ${projectOptions}
@@ -3309,7 +3336,8 @@ function renderHrView(){
     <button class="btn btn-primary btn-compact" id="wpsPiSaudiBtn" style="margin-top:8px;background:linear-gradient(135deg,#0F3556,#1B5A96);">🏦 Generate WPS Payroll — PI + Saudi</button>
     <button class="btn btn-primary btn-compact" id="wpsAlFalakBtn" style="margin-top:5px;background:linear-gradient(135deg,#4A2E0F,#6B4423);">🏦 Generate WPS Payroll — Al Falak</button>
     <button class="btn btn-outline btn-compact" id="openHrPurchasesBtn" style="margin-top:5px;border-color:#1B7A6B;color:#125C4F;">🧾 Purchase / Expense Approvals</button>
-    <button class="btn btn-outline btn-compact" id="openCombinedReportsBtn" style="margin-top:5px;border-color:var(--ksa-gold);color:var(--ksa-green-dark);">📋 Daily Progress Reports</button>
+    <button class="btn btn-primary btn-compact" id="openDailyReportBtn" style="margin-top:5px;background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));">📋 Add Daily Progress Report</button>
+    <button class="btn btn-outline btn-compact" id="openCombinedReportsBtn" style="margin-top:5px;border-color:var(--ksa-gold);color:var(--ksa-green-dark);">👁 View Daily Progress Reports</button>
   `;
 }
 
@@ -4158,8 +4186,13 @@ function handleDelegatedClick(e){
   if(el("backToCeoLeaveListBtn")){ state.view = "ceo-leave-list"; loadCeoLeaveRequests(); return; }
   if(el("openCeoLeaveBtn")){ state.view = "ceo-leave-list"; render(); return; }
   if(el("backToCeoHomeBtn")){ state.view = "ceo-home"; loadCeoLeaveRequests(); return; }
-  if(el("openDailyReportBtn")){ resetDailyReportDraft(); state.view = "daily-report-form"; loadMyDailyReportsToday().then(render); return; }
-  if(el("backToSupervisorBtn")){ resetDailyReportDraft(); state.view = "supervisor"; loadSupervisorList(); return; }
+  if(el("openDailyReportBtn")){
+    resetDailyReportDraft();
+    state.view = "daily-report-form";
+    Promise.all([loadHrReportSupervisors(), loadMyDailyReportsToday()]).then(render);
+    return;
+  }
+
   if(el("polishReportBtn")){ polishDailyReport(); return; }
   if(el("saveDailyReportBtn")){ saveDailyReport(); return; }
   if(el("cancelDailyReportBtn")){ resetDailyReportDraft(); render(); return; }
@@ -4236,6 +4269,12 @@ function handleDelegatedChange(e){
   if(e.target.id === "leaveLastDay"){ state.leaveFormDraft.lastDay = e.target.value; render(); return; }
   if(e.target.name === "hasToolBox"){ state.leaveFormDraft.hasToolBox = e.target.value; return; }
   if(e.target.id === "leaveSiteIdChk"){ state.leaveFormDraft.hasSiteId = e.target.checked; return; }
+  if(e.target.id === "dailyReportSupervisor"){
+    state.dailyReportDraft.supervisorId = e.target.value;
+    state.dailyReportDraft.teamIds = [];
+    loadHrReportTeam(e.target.value);
+    return;
+  }
   if(e.target.id === "dailyReportProject"){ state.dailyReportDraft.projectId = e.target.value; return; }
   if(e.target.classList.contains("daily-report-team-chk")){
     const id = e.target.value;
