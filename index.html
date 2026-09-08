@@ -333,6 +333,7 @@ let state = {
   leaveFormDraft: { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", photoDataUrl: "", photoCircleDataUrl: "" },
   supervisorLeaveRequests: [],
   hrLeaveRequests: [],
+  ceoLeaveRequests: [],
   selectedLeaveRequest: null,
   myPurchases: [],
   purchaseFormDraft: { purchaseDate: "", category: "", itemDescription: "", projectId: "", billNo: "", vendorName: "", amount: "", hasVat: true, paymentMethod: "", notes: "", receiptPhoto: "" },
@@ -480,10 +481,11 @@ async function doLogin(iqama){
     const mohammed = (data || []).find(row => (row.iqama_number || "") === "1091504728");
     state.hrmSupervisorId = mohammed ? mohammed.id : null;
     await loadProjects();
-    state.view = match.role === "employee" ? "employee" : (match.role === "supervisor" ? "supervisor" : "hr");
+    state.view = match.role === "employee" ? "employee" : (match.role === "supervisor" ? "supervisor" : (match.role === "ceo" ? "ceo-leave-list" : "hr"));
     if(state.view === "employee") await loadEmployeeMonth();
     if(state.view === "supervisor") await loadSupervisorList();
     if(state.view === "hr") await loadHrMonth();
+    if(state.view === "ceo-leave-list") await loadCeoLeaveRequests();
     render();
   }catch(e){
     state.loading = false;
@@ -923,7 +925,7 @@ async function rejectLeaveSupervisor(reqId){
 async function loadHrLeaveRequests(){
   const { data } = await sb.from("ts_leave_requests")
     .select("*, ts_employees:employee_id(name, employee_no, project_site, iqama_number)")
-    .in("status", ["supervisor_approved","hr_approved","rejected"]).order("created_at", { ascending: false });
+    .in("status", ["supervisor_approved","hr_approved","sent_to_ceo","ceo_approved","rejected"]).order("created_at", { ascending: false });
   state.hrLeaveRequests = data || [];
 }
 
@@ -953,6 +955,18 @@ async function rejectLeaveHr(reqId){
   render();
 }
 
+async function sendLeaveToCeo(reqId){
+  state.loading = true; render();
+  const { error } = await sb.from("ts_leave_requests").update({
+    status: "sent_to_ceo", sent_to_ceo_at: new Date().toISOString(), updated_at: new Date().toISOString()
+  }).eq("id", reqId);
+  state.loading = false;
+  toast(error ? "Could not send to CEO. Try again." : "Sent to the CEO for approval.");
+  if(!error && state.view === "hr-leave-review") state.view = "hr-leave-list";
+  await loadHrLeaveRequests();
+  render();
+}
+
 async function deleteLeaveRequestHr(reqId){
   const req = state.hrLeaveRequests.find(r=>r.id===reqId);
   const name = req?.ts_employees?.name || "this employee";
@@ -965,6 +979,49 @@ async function deleteLeaveRequestHr(reqId){
   render();
 }
 
+/* ---------------- CEO flow ---------------- */
+async function loadCeoLeaveRequests(){
+  state.loading = true; render();
+  const [{ data }, { data: sig }] = await Promise.all([
+    sb.from("ts_leave_requests")
+      .select("*, ts_employees:employee_id(name, employee_no, project_site, iqama_number)")
+      .not("sent_to_ceo_at", "is", null).order("created_at", { ascending: false }),
+    sb.from("ts_supervisor_signatures").select("*").eq("supervisor_id", state.user.id).maybeSingle()
+  ]);
+  state.ceoLeaveRequests = data || [];
+  state.savedSignature = sig ? sig.signature_data : null;
+  state.loading = false;
+  render();
+}
+
+async function approveLeaveCeo(reqId){
+  if(!state.savedSignature){ toast("Save your signature first."); return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_leave_requests").update({
+    status: "ceo_approved", ceo_approved_at: new Date().toISOString(),
+    ceo_signature: state.savedSignature, updated_at: new Date().toISOString()
+  }).eq("id", reqId);
+  state.loading = false;
+  toast(error ? "Could not approve. Try again." : "Leave request approved.");
+  if(!error && state.view === "ceo-leave-review") state.view = "ceo-leave-list";
+  await loadCeoLeaveRequests();
+  render();
+}
+
+async function rejectLeaveCeo(reqId){
+  const reason = prompt("Reason for rejecting this leave request:");
+  if(reason === null) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_leave_requests").update({
+    status: "rejected", ceo_rejection_reason: reason, updated_at: new Date().toISOString()
+  }).eq("id", reqId);
+  state.loading = false;
+  toast(error ? "Could not reject. Try again." : "Leave request rejected.");
+  if(!error && state.view === "ceo-leave-review") state.view = "ceo-leave-list";
+  await loadCeoLeaveRequests();
+  render();
+}
+
 async function resendLeaveForEditing(reqId){
   const reason = prompt("Note for the employee (why it needs editing):");
   if(reason === null) return;
@@ -973,6 +1030,7 @@ async function resendLeaveForEditing(reqId){
     status: "submitted",
     supervisor_approved_at: null, supervisor_signature: null, supervisor_rejection_reason: null,
     hr_approved_at: null, hr_approved_by: null, hr_rejection_reason: null,
+    sent_to_ceo_at: null, ceo_approved_at: null, ceo_signature: null, ceo_rejection_reason: null,
     hr_note: reason || "Please review and correct the details.",
     updated_at: new Date().toISOString()
   }).eq("id", reqId);
@@ -1138,7 +1196,7 @@ async function generateLeavePdf(reqId){
     // ---- Section E: 2nd Approval ----
     sectionHeader("E", "2nd Approval — Employer / HR");
     cardBody(50);
-    const hrApproved = req.status === "hr_approved";
+    const hrApproved = req.status === "hr_approved" || req.status === "sent_to_ceo" || req.status === "ceo_approved";
     doc.setFont("helvetica","bold"); doc.setFontSize(10.5);
     doc.setTextColor(...(hrApproved ? GREEN : GREY));
     doc.text(hrApproved ? "Employer Authorization Granted" : "Pending Employer Authorization", MARGIN + 14, y + 22);
@@ -1147,6 +1205,28 @@ async function generateLeavePdf(reqId){
     if(req.status === "rejected" && req.hr_rejection_reason){
       doc.setFont("helvetica","italic"); doc.setFontSize(8.5); doc.setTextColor(...RED);
       doc.text(`Rejected: ${req.hr_rejection_reason}`, MARGIN + colW + 4, y + 30, { maxWidth: colW - 14 });
+    }
+    y += 50 + 16;
+
+    // ---- Section F: 3rd Approval — CEO ----
+    if(req.sent_to_ceo_at){
+      sectionHeader("F", "3rd Approval — CEO");
+      cardBody(70);
+      const ceoApproved = req.status === "ceo_approved";
+      doc.setFont("helvetica","bold"); doc.setFontSize(10.5);
+      doc.setTextColor(...(ceoApproved ? GREEN : GREY));
+      doc.text(ceoApproved ? "CEO Approval Granted" : "Pending CEO Approval", MARGIN + 14, y + 22);
+      doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(...INK);
+      doc.text(`Date: ${req.ceo_approved_at ? new Date(req.ceo_approved_at).toLocaleDateString() : "-"}`, MARGIN + 14, y + 38);
+      doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(...GREY);
+      doc.text("CEO SIGNATURE", MARGIN + colW + 4, y + 24);
+      doc.setDrawColor(200,210,222); doc.setLineWidth(0.7);
+      doc.rect(MARGIN + colW + 4, y + 28, colW - 20, 28);
+      if(req.ceo_signature){ try{ doc.addImage(req.ceo_signature, "PNG", MARGIN + colW + 8, y + 30, colW - 28, 24); }catch(e){ console.error("CEO signature draw error:", e); } }
+      if(req.status === "rejected" && req.ceo_rejection_reason){
+        doc.setFont("helvetica","italic"); doc.setFontSize(8.5); doc.setTextColor(...RED);
+        doc.text(`Rejected: ${req.ceo_rejection_reason}`, MARGIN + 14, y + 58, { maxWidth: colW - 20 });
+      }
     }
 
     stampFooters(doc);
@@ -2608,6 +2688,8 @@ function render(){
   else if(state.view === "hr-purchases-list") body = renderHrPurchasesList();
   else if(state.view === "supervisor-leave-review") body = renderSupervisorLeaveReview();
   else if(state.view === "hr-leave-review") body = renderHrLeaveReview();
+  else if(state.view === "ceo-leave-list") body = renderCeoLeaveList();
+  else if(state.view === "ceo-leave-review") body = renderCeoLeaveReview();
 
   root.innerHTML = header + `<main>${body}</main>` + renderPhotoOverlay();
   attachViewEvents();
@@ -2630,7 +2712,7 @@ function renderMain(){
 }
 
 function renderHeader(){
-  const roleLabel = state.user.iqama_number === "1091504728" ? "HR Manager" : ({ employee:"Employee", supervisor:"Supervisor", hr:"HR" }[state.user.role] || "");
+  const roleLabel = state.user.iqama_number === "1091504728" ? "HR Manager" : ({ employee:"Employee", supervisor:"Supervisor", hr:"HR", ceo:"CEO" }[state.user.role] || "");
   return `
   <header class="top">
     <button class="logout" id="logoutBtn">Log out</button>
@@ -2852,11 +2934,12 @@ function renderSupervisorReview(){
 }
 
 function renderSignaturePad(){
+  const isCeo = state.user.role === "ceo";
   return `
-    <button class="back-link-glow" id="backToListBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back to team</button>
+    <button class="back-link-glow" id="${isCeo ? "backToCeoLeaveListBtn" : "backToListBtn"}" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     <div class="card">
       <h3>Your signature</h3>
-      <div class="meta">Saved once, reused every time you approve a timesheet.</div>
+      <div class="meta">Saved once, reused every time you approve.</div>
     </div>
     ${state.savedSignature ? `
     <div class="sig-preview" style="margin-bottom:14px;">
@@ -3035,6 +3118,8 @@ function leaveBadgeInfo(status){
     submitted: { cls: "badge-submitted", label: "Awaiting supervisor" },
     supervisor_approved: { cls: "badge-submitted", label: "Awaiting HR" },
     hr_approved: { cls: "badge-approved", label: "Fully approved" },
+    sent_to_ceo: { cls: "badge-submitted", label: "Sent to CEO" },
+    ceo_approved: { cls: "badge-approved", label: "Approved by CEO" },
     rejected: { cls: "badge-rejected", label: "Rejected" }
   }[status] || { cls: "badge-draft", label: status };
 }
@@ -3173,11 +3258,13 @@ function renderLeaveReviewModal(req){
 function renderHrLeaveList(){
   const pending = state.hrLeaveRequests.filter(r=>r.status==="supervisor_approved");
   const others = state.hrLeaveRequests.filter(r=>r.status!=="supervisor_approved");
+  const approvedish = new Set(["hr_approved","sent_to_ceo","ceo_approved"]);
   const rowHtml = (r, actionable) => {
     const b = leaveBadgeInfo(r.status);
-    const canResend = r.status === "supervisor_approved" || r.status === "hr_approved";
+    const canResend = r.status === "supervisor_approved" || r.status === "hr_approved" || r.status === "sent_to_ceo" || r.status === "ceo_approved";
+    const canSendToCeo = r.status === "hr_approved" && !r.sent_to_ceo_at;
     return `
-    <div class="emp-list-item li-${r.status==='hr_approved'?'approved':(r.status==='rejected'?'rejected':'submitted')}" style="flex-wrap:wrap;">
+    <div class="emp-list-item li-${approvedish.has(r.status)?'approved':(r.status==='rejected'?'rejected':'submitted')}" style="flex-wrap:wrap;">
       <div style="flex:1;min-width:0;">
         <div class="name">${r.ts_employees?.name || ""}</div>
         <div class="sub">${r.first_day} → ${r.last_day} (${r.number_of_days} day${r.number_of_days===1?"":"s"})</div>
@@ -3189,17 +3276,18 @@ function renderHrLeaveList(){
           <button class="link-btn" data-approve-leave-hr="${r.id}" style="color:var(--present) !important;">✓ Approve</button>
           <button class="link-btn" data-reject-leave-hr="${r.id}" style="color:var(--absent) !important;">✕ Reject</button>
         ` : ""}
-        ${r.status === "hr_approved" ? `<button class="link-btn" data-download-leave="${r.id}">⬇ PDF</button>` : ""}
+        ${canSendToCeo ? `<button class="link-btn" data-send-leave-ceo="${r.id}" style="color:#8A5A1C !important;">📤 Send to CEO</button>` : ""}
+        ${(r.status === "hr_approved" || r.status === "ceo_approved") ? `<button class="link-btn" data-download-leave="${r.id}">⬇ PDF</button>` : ""}
         ${canResend ? `<button class="link-btn" data-resend-leave="${r.id}" style="color:#966109 !important;">↩️ Resend for editing</button>` : ""}
         <button class="link-btn" data-delete-leave-hr="${r.id}" style="color:var(--absent) !important;">🗑 Remove</button>
       </div>
     </div>`;
   };
 
-  const shortStatusLabel = { submitted: "Pending", supervisor_approved: "Pending HR", hr_approved: "Approved", rejected: "Rejected" };
+  const shortStatusLabel = { submitted: "Pending", supervisor_approved: "Pending HR", hr_approved: "Approved", sent_to_ceo: "Sent to CEO", ceo_approved: "CEO Approved", rejected: "Rejected" };
   const historyTableRows = others.map(r => {
     const b = leaveBadgeInfo(r.status);
-    const canResend = r.status === "supervisor_approved" || r.status === "hr_approved";
+    const canResend = r.status === "supervisor_approved" || r.status === "hr_approved" || r.status === "sent_to_ceo" || r.status === "ceo_approved";
     return `
     <tr>
       <td style="font-weight:700;white-space:nowrap;font-size:10px;">${firstLastName(r.ts_employees?.name)}</td>
@@ -3207,7 +3295,8 @@ function renderHrLeaveList(){
       <td><span class="badge ${b.cls}" style="white-space:nowrap;font-size:8px;padding:2px 5px;">${shortStatusLabel[r.status] || r.status}</span></td>
       <td style="white-space:nowrap;">
         <button class="link-btn" data-view-leave-hr="${r.id}" style="color:var(--blue) !important;font-size:12px;padding:0 2px;" title="View">👁</button>
-        ${r.status === "hr_approved" ? `<button class="link-btn" data-download-leave="${r.id}" style="font-size:12px;padding:0 2px;" title="Download PDF">⬇</button>` : ""}
+        ${(r.status === "hr_approved" && !r.sent_to_ceo_at) ? `<button class="link-btn" data-send-leave-ceo="${r.id}" style="color:#8A5A1C !important;font-size:12px;padding:0 2px;" title="Send to CEO">📤</button>` : ""}
+        ${(r.status === "hr_approved" || r.status === "ceo_approved") ? `<button class="link-btn" data-download-leave="${r.id}" style="font-size:12px;padding:0 2px;" title="Download PDF">⬇</button>` : ""}
         ${canResend ? `<button class="link-btn" data-resend-leave="${r.id}" style="color:#966109 !important;font-size:12px;padding:0 2px;" title="Resend for editing">↩</button>` : ""}
         <button class="link-btn" data-delete-leave-hr="${r.id}" style="color:var(--absent) !important;font-size:12px;padding:0 2px;" title="Remove">🗑</button>
       </td>
@@ -3253,7 +3342,8 @@ function renderHrLeaveReview(){
   const req = state.selectedLeaveRequest;
   if(!req) return `<div class="empty-state">Nothing selected.</div>`;
   const actionable = req.status === "supervisor_approved";
-  const canResend = req.status === "supervisor_approved" || req.status === "hr_approved";
+  const canResend = req.status === "supervisor_approved" || req.status === "hr_approved" || req.status === "sent_to_ceo" || req.status === "ceo_approved";
+  const canSendToCeo = req.status === "hr_approved" && !req.sent_to_ceo_at;
   return `
     <button class="back-link-glow" id="backToHrLeaveListBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     ${renderLeaveReviewModal(req)}
@@ -3262,14 +3352,91 @@ function renderHrLeaveReview(){
       <div class="meta">Supervisor signature</div>
       <div class="sig-preview" style="margin-top:6px;"><img src="${req.supervisor_signature}" alt="Supervisor signature"></div>
     </div>` : ""}
+    ${req.ceo_signature ? `
+    <div class="card" style="margin-top:10px;">
+      <div class="meta">CEO signature — approved ${req.ceo_approved_at ? new Date(req.ceo_approved_at).toLocaleDateString() : ""}</div>
+      <div class="sig-preview" style="margin-top:6px;"><img src="${req.ceo_signature}" alt="CEO signature"></div>
+    </div>` : req.status === "sent_to_ceo" ? `<div class="status-banner status-submitted" style="margin-top:10px;">⏳ Sent to the CEO — awaiting his approval.</div>` : ""}
     <div class="bottom-bar" style="flex-wrap:wrap;">
       ${actionable ? `
         <button class="btn btn-send-back btn-sm" data-reject-leave-hr="${req.id}" style="flex:1;">✕ Reject</button>
         <button class="btn btn-approve-sign btn-sm" data-approve-leave-hr="${req.id}" style="flex:1;">✓ Approve</button>
       ` : ""}
-      ${req.status === "hr_approved" ? `<button class="btn btn-outline btn-sm" data-download-leave="${req.id}" style="flex:1;">⬇ PDF</button>` : ""}
+      ${canSendToCeo ? `<button class="btn btn-approve-sign btn-sm" data-send-leave-ceo="${req.id}" style="flex:1;">📤 Send to CEO</button>` : ""}
+      ${(req.status === "hr_approved" || req.status === "ceo_approved") ? `<button class="btn btn-outline btn-sm" data-download-leave="${req.id}" style="flex:1;">⬇ PDF</button>` : ""}
       ${canResend ? `<button class="btn btn-outline btn-sm" data-resend-leave="${req.id}" style="flex:1;">↩️ Resend for editing</button>` : ""}
     </div>
+  `;
+}
+
+function renderCeoLeaveList(){
+  const pending = state.ceoLeaveRequests.filter(r=>r.status==="sent_to_ceo");
+  const others = state.ceoLeaveRequests.filter(r=>r.status!=="sent_to_ceo");
+  const shortStatusLabel = { sent_to_ceo: "Awaiting you", ceo_approved: "Approved", rejected: "Rejected" };
+  const historyRows = others.map(r => {
+    const b = leaveBadgeInfo(r.status);
+    return `
+    <div class="emp-list-item li-${r.status==='ceo_approved'?'approved':(r.status==='rejected'?'rejected':'submitted')}">
+      <div style="flex:1;min-width:0;">
+        <div class="name">${r.ts_employees?.name || ""}</div>
+        <div class="sub">${r.first_day} → ${r.last_day} (${r.number_of_days} day${r.number_of_days===1?"":"s"})</div>
+      </div>
+      <span class="badge ${b.cls}">${shortStatusLabel[r.status] || b.label}</span>
+      <button class="link-btn" data-view-leave-ceo="${r.id}" style="color:var(--blue) !important;margin-left:8px;">👁 View</button>
+    </div>`;
+  }).join("");
+
+  return `
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;background:linear-gradient(135deg,#E7F1FC,#F3F8FD);border:2px solid var(--blue-light);">
+      <div style="font-weight:800;font-size:14.5px;color:var(--navy);">🌴 Leave Requests</div>
+      <div class="meta">Sent to you by HR for final approval.</div>
+    </div>
+    <button class="link-btn install-link" id="sigSettingsBtn" style="color:var(--navy) !important;margin-bottom:14px;display:inline-block;">${state.savedSignature ? "✎ Update signature" : "✎ Set up signature"}</button>
+    <div>${pending.map(r=>{
+      const b = leaveBadgeInfo(r.status);
+      return `
+      <div class="emp-list-item li-submitted" style="flex-wrap:wrap;">
+        <div style="flex:1;min-width:0;">
+          <div class="name">${r.ts_employees?.name || ""}</div>
+          <div class="sub">${r.first_day} → ${r.last_day} (${r.number_of_days} day${r.number_of_days===1?"":"s"})</div>
+        </div>
+        <span class="badge ${b.cls}">${b.label}</span>
+        <div style="width:100%;display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;">
+          <button class="link-btn" data-view-leave-ceo="${r.id}" style="color:var(--blue) !important;">👁 View</button>
+          <button class="link-btn" data-approve-leave-ceo="${r.id}" style="color:var(--present) !important;">✓ Approve</button>
+          <button class="link-btn" data-reject-leave-ceo="${r.id}" style="color:var(--absent) !important;">✕ Reject</button>
+        </div>
+      </div>`;
+    }).join("") || `<div class="empty-state"><div class="ic">🌴</div>Nothing waiting on you right now.</div>`}</div>
+    <div class="card" style="margin-top:18px;">
+      <h3 style="font-size:14px;">📋 History</h3>
+      <div class="meta">Everything HR has sent you, past and present.</div>
+    </div>
+    <div style="margin-top:10px;">${historyRows || `<div class="empty-state"><div class="ic">📋</div>No history yet.</div>`}</div>
+  `;
+}
+
+function renderCeoLeaveReview(){
+  const req = state.selectedLeaveRequest;
+  if(!req) return `<div class="empty-state">Nothing selected.</div>`;
+  const actionable = req.status === "sent_to_ceo";
+  return `
+    <button class="back-link-glow" id="backToCeoLeaveListBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    ${renderLeaveReviewModal(req)}
+    ${req.supervisor_signature ? `
+    <div class="card" style="margin-top:10px;">
+      <div class="meta">Supervisor signature</div>
+      <div class="sig-preview" style="margin-top:6px;"><img src="${req.supervisor_signature}" alt="Supervisor signature"></div>
+    </div>` : ""}
+    ${actionable ? `
+    <div class="bottom-bar">
+      <button class="btn btn-send-back btn-sm" data-reject-leave-ceo="${req.id}" style="flex:1;">✕ Reject</button>
+      <button class="btn btn-approve-sign btn-sm" data-approve-leave-ceo="${req.id}" style="flex:1;">✍️ Approve & sign</button>
+    </div>` : req.ceo_signature ? `
+    <div class="card" style="margin-top:10px;">
+      <div class="meta">Your signature — approved ${req.ceo_approved_at ? new Date(req.ceo_approved_at).toLocaleDateString() : ""}</div>
+      <div class="sig-preview" style="margin-top:6px;"><img src="${req.ceo_signature}" alt="CEO signature"></div>
+    </div>` : ""}
   `;
 }
 
@@ -3530,6 +3697,7 @@ function handleDelegatedClick(e){
   if(el("backToTeamBtn")){
     if(state.user.role === "hr"){ state.view = "hr"; loadHrMonth(); }
     else if(state.user.role === "supervisor"){ state.view = "supervisor"; loadSupervisorList(); }
+    else if(state.user.role === "ceo"){ state.view = "ceo-leave-list"; loadCeoLeaveRequests(); }
     else { state.view = "employee"; loadEmployeeMonth(); }
     return;
   }
@@ -3619,12 +3787,27 @@ function handleDelegatedClick(e){
   if(approveLeaveHrEl){ approveLeaveHr(approveLeaveHrEl.getAttribute("data-approve-leave-hr")); return; }
   const rejectLeaveHrEl = e.target.closest("[data-reject-leave-hr]");
   if(rejectLeaveHrEl){ rejectLeaveHr(rejectLeaveHrEl.getAttribute("data-reject-leave-hr")); return; }
+  const sendLeaveCeoEl = e.target.closest("[data-send-leave-ceo]");
+  if(sendLeaveCeoEl){ sendLeaveToCeo(sendLeaveCeoEl.getAttribute("data-send-leave-ceo")); return; }
   const downloadLeaveEl = e.target.closest("[data-download-leave]");
   if(downloadLeaveEl){ generateLeavePdf(downloadLeaveEl.getAttribute("data-download-leave")); return; }
   const deleteLeaveHrEl = e.target.closest("[data-delete-leave-hr]");
   if(deleteLeaveHrEl){ deleteLeaveRequestHr(deleteLeaveHrEl.getAttribute("data-delete-leave-hr")); return; }
   const resendLeaveEl = e.target.closest("[data-resend-leave]");
   if(resendLeaveEl){ resendLeaveForEditing(resendLeaveEl.getAttribute("data-resend-leave")); return; }
+  if(el("backToCeoLeaveListBtn")){ state.view = "ceo-leave-list"; loadCeoLeaveRequests(); return; }
+  const viewLeaveCeoEl = e.target.closest("[data-view-leave-ceo]");
+  if(viewLeaveCeoEl){
+    const reqId = viewLeaveCeoEl.getAttribute("data-view-leave-ceo");
+    state.selectedLeaveRequest = state.ceoLeaveRequests.find(r=>r.id===reqId);
+    state.view = "ceo-leave-review";
+    render();
+    return;
+  }
+  const approveLeaveCeoEl = e.target.closest("[data-approve-leave-ceo]");
+  if(approveLeaveCeoEl){ approveLeaveCeo(approveLeaveCeoEl.getAttribute("data-approve-leave-ceo")); return; }
+  const rejectLeaveCeoEl = e.target.closest("[data-reject-leave-ceo]");
+  if(rejectLeaveCeoEl){ rejectLeaveCeo(rejectLeaveCeoEl.getAttribute("data-reject-leave-ceo")); return; }
   if(el("clearLeaveSigBtn")){ clearLeaveSigPad(); return; }
   if(el("leavePhotoBtn")){ document.getElementById("leavePhotoInput")?.click(); return; }
   if(el("submitLeaveBtn")){ submitLeaveRequest(); return; }
@@ -3748,10 +3931,11 @@ async function init(){
     const { data: mohammed } = await sb.from("ts_employees").select("id").eq("iqama_number", "1091504728").maybeSingle();
     state.hrmSupervisorId = mohammed ? mohammed.id : null;
     await loadProjects();
-    state.view = state.user.role === "employee" ? "employee" : (state.user.role === "supervisor" ? "supervisor" : "hr");
+    state.view = state.user.role === "employee" ? "employee" : (state.user.role === "supervisor" ? "supervisor" : (state.user.role === "ceo" ? "ceo-leave-list" : "hr"));
     if(state.view === "employee") await loadEmployeeMonth();
     else if(state.view === "supervisor") await loadSupervisorList();
     else if(state.view === "hr") await loadHrMonth();
+    else if(state.view === "ceo-leave-list") await loadCeoLeaveRequests();
   }
   render();
 }
