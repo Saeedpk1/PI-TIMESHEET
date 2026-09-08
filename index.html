@@ -396,6 +396,11 @@ let state = {
   supervisorLeaveRequests: [],
   hrLeaveRequests: [],
   ceoLeaveRequests: [],
+  dailyReportDraft: { projectId: "", teamIds: [], rawText: "", polishedText: "", polishing: false },
+  myDailyReportsToday: [],
+  editingDailyReportId: null,
+  combinedReportsDate: new Date().toISOString().slice(0,10),
+  combinedReports: [],
   selectedLeaveRequest: null,
   myPurchases: [],
   purchaseFormDraft: { purchaseDate: "", category: "", itemDescription: "", projectId: "", billNo: "", vendorName: "", amount: "", hasVat: true, paymentMethod: "", notes: "", receiptPhoto: "" },
@@ -1493,6 +1498,122 @@ async function scanPurchaseBill(file){
   state.loading = false;
   render();
 }
+
+/* ---------------- Daily project reports ---------------- */
+function resetDailyReportDraft(){
+  state.dailyReportDraft = { projectId: "", teamIds: [], rawText: "", polishedText: "", polishing: false };
+  state.editingDailyReportId = null;
+}
+
+async function loadMyDailyReportsToday(){
+  const today = new Date().toISOString().slice(0,10);
+  const { data } = await sb.from("ts_daily_reports")
+    .select("*, ts_projects:project_id(name)")
+    .eq("supervisor_id", state.user.id).eq("report_date", today)
+    .order("created_at", { ascending: false });
+  state.myDailyReportsToday = data || [];
+}
+
+async function polishDailyReport(){
+  const d = state.dailyReportDraft;
+  if(!d.rawText || !d.rawText.trim()){ toast("Write a quick note first."); return; }
+  const project = state.projects.find(p=>p.id===d.projectId);
+  const teamNames = state.supervisorEmployees.filter(e=>d.teamIds.includes(e.id)).map(e=>e.name);
+  d.polishing = true; render();
+  try{
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/smart-endpoint`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({ action: "polish_report", rawText: d.rawText, projectName: project?.name || "", teamNames })
+    });
+    const data = await resp.json();
+    if(!resp.ok || data.error) throw new Error(data.error || "Could not polish text");
+    d.polishedText = data.polished || d.rawText;
+    toast("Polished with AI — review and adjust if needed.");
+  }catch(e){
+    console.error("Polish report error:", e);
+    toast("AI error: " + (e && e.message ? e.message : "unknown") + " — you can still save your original note.");
+    if(!d.polishedText) d.polishedText = d.rawText;
+  }
+  d.polishing = false;
+  render();
+}
+
+async function saveDailyReport(){
+  const d = state.dailyReportDraft;
+  if(!d.projectId){ toast("Select a project."); return; }
+  if(!d.teamIds.length){ toast("Select at least one team member."); return; }
+  if(!d.rawText || !d.rawText.trim()){ toast("Write today's progress note."); return; }
+  const teamNames = state.supervisorEmployees.filter(e=>d.teamIds.includes(e.id)).map(e=>e.name);
+  const payload = {
+    supervisor_id: state.user.id,
+    report_date: new Date().toISOString().slice(0,10),
+    project_id: d.projectId,
+    team_member_ids: d.teamIds,
+    team_member_names: teamNames,
+    raw_notes: d.rawText,
+    polished_notes: d.polishedText || d.rawText,
+    updated_at: new Date().toISOString()
+  };
+  state.loading = true; render();
+  let error;
+  if(state.editingDailyReportId){
+    ({ error } = await sb.from("ts_daily_reports").update(payload).eq("id", state.editingDailyReportId));
+  }else{
+    ({ error } = await sb.from("ts_daily_reports").insert(payload));
+  }
+  state.loading = false;
+  toast(error ? "Could not save. Try again." : "Progress report saved.");
+  if(!error){
+    resetDailyReportDraft();
+    await loadMyDailyReportsToday();
+  }
+  render();
+}
+
+function startEditDailyReport(reportId){
+  const r = state.myDailyReportsToday.find(x=>x.id===reportId);
+  if(!r) return;
+  state.editingDailyReportId = reportId;
+  state.dailyReportDraft = {
+    projectId: r.project_id || "",
+    teamIds: r.team_member_ids || [],
+    rawText: r.raw_notes || "",
+    polishedText: r.polished_notes || "",
+    polishing: false
+  };
+  render();
+}
+
+async function deleteDailyReport(reportId){
+  if(!confirm("Remove this report entry?")) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_daily_reports").delete().eq("id", reportId);
+  state.loading = false;
+  toast(error ? "Could not remove. Try again." : "Report removed.");
+  await loadMyDailyReportsToday();
+  render();
+}
+
+async function loadCombinedReports(){
+  state.loading = true; render();
+  const { data } = await sb.from("ts_daily_reports")
+    .select("*, ts_projects:project_id(name), ts_employees:supervisor_id(name)")
+    .eq("report_date", state.combinedReportsDate)
+    .order("created_at", { ascending: true });
+  state.combinedReports = data || [];
+  state.loading = false;
+  render();
+}
+
+function shiftCombinedReportsDate(days){
+  const d = new Date(state.combinedReportsDate + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  state.combinedReportsDate = d.toISOString().slice(0,10);
+  loadCombinedReports();
+}
+
+
 
 async function savePurchase(){
   const f = state.purchaseFormDraft;
@@ -2738,6 +2859,8 @@ function render(){
   else if(state.view === "ceo-home") body = renderCeoHome();
   else if(state.view === "ceo-leave-list") body = renderCeoLeaveList();
   else if(state.view === "ceo-leave-review") body = renderCeoLeaveReview();
+  else if(state.view === "daily-report-form") body = renderDailyReportForm();
+  else if(state.view === "combined-reports") body = renderCombinedReports();
 
   root.innerHTML = header + `<main>${body}</main>` + renderPhotoOverlay();
   attachViewEvents();
@@ -2930,8 +3053,70 @@ function renderSupervisorList(){
       <button class="link-btn install-link" id="sigSettingsBtn" style="color:#FFE7B0 !important;">${ar ? (state.savedSignature ? "✎ تحديث التوقيع" : "✎ إعداد التوقيع") : (state.savedSignature ? "✎ Update signature" : "✎ Set up signature")}</button>
     </div>
     <button id="openSupervisorLeaveListBtn" style="display:block;width:100%;margin-bottom:10px;padding:10px 16px;border-radius:10px;border:2px solid #E8A33D;background:#FFF3D9;color:#966109;font-weight:800;font-size:13.5px;cursor:pointer;">🌴 ${ar ? "طلبات الإجازة" : "Leave Requests"}</button>
-    <button id="openPurchaseFormBtn" style="display:block;width:100%;margin-bottom:14px;padding:10px 16px;border-radius:10px;border:2px solid #1B7A6B;background:#EAF6F3;color:#125C4F;font-weight:800;font-size:13.5px;cursor:pointer;">🧾 ${ar ? "تسجيل مشتريات" : "Record Purchase"}</button>
+    <button id="openPurchaseFormBtn" style="display:block;width:100%;margin-bottom:10px;padding:10px 16px;border-radius:10px;border:2px solid #1B7A6B;background:#EAF6F3;color:#125C4F;font-weight:800;font-size:13.5px;cursor:pointer;">🧾 ${ar ? "تسجيل مشتريات" : "Record Purchase"}</button>
+    <button id="openDailyReportBtn" style="display:block;width:100%;margin-bottom:14px;padding:10px 16px;border-radius:10px;border:2px solid var(--ksa-gold);background:var(--ksa-cream);color:var(--ksa-green-dark);font-weight:800;font-size:13.5px;cursor:pointer;">📋 ${ar ? "تقرير التقدم اليومي" : "Daily Progress Report"}</button>
     <div>${rows}</div>
+  `;
+}
+
+function renderDailyReportForm(){
+  const d = state.dailyReportDraft;
+  const isEditing = !!state.editingDailyReportId;
+  const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${d.projectId===p.id?"selected":""}>${p.name}</option>`).join("");
+  const teamChecks = state.supervisorEmployees.map(e => `
+    <label><input type="checkbox" class="daily-report-team-chk" value="${e.id}" ${d.teamIds.includes(e.id)?"checked":""}> ${e.name}</label>
+  `).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>No team members yet.</div>`;
+
+  const todayReportsHtml = state.myDailyReportsToday.map(r => `
+    <div class="emp-list-item li-approved">
+      <div style="flex:1;min-width:0;">
+        <div class="name">${r.ts_projects?.name || "Project"}</div>
+        <div class="sub">${(r.team_member_names||[]).join(", ")}</div>
+        <div class="sub" style="margin-top:4px;font-style:italic;">${r.polished_notes || r.raw_notes || ""}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <button class="link-btn" data-edit-daily-report="${r.id}" style="color:var(--blue) !important;">✎ Edit</button>
+        <button class="link-btn" data-delete-daily-report="${r.id}" style="color:var(--absent) !important;">🗑 Remove</button>
+      </div>
+    </div>`).join("");
+
+  return `
+    <button class="back-link-glow" id="backToSupervisorBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);">
+      <h3 style="color:#fff;">📋 Today's Progress Report</h3>
+      <div class="meta" style="color:rgba(255,255,255,0.85);">${new Date().toDateString()}</div>
+    </div>
+
+    <label style="margin-top:14px;">Project</label>
+    <select id="dailyReportProject">
+      <option value="">Select project</option>
+      ${projectOptions}
+    </select>
+
+    <label style="margin-top:12px;">Team working today</label>
+    <div class="checklist" style="background:#F8FAFC;border:2px solid var(--line);border-radius:10px;padding:12px;max-height:220px;overflow-y:auto;">
+      ${teamChecks}
+    </div>
+
+    <label style="margin-top:12px;">Today's progress (rough notes)</label>
+    <textarea id="dailyReportRaw" rows="3" placeholder="e.g. template installation and shifting">${d.rawText}</textarea>
+    <button class="btn btn-outline btn-sm" id="polishReportBtn" style="margin-top:8px;width:100%;" ${d.polishing?"disabled":""}>${d.polishing ? '<span class="spinner"></span>Polishing…' : "✨ Polish with AI"}</button>
+
+    ${d.polishedText ? `
+    <label style="margin-top:12px;">Polished report (edit if needed)</label>
+    <textarea id="dailyReportPolished" rows="3">${d.polishedText}</textarea>
+    ` : ""}
+
+    <div class="bottom-bar">
+      ${isEditing ? `<button class="btn btn-outline btn-sm" id="cancelDailyReportBtn" style="flex:1;">Cancel</button>` : ""}
+      <button class="btn btn-submit btn-sm" id="saveDailyReportBtn" style="flex:1;">💾 ${isEditing ? "Update" : "Save"} Report</button>
+    </div>
+
+    ${todayReportsHtml ? `
+    <div class="card" style="margin-top:18px;">
+      <h3 style="font-size:14px;">Your reports today</h3>
+    </div>
+    <div style="margin-top:10px;">${todayReportsHtml}</div>` : ""}
   `;
 }
 
@@ -3119,6 +3304,7 @@ function renderHrView(){
     <button class="btn btn-primary btn-compact" id="wpsPiSaudiBtn" style="margin-top:8px;background:linear-gradient(135deg,#0F3556,#1B5A96);">🏦 Generate WPS Payroll — PI + Saudi</button>
     <button class="btn btn-primary btn-compact" id="wpsAlFalakBtn" style="margin-top:5px;background:linear-gradient(135deg,#4A2E0F,#6B4423);">🏦 Generate WPS Payroll — Al Falak</button>
     <button class="btn btn-outline btn-compact" id="openHrPurchasesBtn" style="margin-top:5px;border-color:#1B7A6B;color:#125C4F;">🧾 Purchase / Expense Approvals</button>
+    <button class="btn btn-outline btn-compact" id="openCombinedReportsBtn" style="margin-top:5px;border-color:var(--ksa-gold);color:var(--ksa-green-dark);">📋 Daily Progress Reports</button>
   `;
 }
 
@@ -3441,7 +3627,60 @@ function renderCeoHome(){
       </div>
       ${pendingCount ? `<div class="count">${pendingCount}</div>` : ""}
     </div>
+    <div class="ceo-tile" id="openCombinedReportsBtn">
+      <div class="icon">📋</div>
+      <div class="body">
+        <div class="title">Daily Progress Reports</div>
+        <div class="desc">Today's site activity from every supervisor</div>
+      </div>
+    </div>
     <div class="ceo-soon">More sections will appear here soon.</div>
+  `;
+}
+
+function renderCombinedReports(){
+  const byProject = {};
+  state.combinedReports.forEach(r => {
+    const key = r.ts_projects?.name || "Unassigned project";
+    if(!byProject[key]) byProject[key] = [];
+    byProject[key].push(r);
+  });
+  const projectNames = Object.keys(byProject).sort();
+  const isCeo = state.user.role === "ceo";
+  const dateLabel = new Date(state.combinedReportsDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const isToday = state.combinedReportsDate === new Date().toISOString().slice(0,10);
+
+  const body = projectNames.length ? projectNames.map(pname => `
+    <div class="card" style="margin-bottom:12px;border:2px solid var(--ksa-gold-light);">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--ksa-green);flex-shrink:0;"></div>
+        <h3 style="font-size:14.5px;color:var(--ksa-green-dark);margin:0;">${pname}</h3>
+      </div>
+      ${byProject[pname].map(r => `
+        <div style="padding:10px 0;border-top:1px solid var(--line);">
+          <div style="font-size:12px;font-weight:700;color:var(--navy);">${r.ts_employees?.name || "Supervisor"}</div>
+          <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">👷 ${(r.team_member_names||[]).join(", ") || "-"}</div>
+          <div style="font-size:13px;color:var(--ink);margin-top:6px;">${r.polished_notes || r.raw_notes || ""}</div>
+        </div>
+      `).join("")}
+    </div>
+  `).join("") : `<div class="empty-state"><div class="ic">📋</div>No reports for this day yet.</div>`;
+
+  return `
+    <button class="back-link-glow" id="${isCeo ? "backToCeoHomeBtn" : "backToHrBtn"}" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);margin-bottom:14px;">
+      <div style="font-weight:800;font-size:14.5px;color:#fff;">📋 Daily Progress Reports</div>
+      <div class="meta" style="color:rgba(255,255,255,0.85);">Collected from every supervisor</div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--ksa-cream);border:2px solid var(--ksa-gold-light);border-radius:10px;padding:8px 12px;margin-bottom:14px;">
+      <button class="link-btn ceo-gold-btn" id="prevReportsDayBtn" style="font-size:18px;font-weight:800;">‹</button>
+      <div style="text-align:center;">
+        <div style="font-weight:800;font-size:13px;color:var(--ksa-green-dark);">${dateLabel}</div>
+        ${!isToday ? `<button class="link-btn ceo-gold-btn" id="todayReportsBtn" style="font-size:11px;">Jump to today</button>` : ""}
+      </div>
+      <button class="link-btn ceo-gold-btn" id="nextReportsDayBtn" style="font-size:18px;font-weight:800;" ${isToday?"disabled":""}>›</button>
+    </div>
+    ${body}
   `;
 }
 
@@ -3881,6 +4120,24 @@ function handleDelegatedClick(e){
   if(el("backToCeoLeaveListBtn")){ state.view = "ceo-leave-list"; loadCeoLeaveRequests(); return; }
   if(el("openCeoLeaveBtn")){ state.view = "ceo-leave-list"; render(); return; }
   if(el("backToCeoHomeBtn")){ state.view = "ceo-home"; loadCeoLeaveRequests(); return; }
+  if(el("openDailyReportBtn")){ resetDailyReportDraft(); state.view = "daily-report-form"; loadMyDailyReportsToday().then(render); return; }
+  if(el("backToSupervisorBtn")){ resetDailyReportDraft(); state.view = "supervisor"; loadSupervisorList(); return; }
+  if(el("polishReportBtn")){ polishDailyReport(); return; }
+  if(el("saveDailyReportBtn")){ saveDailyReport(); return; }
+  if(el("cancelDailyReportBtn")){ resetDailyReportDraft(); render(); return; }
+  const editDailyReportEl = e.target.closest("[data-edit-daily-report]");
+  if(editDailyReportEl){ startEditDailyReport(editDailyReportEl.getAttribute("data-edit-daily-report")); return; }
+  const deleteDailyReportEl = e.target.closest("[data-delete-daily-report]");
+  if(deleteDailyReportEl){ deleteDailyReport(deleteDailyReportEl.getAttribute("data-delete-daily-report")); return; }
+  if(el("openCombinedReportsBtn")){
+    state.combinedReportsDate = new Date().toISOString().slice(0,10);
+    state.view = "combined-reports";
+    loadCombinedReports();
+    return;
+  }
+  if(el("prevReportsDayBtn")){ shiftCombinedReportsDate(-1); return; }
+  if(el("nextReportsDayBtn")){ shiftCombinedReportsDate(1); return; }
+  if(el("todayReportsBtn")){ state.combinedReportsDate = new Date().toISOString().slice(0,10); loadCombinedReports(); return; }
   const viewLeaveCeoEl = e.target.closest("[data-view-leave-ceo]");
   if(viewLeaveCeoEl){
     const reqId = viewLeaveCeoEl.getAttribute("data-view-leave-ceo");
@@ -3941,6 +4198,14 @@ function handleDelegatedChange(e){
   if(e.target.id === "leaveLastDay"){ state.leaveFormDraft.lastDay = e.target.value; render(); return; }
   if(e.target.name === "hasToolBox"){ state.leaveFormDraft.hasToolBox = e.target.value; return; }
   if(e.target.id === "leaveSiteIdChk"){ state.leaveFormDraft.hasSiteId = e.target.checked; return; }
+  if(e.target.id === "dailyReportProject"){ state.dailyReportDraft.projectId = e.target.value; return; }
+  if(e.target.classList.contains("daily-report-team-chk")){
+    const id = e.target.value;
+    const ids = state.dailyReportDraft.teamIds;
+    if(e.target.checked){ if(!ids.includes(id)) ids.push(id); }
+    else{ state.dailyReportDraft.teamIds = ids.filter(x=>x!==id); }
+    return;
+  }
   if(e.target.id === "purchaseDate"){ state.purchaseFormDraft.purchaseDate = e.target.value; return; }
   if(e.target.id === "purchaseCategory"){ state.purchaseFormDraft.category = e.target.value; return; }
   if(e.target.id === "purchaseProject"){ state.purchaseFormDraft.projectId = e.target.value; return; }
@@ -3990,6 +4255,8 @@ function handleDelegatedInput(e){
   }
   if(e.target.id === "purchaseBillNo"){ state.purchaseFormDraft.billNo = e.target.value; }
   if(e.target.id === "purchaseNotes"){ state.purchaseFormDraft.notes = e.target.value; }
+  if(e.target.id === "dailyReportRaw"){ state.dailyReportDraft.rawText = e.target.value; }
+  if(e.target.id === "dailyReportPolished"){ state.dailyReportDraft.polishedText = e.target.value; }
 }
 
 function attachViewEvents(){
