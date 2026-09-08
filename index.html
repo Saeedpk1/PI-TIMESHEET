@@ -527,7 +527,9 @@ async function loadEmployeeMonth(){
   render();
 }
 
+const ENFORCE_ENTRY_WINDOW = false; // set to true to re-enable the "today & yesterday only" attendance entry restriction
 function isDateEditable(dstr){
+  if(!ENFORCE_ENTRY_WINDOW) return true;
   const [y,m,d] = dstr.split("-").map(Number);
   const entryDate = new Date(y, m-1, d);
   const today = new Date(); today.setHours(0,0,0,0);
