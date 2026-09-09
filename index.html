@@ -3534,47 +3534,58 @@ function renderDailyReportForm(){
 
   return `
     <button class="back-link-glow" id="${isSupervisorUser ? "backToSupervisorHomeBtn" : "backToHrBtn"}" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
-    <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);">
-      <h3 style="color:var(--navy);">📋 Daily Progress Report</h3>
-      <div class="meta" style="color:var(--blue);">${dateLabel}${isBackdated ? " (backdated)" : ""}</div>
+    <div style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);border-radius:16px;padding:18px;position:relative;overflow:hidden;">
+      <div style="position:absolute;top:-8px;right:-6px;font-size:60px;opacity:0.15;">📋</div>
+      <h3 style="color:var(--navy);position:relative;">📋 Daily Progress Report</h3>
+      <div class="meta" style="color:var(--blue);position:relative;">${dateLabel}${isBackdated ? " (backdated)" : ""}</div>
     </div>
 
-    <label style="margin-top:10px;">Report date</label>
-    <input type="date" id="dailyReportDateInput" value="${state.dailyReportDate}" max="${todayLocalISO()}">
-
-    <div class="meta" style="margin:8px 2px;">🏖️ Vacation ${state.todayVacations.length} + 🔴 Absent ${state.todayAbsenceIds.length} + ✅ Working ${presentEmployees.length} = <strong>${state.todayVacations.length + state.todayAbsenceIds.length + presentEmployees.length} total</strong></div>
-    <div class="meta" style="margin:2px 2px 8px;"><button class="link-btn ceo-gold-btn" id="openDailyAttendanceBtn" style="display:inline;padding:0;">manage attendance</button> • <button class="link-btn ceo-gold-btn" id="openVacationManagerBtn" style="display:inline;padding:0;">manage vacations</button></div>
-
-    <label style="margin-top:10px;">Project</label>
-    <select id="dailyReportProject">
-      <option value="">Select project</option>
-      ${projectOptions}
-    </select>
-
-    ${d.projectId ? `
-    <label style="margin-top:12px;">Unit Number</label>
-    <select id="dailyReportUnit">
-      <option value="">No specific unit</option>
-      ${state.reportUnits.map(u => `<option value="${u.id}" ${d.unitId===u.id?"selected":""}>${u.name}</option>`).join("")}
-      <option value="__new__">+ New unit…</option>
-    </select>
-    ` : ""}
-
-    <label style="margin-top:12px;">Who's working in this unit on this date?</label>
-    <div class="meta" style="margin-bottom:6px;">${d.teamIds.length} selected${d.unitId ? " — pre-filled from this unit's last report, adjust as needed" : ""}</div>
-    ${pickedChips ? `<div style="margin-bottom:8px;">${pickedChips}</div>` : ""}
-    <div class="checklist" style="background:#F8FAFC;border:2px solid var(--line);border-radius:10px;padding:6px 8px;max-height:280px;overflow-y:auto;">
-      ${employeeRows}
+    <div style="background:#EAF1FC;border-left:4px solid var(--blue);border-radius:10px;padding:12px 14px;margin-top:12px;">
+      <label style="margin-top:0;color:var(--blue);">📅 Report date</label>
+      <input type="date" id="dailyReportDateInput" value="${state.dailyReportDate}" max="${todayLocalISO()}">
     </div>
 
-    <label style="margin-top:12px;">Today's progress (rough notes)</label>
-    <textarea id="dailyReportRaw" rows="3" placeholder="e.g. template installation and shifting">${d.rawText}</textarea>
-    <button class="btn btn-outline btn-sm" id="polishReportBtn" style="margin-top:8px;width:100%;" ${d.polishing?"disabled":""}>${d.polishing ? '<span class="spinner"></span>Polishing…' : "✨ Polish with AI"}</button>
+    <div style="background:var(--ksa-cream);border-left:4px solid var(--ksa-gold);border-radius:10px;padding:12px 14px;margin-top:10px;">
+      <div style="font-size:12px;">🏖️ Vacation ${state.todayVacations.length} + 🔴 Absent ${state.todayAbsenceIds.length} + ✅ Working ${presentEmployees.length} = <strong>${state.todayVacations.length + state.todayAbsenceIds.length + presentEmployees.length} total</strong></div>
+      <div class="meta" style="margin-top:4px;"><button class="link-btn ceo-gold-btn" id="openDailyAttendanceBtn" style="display:inline;padding:0;">manage attendance</button> • <button class="link-btn ceo-gold-btn" id="openVacationManagerBtn" style="display:inline;padding:0;">manage vacations</button></div>
+    </div>
 
-    ${d.polishedText ? `
-    <label style="margin-top:12px;">Polished report (edit if needed)</label>
-    <textarea id="dailyReportPolished" rows="3">${d.polishedText}</textarea>
-    ` : ""}
+    <div style="background:#F3EAFB;border-left:4px solid #6B4FC4;border-radius:10px;padding:12px 14px;margin-top:10px;">
+      <label style="margin-top:0;color:#6B4FC4;">🏗️ Project</label>
+      <select id="dailyReportProject">
+        <option value="">Select project</option>
+        ${projectOptions}
+      </select>
+
+      ${d.projectId ? `
+      <label style="margin-top:12px;color:#6B4FC4;">🔢 Unit Number</label>
+      <select id="dailyReportUnit">
+        <option value="">No specific unit</option>
+        ${state.reportUnits.map(u => `<option value="${u.id}" ${d.unitId===u.id?"selected":""}>${u.name}</option>`).join("")}
+        <option value="__new__">+ New unit…</option>
+      </select>
+      ` : ""}
+    </div>
+
+    <div style="background:#EAF6ED;border-left:4px solid var(--present);border-radius:10px;padding:12px 14px;margin-top:10px;">
+      <label style="margin-top:0;color:var(--present);">👷 Who's working in this unit on this date?</label>
+      <div class="meta" style="margin-bottom:6px;">${d.teamIds.length} selected${d.unitId ? " — pre-filled from this unit's last report, adjust as needed" : ""}</div>
+      ${pickedChips ? `<div style="margin-bottom:8px;">${pickedChips}</div>` : ""}
+      <div class="checklist" style="background:#fff;border:2px solid #CFE8D6;border-radius:10px;padding:6px 8px;max-height:280px;overflow-y:auto;">
+        ${employeeRows}
+      </div>
+    </div>
+
+    <div style="background:#FDF6E3;border-left:4px solid #C4791F;border-radius:10px;padding:12px 14px;margin-top:10px;">
+      <label style="margin-top:0;color:#C4791F;">✍️ Today's progress (rough notes)</label>
+      <textarea id="dailyReportRaw" rows="3" placeholder="e.g. template installation and shifting">${d.rawText}</textarea>
+      <button class="btn btn-outline btn-sm" id="polishReportBtn" style="margin-top:8px;width:100%;" ${d.polishing?"disabled":""}>${d.polishing ? '<span class="spinner"></span>Polishing…' : "✨ Polish with AI"}</button>
+
+      ${d.polishedText ? `
+      <label style="margin-top:12px;color:#C4791F;">✨ Polished report (edit if needed)</label>
+      <textarea id="dailyReportPolished" rows="3">${d.polishedText}</textarea>
+      ` : ""}
+    </div>
 
     <div class="bottom-bar">
       ${isEditing ? `<button class="btn btn-outline btn-sm" id="cancelDailyReportBtn" style="flex:1;">Cancel</button>` : ""}
@@ -3582,8 +3593,8 @@ function renderDailyReportForm(){
     </div>
 
     ${todayReportsHtml ? `
-    <div class="card" style="margin-top:18px;">
-      <h3 style="font-size:14px;">Reports for this date</h3>
+    <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:12px;padding:12px 14px;margin-top:18px;">
+      <h3 style="font-size:14px;color:#fff;margin:0;">📑 Reports for this date</h3>
     </div>
     <div style="margin-top:10px;">${todayReportsHtml}</div>` : ""}
   `;
