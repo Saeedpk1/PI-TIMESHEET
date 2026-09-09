@@ -411,6 +411,9 @@ let state = {
   expandedProjectId: null,
   unitFinancials: null,
   viewingUnitId: null,
+  ceoMessageDraft: "",
+  myCeoMessages: [],
+  ceoInboxMessages: [],
   selectedLeaveRequest: null,
   myPurchases: [],
   purchaseFormDraft: { purchaseDate: "", category: "", itemDescription: "", projectId: "", billNo: "", vendorName: "", amount: "", hasVat: true, paymentMethod: "", notes: "", receiptPhoto: "" },
@@ -557,7 +560,46 @@ async function loadUnitFinancials(unitId){
   render();
 }
 
-function monthKey(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0"); }
+/* ---------------- Direct Contact with CEO ---------------- */
+async function loadMyCeoMessages(){
+  const { data } = await sb.from("ts_ceo_messages").select("*").eq("employee_id", state.user.id).order("created_at", { ascending: false });
+  state.myCeoMessages = data || [];
+}
+
+async function sendCeoMessage(){
+  const msg = (state.ceoMessageDraft || "").trim();
+  if(!msg){ toast("Write your message first."); return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_ceo_messages").insert({
+    employee_id: state.user.id,
+    employee_name: state.user.name,
+    message: msg
+  });
+  state.loading = false;
+  toast(error ? "Could not send. Try again." : "Sent to the CEO.");
+  if(!error){
+    state.ceoMessageDraft = "";
+    await loadMyCeoMessages();
+  }
+  render();
+}
+
+async function loadCeoInboxMessages(){
+  state.loading = true; render();
+  const { data } = await sb.from("ts_ceo_messages").select("*").order("created_at", { ascending: false });
+  state.ceoInboxMessages = data || [];
+  state.loading = false;
+  render();
+}
+
+async function markCeoMessageRead(id){
+  const msg = state.ceoInboxMessages.find(m=>m.id===id);
+  if(!msg || msg.is_read) return;
+  msg.is_read = true; render();
+  await sb.from("ts_ceo_messages").update({ is_read: true }).eq("id", id);
+}
+
+
 function monthLabel(d){ return d.toLocaleDateString("en-GB",{month:"long",year:"numeric"}); }
 function daysInMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0).getDate(); }
 function pad(n){ return String(n).padStart(2,"0"); }
@@ -663,7 +705,7 @@ async function doLogin(iqama){
     if(state.view === "employee") await loadEmployeeMonth();
     if(state.view === "supervisor") await loadSupervisorList();
     if(state.view === "hr") await loadHrMonth();
-    if(state.view === "ceo-home") await loadCeoLeaveRequests();
+    if(state.view === "ceo-home") { await loadCeoLeaveRequests(); await loadCeoInboxMessages(); }
     render();
   }catch(e){
     state.loading = false;
@@ -3050,6 +3092,8 @@ function render(){
   else if(state.view === "daily-attendance-form") body = renderDailyAttendanceForm();
   else if(state.view === "combined-reports") body = renderCombinedReports();
   else if(state.view === "unit-financial-report") body = renderUnitFinancialReport();
+  else if(state.view === "ceo-contact-form") body = renderCeoContactForm();
+  else if(state.view === "ceo-inbox") body = renderCeoInbox();
 
   root.innerHTML = header + `<main>${body}</main>` + renderPhotoOverlay();
   attachViewEvents();
@@ -3170,7 +3214,8 @@ function renderEmployeeView(){
       <div class="summary-item s-total"><div class="n">${totals.totalHours.toFixed(1)}</div><div class="l">${ar ? "إجمالي الساعات" : "Total Hrs"}</div></div>
     </div>
     <button id="downloadMyPdfBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;font-weight:800;font-size:14px;cursor:pointer;">${ar ? "⬇ تحميل PDF" : "⬇ Download PDF"}</button>
-    <button id="openLeaveFormBtn" style="display:block;width:100%;margin-bottom:14px;padding:11px 16px;border-radius:10px;border:2px solid #E8A33D;background:#FFF3D9;color:#966109;font-weight:800;font-size:14px;cursor:pointer;">🌴 ${ar ? "طلب إجازة سنوية" : "Apply for Annual Leave"}</button>
+    <button id="openLeaveFormBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:2px solid #E8A33D;background:#FFF3D9;color:#966109;font-weight:800;font-size:14px;cursor:pointer;">🌴 ${ar ? "طلب إجازة سنوية" : "Apply for Annual Leave"}</button>
+    <button id="openCeoContactBtn" style="display:block;width:100%;margin-bottom:14px;padding:11px 16px;border-radius:10px;border:2px solid var(--ksa-gold);background:var(--ksa-cream);color:var(--blue);font-weight:800;font-size:14px;cursor:pointer;">📞 ${ar ? "تواصل مباشر مع الرئيس التنفيذي" : "Direct Contact with CEO"}</button>
     <div class="card" style="padding:8px 6px 4px;">
       <table class="grid">
         <colgroup><col style="width:18%;"><col style="width:37%;"><col style="width:45%;"></colgroup>
@@ -3248,6 +3293,32 @@ function renderSupervisorList(){
     <button id="openCombinedReportsBtn" style="display:block;width:100%;margin-bottom:14px;padding:10px 16px;border-radius:10px;border:2px solid var(--ksa-gold-light);background:#fff;color:var(--blue);font-weight:800;font-size:13.5px;cursor:pointer;">👁 View Daily Progress Reports</button>
     ` : ""}
     <div>${rows}</div>
+  `;
+}
+
+function renderCeoContactForm(){
+  const historyHtml = state.myCeoMessages.map(m => `
+    <div class="emp-list-item li-submitted">
+      <div style="flex:1;min-width:0;">
+        <div class="sub">${new Date(m.created_at).toLocaleDateString()} ${new Date(m.created_at).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</div>
+        <div style="margin-top:4px;">${m.message}</div>
+      </div>
+    </div>`).join("");
+
+  return `
+    <button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);">
+      <h3 style="color:var(--navy);">📞 Direct Contact with CEO</h3>
+      <div class="meta" style="color:var(--blue);">Write anything you'd like the CEO to know — sent directly and privately to him.</div>
+    </div>
+    <label style="margin-top:14px;">Your message</label>
+    <textarea id="ceoMessageInput" rows="5" placeholder="Type your message here...">${state.ceoMessageDraft}</textarea>
+    <button class="btn btn-submit btn-sm" id="sendCeoMessageBtn" style="margin-top:10px;width:100%;">📨 Send to CEO</button>
+    ${historyHtml ? `
+    <div class="card" style="margin-top:18px;">
+      <h3 style="font-size:14px;">Your past messages</h3>
+    </div>
+    <div style="margin-top:10px;">${historyHtml}</div>` : ""}
   `;
 }
 
@@ -3898,6 +3969,7 @@ function renderHrLeaveReview(){
 
 function renderCeoHome(){
   const pendingCount = state.ceoLeaveRequests.filter(r=>r.status==="sent_to_ceo").length;
+  const unreadCount = state.ceoInboxMessages.filter(m=>!m.is_read).length;
   return `
     <div class="ceo-hero">
       <div class="eyebrow">Professional Installation Co.</div>
@@ -3918,6 +3990,14 @@ function renderCeoHome(){
         <div class="title">Daily Progress Reports</div>
         <div class="desc">Today's site activity from every supervisor</div>
       </div>
+    </div>
+    <div class="ceo-tile" id="openCeoInboxBtn">
+      <div class="icon">📨</div>
+      <div class="body">
+        <div class="title">View Employee Requests</div>
+        <div class="desc">Messages sent to you directly by employees</div>
+      </div>
+      ${unreadCount ? `<div class="count">${unreadCount}</div>` : ""}
     </div>
     <div class="ceo-soon">More sections will appear here soon.</div>
   `;
@@ -4053,6 +4133,27 @@ function renderCombinedReports(){
       <button class="link-btn ceo-gold-btn" id="nextReportsDayBtn" style="font-size:18px;font-weight:800;" ${isToday?"disabled":""}>›</button>
     </div>
     ${body}
+  `;
+}
+
+function renderCeoInbox(){
+  const rows = state.ceoInboxMessages.map(m => `
+    <div class="card" style="margin-bottom:10px;border:2px solid ${m.is_read ? "var(--line)" : "var(--ksa-gold)"};" data-view-ceo-message="${m.id}">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-weight:800;color:var(--blue);">${m.employee_name || "Employee"}</div>
+        ${!m.is_read ? `<span class="badge badge-submitted">NEW</span>` : ""}
+      </div>
+      <div class="meta" style="margin-top:2px;">${new Date(m.created_at).toLocaleDateString()} ${new Date(m.created_at).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</div>
+      <div style="margin-top:8px;">${m.message}</div>
+    </div>`).join("");
+
+  return `
+    <button class="back-link-glow" id="backToCeoHomeBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);margin-bottom:14px;">
+      <div style="font-weight:800;font-size:14.5px;color:var(--navy);">📨 View Employee Requests</div>
+      <div class="meta" style="color:var(--blue);">Messages sent directly to you by employees</div>
+    </div>
+    ${rows || `<div class="empty-state"><div class="ic">📨</div>Nothing here yet.</div>`}
   `;
 }
 
@@ -4508,7 +4609,20 @@ function handleDelegatedClick(e){
   if(resendLeaveEl){ resendLeaveForEditing(resendLeaveEl.getAttribute("data-resend-leave")); return; }
   if(el("backToCeoLeaveListBtn")){ state.view = "ceo-leave-list"; loadCeoLeaveRequests(); return; }
   if(el("openCeoLeaveBtn")){ state.view = "ceo-leave-list"; render(); return; }
-  if(el("backToCeoHomeBtn")){ state.view = "ceo-home"; loadCeoLeaveRequests(); return; }
+  if(el("backToCeoHomeBtn")){ state.view = "ceo-home"; loadCeoLeaveRequests(); loadCeoInboxMessages(); return; }
+  if(el("openCeoContactBtn")){
+    state.view = "ceo-contact-form";
+    loadMyCeoMessages().then(render);
+    return;
+  }
+  if(el("sendCeoMessageBtn")){ sendCeoMessage(); return; }
+  if(el("openCeoInboxBtn")){
+    state.view = "ceo-inbox";
+    loadCeoInboxMessages();
+    return;
+  }
+  const viewCeoMsgEl = e.target.closest("[data-view-ceo-message]");
+  if(viewCeoMsgEl){ markCeoMessageRead(viewCeoMsgEl.getAttribute("data-view-ceo-message")); return; }
   if(el("openDailyReportBtn")){
     resetDailyReportDraft();
     state.dailyReportDate = todayLocalISO();
@@ -4726,6 +4840,7 @@ function handleDelegatedInput(e){
   if(e.target.id === "purchaseBillNo"){ state.purchaseFormDraft.billNo = e.target.value; }
   if(e.target.id === "purchaseNotes"){ state.purchaseFormDraft.notes = e.target.value; }
   if(e.target.id === "dailyReportRaw"){ state.dailyReportDraft.rawText = e.target.value; }
+  if(e.target.id === "ceoMessageInput"){ state.ceoMessageDraft = e.target.value; }
   if(e.target.id === "dailyReportPolished"){ state.dailyReportDraft.polishedText = e.target.value; }
 
 }
@@ -4759,7 +4874,7 @@ async function init(){
     if(state.view === "employee") await loadEmployeeMonth();
     else if(state.view === "supervisor") await loadSupervisorList();
     else if(state.view === "hr") await loadHrMonth();
-    else if(state.view === "ceo-home") await loadCeoLeaveRequests();
+    else if(state.view === "ceo-home") { await loadCeoLeaveRequests(); await loadCeoInboxMessages(); }
   }
   render();
 }
