@@ -1015,7 +1015,7 @@ async function submitLeaveRequest(){
     ({ error } = await sb.from("ts_leave_requests").update(payload).eq("id", state.editingLeaveRequestId));
   }else{
     payload.employee_id = state.user.id;
-    payload.supervisor_id = state.user.supervisor_id || null;
+    payload.supervisor_id = state.user.leave_supervisor_id || state.user.supervisor_id || null;
     ({ error } = await sb.from("ts_leave_requests").insert(payload));
   }
 
@@ -3243,6 +3243,10 @@ function renderSupervisorList(){
     </div>
     <button id="openSupervisorLeaveListBtn" style="display:block;width:100%;margin-bottom:10px;padding:10px 16px;border-radius:10px;border:2px solid #E8A33D;background:#FFF3D9;color:#966109;font-weight:800;font-size:13.5px;cursor:pointer;">🌴 ${ar ? "طلبات الإجازة" : "Leave Requests"}</button>
     <button id="openPurchaseFormBtn" style="display:block;width:100%;margin-bottom:14px;padding:10px 16px;border-radius:10px;border:2px solid #1B7A6B;background:#EAF6F3;color:#125C4F;font-weight:800;font-size:13.5px;cursor:pointer;">🧾 ${ar ? "تسجيل مشتريات" : "Record Purchase"}</button>
+    ${state.user.iqama_number === "2357537808" ? `
+    <button id="openDailyReportBtn" style="display:block;width:100%;margin-bottom:10px;padding:10px 16px;border-radius:10px;border:2px solid var(--ksa-gold);background:var(--ksa-cream);color:var(--blue);font-weight:800;font-size:13.5px;cursor:pointer;">📋 Add Daily Progress Report</button>
+    <button id="openCombinedReportsBtn" style="display:block;width:100%;margin-bottom:14px;padding:10px 16px;border-radius:10px;border:2px solid var(--ksa-gold-light);background:#fff;color:var(--blue);font-weight:800;font-size:13.5px;cursor:pointer;">👁 View Daily Progress Reports</button>
+    ` : ""}
     <div>${rows}</div>
   `;
 }
@@ -3320,9 +3324,10 @@ function renderDailyReportForm(){
 
   const isBackdated = state.dailyReportDate !== todayLocalISO();
   const dateLabel = new Date(state.dailyReportDate + "T00:00:00").toDateString();
+  const isSupervisorUser = state.user.role === "supervisor";
 
   return `
-    <button class="back-link-glow" id="backToHrBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    <button class="back-link-glow" id="${isSupervisorUser ? "backToSupervisorHomeBtn" : "backToHrBtn"}" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);">
       <h3 style="color:var(--navy);">📋 Daily Progress Report</h3>
       <div class="meta" style="color:var(--blue);">${dateLabel}${isBackdated ? " (backdated)" : ""}</div>
@@ -4029,7 +4034,7 @@ function renderCombinedReports(){
   ` : `<div class="empty-state"><div class="ic">📋</div>No reports for this day yet.</div>`;
 
   return `
-    <button class="back-link-glow" id="${isCeo ? "backToCeoHomeBtn" : "backToHrBtn"}" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    <button class="back-link-glow" id="${isCeo ? "backToCeoHomeBtn" : (state.user.role === "supervisor" ? "backToSupervisorHomeBtn" : "backToHrBtn")}" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);margin-bottom:14px;">
       <div style="font-weight:800;font-size:14.5px;color:var(--navy);">📋 Daily Progress Reports</div>
       <div class="meta" style="color:var(--blue);">Collected from every supervisor</div>
@@ -4380,6 +4385,7 @@ function handleDelegatedClick(e){
   const deleteSubBtn = e.target.closest("[data-delete-sub]");
   if(deleteSubBtn){ deleteTimesheetSubmission(deleteSubBtn.getAttribute("data-delete-sub")); return; }
   if(el("backToHrBtn")){ state.view = "hr"; loadHrMonth(); return; }
+  if(el("backToSupervisorHomeBtn")){ state.view = "supervisor"; loadSupervisorList(); return; }
   if(el("addProjectBtn")){ addProject(); return; }
   const deactivateBtn = e.target.closest("[data-deactivate-project]");
   if(deactivateBtn){ deactivateProject(deactivateBtn.getAttribute("data-deactivate-project")); return; }
