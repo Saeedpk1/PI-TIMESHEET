@@ -325,7 +325,7 @@
   .empty-state .ic{font-size:34px;margin-bottom:10px;}
 
   .field-note{font-size:12px;color:var(--muted);margin-top:6px;}
-  .checklist{display:flex;flex-direction:column;gap:8px;}
+  .checklist{display:flex;flex-direction:column;gap:1px;}
   .checklist label{display:flex;align-items:center;gap:8px;font-weight:400;text-transform:none;font-size:14px;color:var(--ink);}
 
   .toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 18px;border-radius:30px;font-size:13px;z-index:999;box-shadow:0 4px 14px rgba(0,0,0,.2);}
@@ -1642,6 +1642,21 @@ async function loadUnitsForProject(projectId){
   const { data } = await sb.from("ts_project_units").select("*").eq("project_id", projectId).eq("active", true).order("name");
   state.reportUnits = data || [];
   render();
+}
+
+async function loadDefaultTeamForUnit(unitId){
+  if(!unitId){ return; }
+  const { data } = await sb.from("ts_daily_reports").select("team_member_ids")
+    .eq("unit_id", unitId).order("report_date", { ascending: false }).limit(1).maybeSingle();
+  if(data && data.team_member_ids && data.team_member_ids.length){
+    // Only pre-fill with people who are actually available today (present, not already on another unit).
+    const busyElsewhereIds = new Set();
+    state.myDailyReportsToday.forEach(r => (r.team_member_ids || []).forEach(id => busyElsewhereIds.add(id)));
+    state.dailyReportDraft.teamIds = data.team_member_ids.filter(id =>
+      !state.todayAbsenceIds.includes(id) && !busyElsewhereIds.has(id)
+    );
+    render();
+  }
 }
 
 async function handleAddUnitFromReport(projectId, selectEl){
@@ -3234,15 +3249,19 @@ function renderSupervisorList(){
 
 function renderDailyAttendanceForm(){
   const ids = state.attendanceDraftIds;
-  const rows = state.allEmployeesForReport.map(e => {
-    const isAbsent = ids.includes(e.id);
-    return `
-    <label style="display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:6px;${isAbsent?"background:#FDECEA;":""}">
-      <input type="checkbox" class="daily-attendance-chk" value="${e.id}" ${isAbsent?"checked":""}>
-      <span style="${isAbsent?"color:var(--absent);text-decoration:line-through;":""}">${e.short_name || e.name}</span>
-      ${isAbsent ? `<span style="margin-left:auto;font-size:9.5px;font-weight:800;color:var(--absent);">ABSENT</span>` : ""}
-    </label>`;
-  }).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>No employees found.</div>`;
+  const remaining = state.allEmployeesForReport.filter(e => !ids.includes(e.id));
+  const absentEmployees = state.allEmployeesForReport.filter(e => ids.includes(e.id));
+  const rows = remaining.map(e => `
+    <label style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:5px;">
+      <input type="checkbox" class="daily-attendance-chk" value="${e.id}">
+      <span>${e.short_name || e.name}</span>
+    </label>`).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">🎉</div>Everyone accounted for.</div>`;
+
+  const absentChips = absentEmployees.map(e => `
+    <span style="display:inline-flex;align-items:center;gap:5px;background:#FDECEA;color:var(--absent);border-radius:14px;padding:3px 10px 3px 12px;font-size:11.5px;font-weight:700;margin:0 6px 6px 0;">
+      ${e.short_name || e.name}
+      <button type="button" class="link-btn" data-unmark-absent="${e.id}" style="padding:0;color:var(--absent) !important;font-size:13px;line-height:1;">✕</button>
+    </span>`).join("");
 
   return `
     <button class="back-link-glow" id="backToDailyReportBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
@@ -3250,8 +3269,9 @@ function renderDailyAttendanceForm(){
       <h3 style="color:var(--navy);">🗓️ Today's Attendance</h3>
       <div class="meta" style="color:var(--blue);">${new Date().toDateString()} — one list for the whole day, shared across every project/unit report.</div>
     </div>
-    <div class="meta" style="margin:10px 2px;">${state.allEmployeesForReport.length - ids.length} present, ${ids.length} absent</div>
-    <div class="checklist" style="background:#F8FAFC;border:2px solid var(--line);border-radius:10px;padding:8px 10px;max-height:400px;overflow-y:auto;">
+    <div class="meta" style="margin:10px 2px;">${remaining.length} present, ${ids.length} absent — check anyone absent below, the list shrinks as you go</div>
+    ${absentChips ? `<div style="margin-bottom:8px;">${absentChips}</div>` : ""}
+    <div class="checklist" style="background:#F8FAFC;border:2px solid var(--line);border-radius:10px;padding:6px 8px;max-height:400px;overflow-y:auto;">
       ${rows}
     </div>
     <div class="bottom-bar">
@@ -3265,14 +3285,25 @@ function renderDailyReportForm(){
   const isEditing = !!state.editingDailyReportId;
   const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${d.projectId===p.id?"selected":""}>${p.name}</option>`).join("");
   const presentEmployees = state.allEmployeesForReport.filter(e => !state.todayAbsenceIds.includes(e.id));
-  const employeeRows = presentEmployees.map(e => {
-    const isPicked = d.teamIds.includes(e.id);
-    return `
-    <label style="display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:6px;${isPicked?"background:#EAF6ED;":""}">
-      <input type="checkbox" class="daily-report-team-chk" value="${e.id}" ${isPicked?"checked":""}>
-      <span style="${isPicked?"font-weight:700;color:var(--blue);":""}">${e.short_name || e.name}</span>
-    </label>`;
-  }).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>Everyone is marked absent today.</div>`;
+  const busyElsewhereIds = new Set();
+  state.myDailyReportsToday.forEach(r => {
+    if(state.editingDailyReportId && r.id === state.editingDailyReportId) return;
+    (r.team_member_ids || []).forEach(id => busyElsewhereIds.add(id));
+  });
+  const pickedEmployees = state.allEmployeesForReport.filter(e => d.teamIds.includes(e.id));
+  const remainingEmployees = presentEmployees.filter(e => !d.teamIds.includes(e.id) && !busyElsewhereIds.has(e.id));
+
+  const employeeRows = remainingEmployees.map(e => `
+    <label style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:5px;">
+      <input type="checkbox" class="daily-report-team-chk" value="${e.id}">
+      <span>${e.short_name || e.name}</span>
+    </label>`).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>${presentEmployees.length ? "Everyone present is already picked or assigned elsewhere today." : "Everyone is marked absent today."}</div>`;
+
+  const pickedChips = pickedEmployees.map(e => `
+    <span style="display:inline-flex;align-items:center;gap:5px;background:#EAF6ED;color:var(--present);border-radius:14px;padding:3px 10px 3px 12px;font-size:11.5px;font-weight:700;margin:0 6px 6px 0;">
+      ${e.short_name || e.name}
+      <button type="button" class="link-btn" data-unpick-team="${e.id}" style="padding:0;color:var(--present) !important;font-size:13px;line-height:1;">✕</button>
+    </span>`).join("");
 
   const todayReportsHtml = state.myDailyReportsToday.map(r => `
     <div class="emp-list-item li-approved">
@@ -3311,8 +3342,9 @@ function renderDailyReportForm(){
     ` : ""}
 
     <label style="margin-top:12px;">Who's working in this unit today?</label>
-    <div class="meta" style="margin-bottom:6px;">${d.teamIds.length} selected</div>
-    <div class="checklist" style="background:#F8FAFC;border:2px solid var(--line);border-radius:10px;padding:8px 10px;max-height:320px;overflow-y:auto;">
+    <div class="meta" style="margin-bottom:6px;">${d.teamIds.length} selected${d.unitId ? " — pre-filled from this unit's last report, adjust as needed" : ""}</div>
+    ${pickedChips ? `<div style="margin-bottom:8px;">${pickedChips}</div>` : ""}
+    <div class="checklist" style="background:#F8FAFC;border:2px solid var(--line);border-radius:10px;padding:6px 8px;max-height:280px;overflow-y:auto;">
       ${employeeRows}
     </div>
 
@@ -4477,6 +4509,20 @@ function handleDelegatedClick(e){
     return;
   }
   if(el("backToDailyReportBtn")){ state.view = "daily-report-form"; render(); return; }
+  const unpickTeamEl = e.target.closest("[data-unpick-team]");
+  if(unpickTeamEl){
+    const id = unpickTeamEl.getAttribute("data-unpick-team");
+    state.dailyReportDraft.teamIds = state.dailyReportDraft.teamIds.filter(x=>x!==id);
+    render();
+    return;
+  }
+  const unmarkAbsentEl = e.target.closest("[data-unmark-absent]");
+  if(unmarkAbsentEl){
+    const id = unmarkAbsentEl.getAttribute("data-unmark-absent");
+    state.attendanceDraftIds = state.attendanceDraftIds.filter(x=>x!==id);
+    render();
+    return;
+  }
   if(el("saveDailyAttendanceBtn")){
     saveTodayAttendance().then(() => { state.view = "daily-report-form"; render(); });
     return;
@@ -4579,6 +4625,9 @@ function handleDelegatedChange(e){
       return;
     }
     state.dailyReportDraft.unitId = e.target.value;
+    if(!state.editingDailyReportId){
+      loadDefaultTeamForUnit(e.target.value);
+    }
     return;
   }
   if(e.target.classList.contains("daily-report-team-chk")){
