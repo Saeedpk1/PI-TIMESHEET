@@ -4148,50 +4148,75 @@ function colorForProjectName(name){
 function renderUnitFinancialReport(){
   const f = state.unitFinancials;
   if(!f) return `<div class="empty-state">Loading…</div>`;
-  const isCeo = state.user.role === "ceo";
-  const fmtSAR = n => `SAR ${Number(n).toLocaleString(undefined,{maximumFractionDigits:0})}`;
-  const marginColor = f.marginPct === null ? "var(--muted)" : (f.marginPct >= 0 ? "var(--present)" : "var(--absent)");
-  const profitColor = f.profit >= 0 ? "var(--present)" : "var(--absent)";
+  const fmtSAR = n => `${Number(n).toLocaleString(undefined,{maximumFractionDigits:0})}`;
+  const marginOk = f.marginPct !== null && f.marginPct >= 0;
+  const profitOk = f.profit >= 0;
 
   // Simple 3-bar SVG chart: PO value, Cost, Profit
   const maxVal = Math.max(f.poValue, f.totalCost, Math.abs(f.profit), 1);
-  const chartW = 300, chartH = 140, barW = 60, gap = 40, baseY = 110;
+  const chartW = 300, chartH = 150, barW = 62, gap = 38, baseY = 112;
   const bars = [
     { label: "PO Value", val: f.poValue, color: "#1B5A96" },
     { label: "Cost", val: f.totalCost, color: "#C43B3B" },
-    { label: "Profit", val: f.profit, color: f.profit >= 0 ? "#1C8A4E" : "#C43B3B" }
+    { label: "Profit", val: f.profit, color: profitOk ? "#1C8A4E" : "#C43B3B" }
   ];
   const svgBars = bars.map((b, i) => {
-    const h = Math.max(2, Math.abs(b.val) / maxVal * 90);
+    const h = Math.max(2, Math.abs(b.val) / maxVal * 92);
     const x = 20 + i * (barW + gap);
     const y = b.val >= 0 ? baseY - h : baseY;
     return `
-      <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="4" fill="${b.color}"></rect>
-      <text x="${x + barW/2}" y="${baseY + 16}" text-anchor="middle" font-size="10" font-weight="700" fill="#5B6B7C">${b.label}</text>
-      <text x="${x + barW/2}" y="${b.val>=0 ? y-4 : y+h+12}" text-anchor="middle" font-size="10" font-weight="800" fill="${b.color}">${Math.round(b.val).toLocaleString()}</text>
+      <defs>
+        <linearGradient id="grad${i}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${b.color}" stop-opacity="1"/>
+          <stop offset="100%" stop-color="${b.color}" stop-opacity="0.65"/>
+        </linearGradient>
+      </defs>
+      <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="6" fill="url(#grad${i})"></rect>
+      <text x="${x + barW/2}" y="${baseY + 18}" text-anchor="middle" font-size="10.5" font-weight="800" fill="#5B6B7C">${b.label}</text>
+      <text x="${x + barW/2}" y="${b.val>=0 ? y-6 : y+h+14}" text-anchor="middle" font-size="11" font-weight="800" fill="${b.color}">${Math.round(b.val).toLocaleString()}</text>
     `;
   }).join("");
 
   return `
     <button class="back-link-glow" id="backToCombinedReportsBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
-    <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);">
-      <h3 style="color:var(--navy);">💰 Financial Report</h3>
-      <div class="meta" style="color:var(--blue);">${f.projectName} — Unit ${f.unitName}</div>
+
+    <div style="background:linear-gradient(135deg,#1B5A96,#0F3556);border-radius:16px;padding:20px 18px;color:#fff;box-shadow:0 4px 16px rgba(15,53,86,0.25);position:relative;overflow:hidden;">
+      <div style="position:absolute;inset:0;background-image:linear-gradient(45deg,rgba(255,255,255,0.06) 25%,transparent 25%),linear-gradient(-45deg,rgba(255,255,255,0.06) 25%,transparent 25%);background-size:22px 22px;pointer-events:none;"></div>
+      <div style="position:relative;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#BFDCF5;font-weight:700;">💰 Financial Report</div>
+      <div style="position:relative;font-size:19px;font-weight:800;margin-top:4px;">${f.projectName}</div>
+      <div style="position:relative;font-size:13px;color:#BFDCF5;margin-top:2px;">Unit ${f.unitName}</div>
     </div>
 
-    <div class="summary-grid" style="margin-top:14px;grid-template-columns:repeat(2,1fr);">
-      <div class="summary-item"><div class="n" style="font-size:15px;">${fmtSAR(f.poValue)}</div><div class="l">PO Value</div></div>
-      <div class="summary-item"><div class="n" style="font-size:15px;">${f.daysWorked}</div><div class="l">Days Worked</div></div>
-      <div class="summary-item"><div class="n" style="font-size:15px;color:var(--absent);">${fmtSAR(f.totalCost)}</div><div class="l">Cost So Far</div></div>
-      <div class="summary-item"><div class="n" style="font-size:15px;color:${profitColor};">${fmtSAR(f.profit)}</div><div class="l">Profit</div></div>
-    </div>
-    <div class="card" style="margin-top:10px;text-align:center;">
-      <div class="meta">Profit Margin</div>
-      <div style="font-size:26px;font-weight:800;color:${marginColor};margin-top:2px;">${f.marginPct === null ? "-" : f.marginPct.toFixed(1) + "%"}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;">
+      <div style="background:linear-gradient(135deg,#1B5A96,#3E86C4);border-radius:14px;padding:14px;color:#fff;box-shadow:0 3px 10px rgba(27,90,150,0.3);">
+        <div style="font-size:10.5px;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">PO Value</div>
+        <div style="font-size:19px;font-weight:800;margin-top:4px;">${fmtSAR(f.poValue)}</div>
+        <div style="font-size:10px;opacity:0.75;">SAR</div>
+      </div>
+      <div style="background:linear-gradient(135deg,#6B4FC4,#8E72E0);border-radius:14px;padding:14px;color:#fff;box-shadow:0 3px 10px rgba(107,79,196,0.3);">
+        <div style="font-size:10.5px;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Days Worked</div>
+        <div style="font-size:19px;font-weight:800;margin-top:4px;">${f.daysWorked}</div>
+        <div style="font-size:10px;opacity:0.75;">days</div>
+      </div>
+      <div style="background:linear-gradient(135deg,#C43B3B,#E0645F);border-radius:14px;padding:14px;color:#fff;box-shadow:0 3px 10px rgba(196,59,59,0.3);">
+        <div style="font-size:10.5px;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Cost So Far</div>
+        <div style="font-size:19px;font-weight:800;margin-top:4px;">${fmtSAR(f.totalCost)}</div>
+        <div style="font-size:10px;opacity:0.75;">SAR</div>
+      </div>
+      <div style="background:linear-gradient(135deg,${profitOk ? "#1C8A4E,#2FAE68" : "#C43B3B,#E0645F"});border-radius:14px;padding:14px;color:#fff;box-shadow:0 3px 10px ${profitOk ? "rgba(28,138,78,0.3)" : "rgba(196,59,59,0.3)"};">
+        <div style="font-size:10.5px;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Profit</div>
+        <div style="font-size:19px;font-weight:800;margin-top:4px;">${fmtSAR(f.profit)}</div>
+        <div style="font-size:10px;opacity:0.75;">SAR</div>
+      </div>
     </div>
 
-    <div class="card" style="margin-top:14px;">
-      <div class="meta" style="margin-bottom:6px;">PO Value vs Cost vs Profit</div>
+    <div style="background:linear-gradient(135deg,${marginOk ? "var(--ksa-gold),#B8912A" : "#C43B3B,#E0645F"});border-radius:14px;padding:18px;margin-top:10px;text-align:center;color:#fff;box-shadow:0 3px 10px rgba(201,162,39,0.3);">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:0.9;">Profit Margin</div>
+      <div style="font-size:34px;font-weight:800;margin-top:4px;">${f.marginPct === null ? "-" : f.marginPct.toFixed(1) + "%"}</div>
+    </div>
+
+    <div class="card" style="margin-top:14px;border:2px solid var(--ksa-gold-light);background:var(--ksa-cream);">
+      <div style="font-weight:800;font-size:12.5px;color:var(--blue);margin-bottom:6px;">📊 PO Value vs Cost vs Profit</div>
       <svg viewBox="0 0 ${chartW} ${chartH}" style="width:100%;height:auto;">${svgBars}</svg>
     </div>
 
@@ -4216,7 +4241,7 @@ function renderCombinedReports(){
     <tr>
       <td style="vertical-align:top;background:${bg};padding:5px 4px;">
         <div style="font-weight:800;color:var(--blue);">${r.ts_projects?.name || "-"}</div>
-        ${r.unit_name ? `<div style="color:var(--ink);font-weight:600;font-size:10.5px;margin-top:2px;">${r.unit_name} <button class="link-btn" data-view-unit-financials="${r.unit_id}" style="padding:0;font-size:12px;" title="Financial report">💰</button></div>` : ""}
+        ${r.unit_name ? `<div style="color:var(--ink);font-weight:600;font-size:10.5px;margin-top:2px;display:flex;align-items:center;gap:5px;">${r.unit_name} <button class="link-btn" data-view-unit-financials="${r.unit_id}" style="padding:2px 7px;font-size:10px;font-weight:800;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff !important;border-radius:10px;display:inline-flex;align-items:center;gap:3px;box-shadow:0 1px 3px rgba(0,0,0,0.15);" title="View financial report">💰 P&L</button></div>` : ""}
       </td>
       <td style="vertical-align:top;background:${bg};color:var(--ink);line-height:1.5;padding:5px 4px;">${teamList}</td>
       <td style="vertical-align:top;background:${bg};color:var(--ink);line-height:1.4;padding:5px 4px;">${r.polished_notes || r.raw_notes || ""}</td>
