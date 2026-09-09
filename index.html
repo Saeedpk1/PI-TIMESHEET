@@ -37,7 +37,7 @@
   function showLoadError(msg){
     var root = document.getElementById('root');
     if(root){
-      root.innerHTML = '<div style="padding:40px 24px;text-align:center;font-family:sans-serif;color:#C43B3B;">' + msg + '<br>Check your internet connection and reload.<br><br><button onclick="window.location.reload()" style="margin-top:14px;padding:10px 22px;border-radius:8px;border:1.5px solid #C43B3B;background:#fff;color:#C43B3B;font-weight:700;">Reload</button></div>';
+      root.innerHTML = '<div style="padding:40px 24px;text-align:center;font-family:sans-serif;color:#C43B3B;">' + msg + '<br><br>Some networks block or slow down certain external resources. Try switching between Wi-Fi and mobile data, or try again in a minute.<br><br><button onclick="window.location.reload()" style="margin-top:14px;padding:10px 22px;border-radius:8px;border:1.5px solid #C43B3B;background:#fff;color:#C43B3B;font-weight:700;">Reload</button></div>';
     }
   }
   function loadScriptChain(urls, onDone, onAllFailed){
@@ -45,10 +45,27 @@
     function tryNext(){
       if(i >= urls.length){ onAllFailed(); return; }
       var s = document.createElement('script');
+      var settled = false;
+      var watchdog = setTimeout(function(){
+        if(settled) return;
+        settled = true;
+        s.onload = s.onerror = null;
+        i++; tryNext(); // this specific URL is hanging (no error, no load) — try the next one
+      }, 6000);
       s.src = urls[i];
       s.async = false; // preserve execution order relative to other dynamically-inserted scripts (jsPDF must run before its autoTable plugin)
-      s.onload = onDone;
-      s.onerror = function(){ i++; tryNext(); };
+      s.onload = function(){
+        if(settled) return;
+        settled = true;
+        clearTimeout(watchdog);
+        onDone();
+      };
+      s.onerror = function(){
+        if(settled) return;
+        settled = true;
+        clearTimeout(watchdog);
+        i++; tryNext();
+      };
       document.head.appendChild(s);
     }
     tryNext();
@@ -91,7 +108,7 @@
     if(!window.__appBooted){
       showLoadError("This is taking longer than expected to load.");
     }
-  }, 8000);
+  }, 16000);
 </script>
 <style>
   :root{
