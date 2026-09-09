@@ -106,7 +106,9 @@
 
   setTimeout(function(){
     if(!window.__appBooted){
-      showLoadError("This is taking longer than expected to load.");
+      var missing = [];
+      for(var key in __loaded){ if(!__loaded[key]) missing.push(key); }
+      showLoadError("This is taking longer than expected to load.<br><small style=\"color:#888;\">Stuck on: " + (missing.join(", ") || "unknown") + "</small>");
     }
   }, 16000);
 </script>
