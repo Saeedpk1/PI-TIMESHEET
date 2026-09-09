@@ -396,8 +396,9 @@ let state = {
   supervisorLeaveRequests: [],
   hrLeaveRequests: [],
   ceoLeaveRequests: [],
-  dailyReportDraft: { projectId: "", teamIds: [], absentIds: [], rawText: "", polishedText: "", polishing: false },
+  dailyReportDraft: { projectId: "", unitId: "", teamIds: [], absentIds: [], rawText: "", polishedText: "", polishing: false },
   allEmployeesForReport: [],
+  reportUnits: [],
   myDailyReportsToday: [],
   editingDailyReportId: null,
   combinedReportsDate: new Date().toISOString().slice(0,10),
@@ -1502,8 +1503,35 @@ async function scanPurchaseBill(file){
 
 /* ---------------- Daily project reports ---------------- */
 function resetDailyReportDraft(){
-  state.dailyReportDraft = { projectId: "", teamIds: [], absentIds: [], rawText: "", polishedText: "", polishing: false };
+  state.dailyReportDraft = { projectId: "", unitId: "", teamIds: [], absentIds: [], rawText: "", polishedText: "", polishing: false };
   state.editingDailyReportId = null;
+  state.reportUnits = [];
+}
+
+async function loadUnitsForProject(projectId){
+  if(!projectId){ state.reportUnits = []; render(); return; }
+  const { data } = await sb.from("ts_project_units").select("*").eq("project_id", projectId).eq("active", true).order("name");
+  state.reportUnits = data || [];
+  render();
+}
+
+async function handleAddUnitFromReport(projectId, selectEl){
+  const name = (prompt("New unit name (e.g. PE1):") || "").trim();
+  if(!name){ render(); return; }
+  state.loading = true; render();
+  const { data, error } = await sb.from("ts_project_units")
+    .insert({ project_id: projectId, name, active: true })
+    .select()
+    .maybeSingle();
+  state.loading = false;
+  if(error || !data){
+    toast("Could not add unit. Try again.");
+    render(); return;
+  }
+  await loadUnitsForProject(projectId);
+  state.dailyReportDraft.unitId = data.id;
+  toast(`"${name}" added and selected.`);
+  render();
 }
 
 async function loadAllEmployeesForReport(){
@@ -1524,13 +1552,15 @@ async function polishDailyReport(){
   const d = state.dailyReportDraft;
   if(!d.rawText || !d.rawText.trim()){ toast("Write a quick note first."); return; }
   const project = state.projects.find(p=>p.id===d.projectId);
+  const unit = state.reportUnits.find(u=>u.id===d.unitId);
+  const projectLabel = unit ? `${project?.name || ""} - Unit ${unit.name}` : (project?.name || "");
   const teamNames = state.allEmployeesForReport.filter(e=>d.teamIds.includes(e.id)).map(e=>e.name);
   d.polishing = true; render();
   try{
     const resp = await fetch(`${SUPABASE_URL}/functions/v1/smart-endpoint`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` },
-      body: JSON.stringify({ action: "polish_report", rawText: d.rawText, projectName: project?.name || "", teamNames })
+      body: JSON.stringify({ action: "polish_report", rawText: d.rawText, projectName: projectLabel, teamNames })
     });
     const data = await resp.json();
     if(!resp.ok || data.error) throw new Error(data.error || "Could not polish text");
@@ -1552,10 +1582,13 @@ async function saveDailyReport(){
   if(!d.rawText || !d.rawText.trim()){ toast("Write today's progress note."); return; }
   const teamNames = state.allEmployeesForReport.filter(e=>d.teamIds.includes(e.id)).map(e=>e.name);
   const absentNames = state.allEmployeesForReport.filter(e=>d.absentIds.includes(e.id)).map(e=>e.name);
+  const unit = state.reportUnits.find(u=>u.id===d.unitId);
   const payload = {
     supervisor_id: state.user.id,
     report_date: new Date().toISOString().slice(0,10),
     project_id: d.projectId,
+    unit_id: d.unitId || null,
+    unit_name: unit ? unit.name : null,
     team_member_ids: d.teamIds,
     team_member_names: teamNames,
     absent_ids: d.absentIds,
@@ -1587,12 +1620,14 @@ function startEditDailyReport(reportId){
   state.editingDailyReportId = reportId;
   state.dailyReportDraft = {
     projectId: r.project_id || "",
+    unitId: r.unit_id || "",
     teamIds: r.team_member_ids || [],
     absentIds: r.absent_ids || [],
     rawText: r.raw_notes || "",
     polishedText: r.polished_notes || "",
     polishing: false
   };
+  if(r.project_id) loadUnitsForProject(r.project_id);
   render();
 }
 
@@ -3083,7 +3118,7 @@ function renderDailyReportForm(){
   const todayReportsHtml = state.myDailyReportsToday.map(r => `
     <div class="emp-list-item li-approved">
       <div style="flex:1;min-width:0;">
-        <div class="name">${r.ts_projects?.name || "Project"}</div>
+        <div class="name">${r.ts_projects?.name || "Project"}${r.unit_name ? ` <span style="font-weight:400;color:var(--muted);">— Unit ${r.unit_name}</span>` : ""}</div>
         <div class="sub">${(r.team_member_names||[]).join(", ")}</div>
         ${(r.absent_names||[]).length ? `<div class="sub" style="color:var(--absent);">Absent: ${(r.absent_names||[]).join(", ")}</div>` : ""}
         <div class="sub" style="margin-top:4px;font-style:italic;">${r.polished_notes || r.raw_notes || ""}</div>
@@ -3106,6 +3141,15 @@ function renderDailyReportForm(){
       <option value="">Select project</option>
       ${projectOptions}
     </select>
+
+    ${d.projectId ? `
+    <label style="margin-top:12px;">Unit Number</label>
+    <select id="dailyReportUnit">
+      <option value="">No specific unit</option>
+      ${state.reportUnits.map(u => `<option value="${u.id}" ${d.unitId===u.id?"selected":""}>${u.name}</option>`).join("")}
+      <option value="__new__">+ New unit…</option>
+    </select>
+    ` : ""}
 
     <label style="margin-top:12px;">Team working today</label>
     <div class="checklist" style="background:#F8FAFC;border:2px solid var(--line);border-radius:10px;padding:12px;max-height:220px;overflow-y:auto;">
@@ -3690,6 +3734,7 @@ function renderCombinedReports(){
     return `
     <tr>
       <td style="font-weight:700;color:var(--ksa-green-dark);vertical-align:top;background:${bg};">${r.ts_projects?.name || "-"}</td>
+      <td style="vertical-align:top;background:${bg};">${r.unit_name || "-"}</td>
       <td style="vertical-align:top;background:${bg};">${teamList}${absentList}</td>
       <td style="vertical-align:top;background:${bg};">${r.polished_notes || r.raw_notes || ""}</td>
       <td style="text-align:center;font-weight:800;vertical-align:top;background:${bg};">${team.length}${absentNames.length ? `<div style="font-weight:700;color:var(--absent);font-size:8px;">(${absentNames.length} abs)</div>` : ""}</td>
@@ -3698,17 +3743,18 @@ function renderCombinedReports(){
 
   const totalsRow = state.combinedReports.length ? `
     <tr>
-      <td colspan="3" style="font-weight:800;background:var(--ksa-gold-light);color:var(--ksa-green-dark);text-align:right;">TOTAL</td>
+      <td colspan="4" style="font-weight:800;background:var(--ksa-gold-light);color:var(--ksa-green-dark);text-align:right;">TOTAL</td>
       <td style="text-align:center;font-weight:800;background:var(--ksa-gold-light);color:var(--ksa-green-dark);">${totalEmp}${totalAbsent ? `<div style="font-weight:700;color:var(--absent);font-size:8px;">(${totalAbsent} abs)</div>` : ""}</td>
     </tr>` : "";
 
   const body = state.combinedReports.length ? `
     <div class="card" style="margin-top:6px;padding:6px 4px 2px;border:2px solid var(--ksa-gold-light);">
       <table class="grid" style="font-size:8px;">
-        <colgroup><col style="width:16%;"><col style="width:26%;"><col style="width:45%;"><col style="width:13%;"></colgroup>
+        <colgroup><col style="width:14%;"><col style="width:10%;"><col style="width:24%;"><col style="width:40%;"><col style="width:12%;"></colgroup>
         <thead>
           <tr>
             <th>Project</th>
+            <th>Unit</th>
             <th>Team</th>
             <th>Progress</th>
             <th>Emp</th>
@@ -4256,7 +4302,20 @@ function handleDelegatedChange(e){
   if(e.target.id === "leaveLastDay"){ state.leaveFormDraft.lastDay = e.target.value; render(); return; }
   if(e.target.name === "hasToolBox"){ state.leaveFormDraft.hasToolBox = e.target.value; return; }
   if(e.target.id === "leaveSiteIdChk"){ state.leaveFormDraft.hasSiteId = e.target.checked; return; }
-  if(e.target.id === "dailyReportProject"){ state.dailyReportDraft.projectId = e.target.value; return; }
+  if(e.target.id === "dailyReportProject"){
+    state.dailyReportDraft.projectId = e.target.value;
+    state.dailyReportDraft.unitId = "";
+    loadUnitsForProject(e.target.value);
+    return;
+  }
+  if(e.target.id === "dailyReportUnit"){
+    if(e.target.value === "__new__"){
+      handleAddUnitFromReport(state.dailyReportDraft.projectId, e.target);
+      return;
+    }
+    state.dailyReportDraft.unitId = e.target.value;
+    return;
+  }
   if(e.target.classList.contains("daily-report-team-chk")){
     const id = e.target.value;
     const ids = state.dailyReportDraft.teamIds;
