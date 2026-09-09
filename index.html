@@ -1535,7 +1535,7 @@ async function handleAddUnitFromReport(projectId, selectEl){
 }
 
 async function loadAllEmployeesForReport(){
-  const { data } = await sb.from("ts_employees").select("*").eq("active", true).order("name");
+  const { data } = await sb.from("ts_employees").select("*").eq("active", true).not("short_name", "is", null).order("short_name");
   state.allEmployeesForReport = data || [];
 }
 
@@ -1554,7 +1554,7 @@ async function polishDailyReport(){
   const project = state.projects.find(p=>p.id===d.projectId);
   const unit = state.reportUnits.find(u=>u.id===d.unitId);
   const projectLabel = unit ? `${project?.name || ""} - Unit ${unit.name}` : (project?.name || "");
-  const teamNames = state.allEmployeesForReport.filter(e=>d.teamIds.includes(e.id)).map(e=>e.name);
+  const teamNames = state.allEmployeesForReport.filter(e=>d.teamIds.includes(e.id)).map(e=>e.short_name || e.name);
   d.polishing = true; render();
   try{
     const resp = await fetch(`${SUPABASE_URL}/functions/v1/smart-endpoint`, {
@@ -1580,8 +1580,8 @@ async function saveDailyReport(){
   if(!d.projectId){ toast("Select a project."); return; }
   if(!d.teamIds.length){ toast("Select at least one team member."); return; }
   if(!d.rawText || !d.rawText.trim()){ toast("Write today's progress note."); return; }
-  const teamNames = state.allEmployeesForReport.filter(e=>d.teamIds.includes(e.id)).map(e=>e.name);
-  const absentNames = state.allEmployeesForReport.filter(e=>d.absentIds.includes(e.id)).map(e=>e.name);
+  const teamNames = state.allEmployeesForReport.filter(e=>d.teamIds.includes(e.id)).map(e=>e.short_name || e.name);
+  const absentNames = state.allEmployeesForReport.filter(e=>d.absentIds.includes(e.id)).map(e=>e.short_name || e.name);
   const unit = state.reportUnits.find(u=>u.id===d.unitId);
   const payload = {
     supervisor_id: state.user.id,
@@ -3109,10 +3109,10 @@ function renderDailyReportForm(){
   const isEditing = !!state.editingDailyReportId;
   const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${d.projectId===p.id?"selected":""}>${p.name}</option>`).join("");
   const teamChecks = state.allEmployeesForReport.map(e => `
-    <label><input type="checkbox" class="daily-report-team-chk" value="${e.id}" ${d.teamIds.includes(e.id)?"checked":""}> ${e.name}</label>
+    <label><input type="checkbox" class="daily-report-team-chk" value="${e.id}" ${d.teamIds.includes(e.id)?"checked":""}> ${e.short_name || e.name}</label>
   `).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>No employees found.</div>`;
   const absentChecks = state.allEmployeesForReport.map(e => `
-    <label><input type="checkbox" class="daily-report-absent-chk" value="${e.id}" ${d.absentIds.includes(e.id)?"checked":""}> ${e.name}</label>
+    <label><input type="checkbox" class="daily-report-absent-chk" value="${e.id}" ${d.absentIds.includes(e.id)?"checked":""}> ${e.short_name || e.name}</label>
   `).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>No employees found.</div>`;
 
   const todayReportsHtml = state.myDailyReportsToday.map(r => `
