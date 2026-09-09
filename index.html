@@ -3465,7 +3465,7 @@ function renderDailyAttendanceForm(){
     </span>`).join("");
 
   const vacationNote = state.todayVacations.length
-    ? `<div class="meta" style="margin-bottom:8px;">🏖️ ${state.todayVacations.length} on vacation today (not shown here — <button class="link-btn ceo-gold-btn" id="openVacationManagerBtn" style="display:inline;padding:0;">manage vacations</button>): ${state.todayVacations.map(v=>v.employee_name).join(", ")}</div>`
+    ? `<div class="meta" style="margin-bottom:8px;">🏖️ ${state.todayVacations.length} on vacation today (not shown here — <button class="link-btn ceo-gold-btn" id="openVacationManagerBtn" style="display:inline;padding:0;">manage vacations</button>)</div>`
     : "";
 
   return `
@@ -3540,8 +3540,15 @@ function renderDailyReportForm(){
     <label style="margin-top:10px;">Report date</label>
     <input type="date" id="dailyReportDateInput" value="${state.dailyReportDate}" max="${todayLocalISO()}">
 
-    <div class="meta" style="margin:8px 2px;">🏖️ Vacation ${state.todayVacations.length} + 🔴 Absent ${state.todayAbsenceIds.length} + ✅ Working ${presentEmployees.length} = <strong>${state.todayVacations.length + state.todayAbsenceIds.length + presentEmployees.length} total</strong></div>
-    <div class="meta" style="margin:2px 2px 8px;"><button class="link-btn ceo-gold-btn" id="openDailyAttendanceBtn" style="display:inline;padding:0;">manage attendance</button> • <button class="link-btn ceo-gold-btn" id="openVacationManagerBtn" style="display:inline;padding:0;">manage vacations</button></div>
+    <div style="background:#F8FAFC;border-radius:10px;padding:8px 10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0;">
+      <span style="background:#EAF1FC;color:var(--blue);font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:999px;">🏖️ ${state.todayVacations.length}</span>
+      <span style="background:#FDECEA;color:var(--absent);font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:999px;">🔴 ${state.todayAbsenceIds.length}</span>
+      <span style="background:#EAF6ED;color:var(--present);font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:999px;">✅ ${presentEmployees.length}</span>
+      <span style="font-size:11.5px;font-weight:800;color:var(--ink);margin-left:2px;">= ${state.todayVacations.length + state.todayAbsenceIds.length + presentEmployees.length}</span>
+      <span style="flex:1;"></span>
+      <button type="button" class="link-btn" id="openDailyAttendanceBtn" title="Manage attendance" style="width:28px;height:28px;padding:0;border-radius:50%;background:var(--ksa-cream);border:1px solid var(--ksa-gold-light);display:flex;align-items:center;justify-content:center;font-size:14px;">🗓️</button>
+      <button type="button" class="link-btn" id="openVacationManagerBtn" title="Manage vacations" style="width:28px;height:28px;padding:0;border-radius:50%;background:var(--ksa-cream);border:1px solid var(--ksa-gold-light);display:flex;align-items:center;justify-content:center;font-size:14px;">🏖️</button>
+    </div>
 
     <label style="margin-top:10px;">Project</label>
     <select id="dailyReportProject">
