@@ -421,11 +421,17 @@ let state = {
   todayAbsenceIds: [],
   attendanceDraftIds: [],
   dailyReportDate: todayLocalISO(),
+  todayVacations: [],
+  vacationFormEmployeeId: "",
+  vacationFormStart: "",
+  vacationFormEnd: "",
+  managerVacations: [],
   myDailyReportsToday: [],
   editingDailyReportId: null,
   combinedReportsDate: todayLocalISO(),
   combinedReports: [],
   combinedAbsences: [],
+  combinedVacations: [],
   managerUnitsByProject: {},
   expandedProjectId: null,
   unitFinancials: null,
@@ -1700,6 +1706,56 @@ async function saveAttendanceForDate(date){
   render();
 }
 
+/* ---------------- Vacations ---------------- */
+async function loadVacationsForDate(date){
+  const { data } = await sb.from("ts_vacations").select("*").lte("start_date", date).gte("end_date", date);
+  state.todayVacations = data || [];
+}
+
+async function loadAllVacationsForManager(){
+  state.loading = true; render();
+  const { data } = await sb.from("ts_vacations").select("*").order("start_date", { ascending: false });
+  state.managerVacations = data || [];
+  state.loading = false;
+  render();
+}
+
+async function addVacation(){
+  const empId = state.vacationFormEmployeeId;
+  const start = state.vacationFormStart;
+  const end = state.vacationFormEnd;
+  if(!empId){ toast("Select an employee."); return; }
+  if(!start || !end){ toast("Enter both start and end dates."); return; }
+  if(end < start){ toast("End date can't be before the start date."); return; }
+  const emp = state.allEmployeesForReport.find(e=>e.id===empId);
+  state.loading = true; render();
+  const { error } = await sb.from("ts_vacations").insert({
+    employee_id: empId,
+    employee_name: emp ? (emp.short_name || emp.name) : "",
+    start_date: start,
+    end_date: end
+  });
+  state.loading = false;
+  toast(error ? "Could not save. Try again." : "Vacation added.");
+  if(!error){
+    state.vacationFormEmployeeId = ""; state.vacationFormStart = ""; state.vacationFormEnd = "";
+    await loadAllVacationsForManager();
+    await loadVacationsForDate(state.dailyReportDate);
+  }
+  render();
+}
+
+async function deleteVacation(id){
+  if(!confirm("Remove this vacation entry?")) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_vacations").delete().eq("id", id);
+  state.loading = false;
+  toast(error ? "Could not remove. Try again." : "Vacation removed.");
+  await loadAllVacationsForManager();
+  await loadVacationsForDate(state.dailyReportDate);
+  render();
+}
+
 async function loadUnitsForProject(projectId){
   if(!projectId){ state.reportUnits = []; render(); return; }
   const { data } = await sb.from("ts_project_units").select("*").eq("project_id", projectId).eq("active", true).order("name");
@@ -1844,15 +1900,17 @@ async function deleteDailyReport(reportId){
 
 async function loadCombinedReports(){
   state.loading = true; render();
-  const [{ data }, { data: absenceRow }] = await Promise.all([
+  const [{ data }, { data: absenceRow }, { data: vacationRows }] = await Promise.all([
     sb.from("ts_daily_reports")
       .select("*, ts_projects:project_id(name), ts_employees:supervisor_id(name)")
       .eq("report_date", state.combinedReportsDate)
       .order("created_at", { ascending: true }),
-    sb.from("ts_daily_absences").select("*").eq("absence_date", state.combinedReportsDate).maybeSingle()
+    sb.from("ts_daily_absences").select("*").eq("absence_date", state.combinedReportsDate).maybeSingle(),
+    sb.from("ts_vacations").select("*").lte("start_date", state.combinedReportsDate).gte("end_date", state.combinedReportsDate)
   ]);
   state.combinedReports = data || [];
   state.combinedAbsences = absenceRow ? (absenceRow.absent_names || []) : [];
+  state.combinedVacations = (vacationRows || []).map(v=>v.employee_name);
   state.loading = false;
   render();
 }
@@ -3110,6 +3168,7 @@ function render(){
   else if(state.view === "ceo-leave-review") body = renderCeoLeaveReview();
   else if(state.view === "daily-report-form") body = renderDailyReportForm();
   else if(state.view === "daily-attendance-form") body = renderDailyAttendanceForm();
+  else if(state.view === "vacation-manager") body = renderVacationManager();
   else if(state.view === "combined-reports") body = renderCombinedReports();
   else if(state.view === "unit-financial-report") body = renderUnitFinancialReport();
   else if(state.view === "ceo-contact-form") body = renderCeoContactForm();
@@ -3342,9 +3401,56 @@ function renderCeoContactForm(){
   `;
 }
 
+function renderVacationManager(){
+  const employeeOptions = state.allEmployeesForReport.map(e => `<option value="${e.id}" ${state.vacationFormEmployeeId===e.id?"selected":""}>${e.short_name || e.name}</option>`).join("");
+  const today = todayLocalISO();
+  const upcoming = state.managerVacations.filter(v => v.end_date >= today);
+  const past = state.managerVacations.filter(v => v.end_date < today);
+
+  const rowHtml = v => `
+    <div class="emp-list-item li-approved">
+      <div style="flex:1;min-width:0;">
+        <div class="name">${v.employee_name}</div>
+        <div class="sub">${v.start_date} → ${v.end_date}</div>
+      </div>
+      <button class="link-btn" data-delete-vacation="${v.id}" style="color:var(--absent) !important;">🗑 Remove</button>
+    </div>`;
+
+  return `
+    <button class="back-link-glow" id="backToDailyReportBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);">
+      <h3 style="color:var(--navy);">🏖️ Vacations</h3>
+      <div class="meta" style="color:var(--blue);">Mark an employee's vacation once — it applies automatically for every day in that range.</div>
+    </div>
+
+    <label style="margin-top:14px;">Employee</label>
+    <select id="vacationEmployeeSelect">
+      <option value="">Select employee</option>
+      ${employeeOptions}
+    </select>
+    <label style="margin-top:10px;">Start date</label>
+    <input type="date" id="vacationStartInput" value="${state.vacationFormStart}">
+    <label style="margin-top:10px;">End date</label>
+    <input type="date" id="vacationEndInput" value="${state.vacationFormEnd}">
+    <button class="btn btn-submit btn-sm" id="addVacationBtn" style="margin-top:10px;width:100%;">💾 Add Vacation</button>
+
+    <div class="card" style="margin-top:18px;">
+      <h3 style="font-size:14px;">Current & upcoming</h3>
+    </div>
+    <div style="margin-top:10px;">${upcoming.map(rowHtml).join("") || `<div class="empty-state"><div class="ic">🏖️</div>None right now.</div>`}</div>
+
+    ${past.length ? `
+    <div class="card" style="margin-top:18px;">
+      <h3 style="font-size:14px;">Past</h3>
+    </div>
+    <div style="margin-top:10px;">${past.map(rowHtml).join("")}</div>` : ""}
+  `;
+}
+
 function renderDailyAttendanceForm(){
   const ids = state.attendanceDraftIds;
-  const remaining = state.allEmployeesForReport.filter(e => !ids.includes(e.id));
+  const vacationIds = new Set(state.todayVacations.map(v=>v.employee_id));
+  const remaining = state.allEmployeesForReport.filter(e => !ids.includes(e.id) && !vacationIds.has(e.id));
   const absentEmployees = state.allEmployeesForReport.filter(e => ids.includes(e.id));
   const rows = remaining.map(e => `
     <label style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:5px;">
@@ -3358,6 +3464,10 @@ function renderDailyAttendanceForm(){
       <button type="button" class="link-btn" data-unmark-absent="${e.id}" style="padding:0;color:var(--absent) !important;font-size:13px;line-height:1;">✕</button>
     </span>`).join("");
 
+  const vacationNote = state.todayVacations.length
+    ? `<div class="meta" style="margin-bottom:8px;">🏖️ ${state.todayVacations.length} on vacation today (not shown here — <button class="link-btn ceo-gold-btn" id="openVacationManagerBtn" style="display:inline;padding:0;">manage vacations</button>): ${state.todayVacations.map(v=>v.employee_name).join(", ")}</div>`
+    : "";
+
   return `
     <button class="back-link-glow" id="backToDailyReportBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);">
@@ -3365,6 +3475,7 @@ function renderDailyAttendanceForm(){
       <div class="meta" style="color:var(--blue);">${new Date(state.dailyReportDate + "T00:00:00").toDateString()} — one list for the whole day, shared across every project/unit report.</div>
     </div>
     <div class="meta" style="margin:10px 2px;">${remaining.length} present, ${ids.length} absent — check anyone absent below, the list shrinks as you go</div>
+    ${vacationNote}
     ${absentChips ? `<div style="margin-bottom:8px;">${absentChips}</div>` : ""}
     <div class="checklist" style="background:#F8FAFC;border:2px solid var(--line);border-radius:10px;padding:6px 8px;max-height:400px;overflow-y:auto;">
       ${rows}
@@ -3379,7 +3490,8 @@ function renderDailyReportForm(){
   const d = state.dailyReportDraft;
   const isEditing = !!state.editingDailyReportId;
   const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${d.projectId===p.id?"selected":""}>${p.name}</option>`).join("");
-  const presentEmployees = state.allEmployeesForReport.filter(e => !state.todayAbsenceIds.includes(e.id));
+  const vacationIds = new Set(state.todayVacations.map(v=>v.employee_id));
+  const presentEmployees = state.allEmployeesForReport.filter(e => !state.todayAbsenceIds.includes(e.id) && !vacationIds.has(e.id));
   const busyElsewhereIds = new Set();
   state.myDailyReportsToday.forEach(r => {
     if(state.editingDailyReportId && r.id === state.editingDailyReportId) return;
@@ -3392,7 +3504,7 @@ function renderDailyReportForm(){
     <label style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:5px;">
       <input type="checkbox" class="daily-report-team-chk" value="${e.id}">
       <span>${e.short_name || e.name}</span>
-    </label>`).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>${presentEmployees.length ? "Everyone present is already picked or assigned elsewhere today." : "Everyone is marked absent today."}</div>`;
+    </label>`).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>${presentEmployees.length ? "Everyone present is already picked or assigned elsewhere today." : "Everyone is marked absent or on vacation today."}</div>`;
 
   const pickedChips = pickedEmployees.map(e => `
     <span style="display:inline-flex;align-items:center;gap:5px;background:#EAF6ED;color:var(--present);border-radius:14px;padding:3px 10px 3px 12px;font-size:11.5px;font-weight:700;margin:0 6px 6px 0;">
@@ -3416,6 +3528,7 @@ function renderDailyReportForm(){
   const isBackdated = state.dailyReportDate !== todayLocalISO();
   const dateLabel = new Date(state.dailyReportDate + "T00:00:00").toDateString();
   const isSupervisorUser = state.user.role === "supervisor";
+  const totalEmp = state.allEmployeesForReport.length;
 
   return `
     <button class="back-link-glow" id="${isSupervisorUser ? "backToSupervisorHomeBtn" : "backToHrBtn"}" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
@@ -3427,7 +3540,8 @@ function renderDailyReportForm(){
     <label style="margin-top:10px;">Report date</label>
     <input type="date" id="dailyReportDateInput" value="${state.dailyReportDate}" max="${todayLocalISO()}">
 
-    <div class="meta" style="margin:8px 2px;">${state.todayAbsenceIds.length} absent on this date • <button class="link-btn ceo-gold-btn" id="openDailyAttendanceBtn" style="display:inline;padding:0;">manage attendance</button></div>
+    <div class="meta" style="margin:8px 2px;">Vacation ${state.todayVacations.length} • Absent ${state.todayAbsenceIds.length} • Working ${presentEmployees.length} • Total ${totalEmp}</div>
+    <div class="meta" style="margin:2px 2px 8px;"><button class="link-btn ceo-gold-btn" id="openDailyAttendanceBtn" style="display:inline;padding:0;">manage attendance</button> • <button class="link-btn ceo-gold-btn" id="openVacationManagerBtn" style="display:inline;padding:0;">manage vacations</button></div>
 
     <label style="margin-top:10px;">Project</label>
     <select id="dailyReportProject">
@@ -4144,6 +4258,11 @@ function renderCombinedReports(){
       <div style="font-weight:800;font-size:12.5px;color:var(--absent);">Absent that day (${state.combinedAbsences.length})</div>
       <div class="meta" style="margin-top:4px;">${state.combinedAbsences.join(", ")}</div>
     </div>` : ""}
+    ${state.combinedVacations.length ? `
+    <div class="card" style="margin-bottom:14px;border:2px solid var(--ksa-gold-light);background:var(--ksa-cream);">
+      <div style="font-weight:800;font-size:12.5px;color:var(--blue);">🏖️ On vacation that day (${state.combinedVacations.length})</div>
+      <div class="meta" style="margin-top:4px;">${state.combinedVacations.join(", ")}</div>
+    </div>` : ""}
     <div style="display:flex;align-items:center;justify-content:space-between;background:var(--ksa-cream);border:2px solid var(--ksa-gold-light);border-radius:10px;padding:8px 12px;margin-bottom:14px;">
       <button class="link-btn ceo-gold-btn" id="prevReportsDayBtn" style="font-size:18px;font-weight:800;">‹</button>
       <div style="text-align:center;">
@@ -4647,7 +4766,7 @@ function handleDelegatedClick(e){
     resetDailyReportDraft();
     state.dailyReportDate = todayLocalISO();
     state.view = "daily-report-form";
-    Promise.all([loadAllEmployeesForReport(), loadDailyReportsForDate(state.dailyReportDate), loadAbsencesForDate(state.dailyReportDate)]).then(render);
+    Promise.all([loadAllEmployeesForReport(), loadDailyReportsForDate(state.dailyReportDate), loadAbsencesForDate(state.dailyReportDate), loadVacationsForDate(state.dailyReportDate)]).then(render);
     return;
   }
   if(el("openDailyAttendanceBtn")){
@@ -4656,6 +4775,14 @@ function handleDelegatedClick(e){
     render();
     return;
   }
+  if(el("openVacationManagerBtn")){
+    state.view = "vacation-manager";
+    loadAllVacationsForManager();
+    return;
+  }
+  if(el("addVacationBtn")){ addVacation(); return; }
+  const deleteVacationEl = e.target.closest("[data-delete-vacation]");
+  if(deleteVacationEl){ deleteVacation(deleteVacationEl.getAttribute("data-delete-vacation")); return; }
   if(el("backToDailyReportBtn")){ state.view = "daily-report-form"; render(); return; }
   const unpickTeamEl = e.target.closest("[data-unpick-team]");
   if(unpickTeamEl){
@@ -4761,12 +4888,15 @@ function handleDelegatedChange(e){
   if(e.target.id === "leaveLastDay"){ state.leaveFormDraft.lastDay = e.target.value; render(); return; }
   if(e.target.name === "hasToolBox"){ state.leaveFormDraft.hasToolBox = e.target.value; return; }
   if(e.target.id === "leaveSiteIdChk"){ state.leaveFormDraft.hasSiteId = e.target.checked; return; }
+  if(e.target.id === "vacationEmployeeSelect"){ state.vacationFormEmployeeId = e.target.value; return; }
+  if(e.target.id === "vacationStartInput"){ state.vacationFormStart = e.target.value; return; }
+  if(e.target.id === "vacationEndInput"){ state.vacationFormEnd = e.target.value; return; }
   if(e.target.id === "dailyReportDateInput"){
     const newDate = e.target.value;
     if(!newDate) return;
     resetDailyReportDraft();
     state.dailyReportDate = newDate;
-    Promise.all([loadDailyReportsForDate(newDate), loadAbsencesForDate(newDate)]).then(render);
+    Promise.all([loadDailyReportsForDate(newDate), loadAbsencesForDate(newDate), loadVacationsForDate(newDate)]).then(render);
     return;
   }
   if(e.target.id === "dailyReportProject"){
