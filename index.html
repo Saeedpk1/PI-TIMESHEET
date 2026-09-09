@@ -4285,7 +4285,7 @@ function renderCombinedReports(){
     const team = (r.team_member_names || []);
     totalEmp += team.length;
     const teamList = team.length
-      ? team.map((n,i) => `<span style="white-space:nowrap;">${i+1}. ${firstName(n)}</span>`).join("<br>")
+      ? team.map((n,i) => `<span style="white-space:nowrap;font-size:10px;"><span style="color:var(--muted);font-weight:700;">${i+1}.</span> ${firstName(n)}</span>`).join("<br>")
       : "-";
     const bg = colorForProjectName(r.ts_projects?.name || "");
     return `
@@ -4310,7 +4310,7 @@ function renderCombinedReports(){
     </tr>` : "";
 
   const body = state.combinedReports.length ? `
-    <div class="card" style="margin-top:6px;padding:6px 3px 2px;border:2px solid var(--ksa-gold-light);">
+    <div class="card" style="margin-top:6px;padding:6px 3px 2px;border:2px solid var(--ksa-gold-light);box-shadow:0 3px 10px rgba(201,162,39,0.12);">
       <table class="grid report-table" style="font-size:11.5px;">
         <colgroup><col style="width:20%;"><col style="width:28%;"><col style="width:39%;"><col style="width:11%;"></colgroup>
         <thead>
