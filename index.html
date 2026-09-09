@@ -3540,7 +3540,7 @@ function renderDailyReportForm(){
     <label style="margin-top:10px;">Report date</label>
     <input type="date" id="dailyReportDateInput" value="${state.dailyReportDate}" max="${todayLocalISO()}">
 
-    <div class="meta" style="margin:8px 2px;">Vacation ${state.todayVacations.length} • Absent ${state.todayAbsenceIds.length} • Working ${presentEmployees.length} • Total ${totalEmp}</div>
+    <div class="meta" style="margin:8px 2px;">🏖️ Vacation ${state.todayVacations.length} + 🔴 Absent ${state.todayAbsenceIds.length} + ✅ Working ${presentEmployees.length} = <strong>${state.todayVacations.length + state.todayAbsenceIds.length + presentEmployees.length} total</strong></div>
     <div class="meta" style="margin:2px 2px 8px;"><button class="link-btn ceo-gold-btn" id="openDailyAttendanceBtn" style="display:inline;padding:0;">manage attendance</button> • <button class="link-btn ceo-gold-btn" id="openVacationManagerBtn" style="display:inline;padding:0;">manage vacations</button></div>
 
     <label style="margin-top:10px;">Project</label>
@@ -4246,11 +4246,14 @@ function renderCombinedReports(){
     <tr>
       <td style="vertical-align:top;background:${bg};padding:5px 4px;">
         <div style="font-weight:800;color:var(--blue);">${r.ts_projects?.name || "-"}</div>
-        ${r.unit_name ? `<div style="color:var(--ink);font-weight:600;font-size:10.5px;margin-top:2px;display:flex;align-items:center;gap:5px;">${r.unit_name} <button class="link-btn" data-view-unit-financials="${r.unit_id}" style="width:20px;height:20px;padding:0;font-size:11px;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff !important;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.2);flex-shrink:0;" title="View financial report">💰</button></div>` : ""}
+        ${r.unit_name ? `<div style="color:var(--ink);font-weight:600;font-size:10.5px;margin-top:2px;">${r.unit_name}</div>` : ""}
       </td>
       <td style="vertical-align:top;background:${bg};color:var(--ink);line-height:1.5;padding:5px 4px;">${teamList}</td>
       <td style="vertical-align:top;background:${bg};color:var(--ink);line-height:1.4;padding:5px 4px;">${r.polished_notes || r.raw_notes || ""}</td>
-      <td style="text-align:center;font-weight:800;vertical-align:top;background:${bg};color:var(--ink);padding:5px 2px;">${team.length}</td>
+      <td style="text-align:center;font-weight:800;vertical-align:top;background:${bg};color:var(--ink);padding:5px 2px;">
+        ${team.length}
+        ${r.unit_name ? `<button class="link-btn" data-view-unit-financials="${r.unit_id}" style="width:15px;height:15px;padding:0;font-size:8px;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff !important;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,0.2);margin:3px auto 0;" title="View financial report">💰</button>` : ""}
+      </td>
     </tr>`;
   }).join("");
 
@@ -4282,6 +4285,10 @@ function renderCombinedReports(){
     <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);margin-bottom:14px;">
       <div style="font-weight:800;font-size:14.5px;color:var(--navy);">📋 Daily Progress Reports</div>
       <div class="meta" style="color:var(--blue);">Collected from every supervisor</div>
+    </div>
+    <div class="card" style="margin-bottom:14px;border:2px solid var(--ksa-gold-light);background:var(--ksa-cream);text-align:center;">
+      <div style="font-weight:800;font-size:12px;color:var(--blue);">🏖️ ${state.combinedVacations.length} vacation &nbsp;+&nbsp; 🔴 ${state.combinedAbsences.length} absent &nbsp;+&nbsp; ✅ ${totalEmp} working</div>
+      <div style="font-size:20px;font-weight:800;color:var(--blue);margin-top:4px;">= ${state.combinedVacations.length + state.combinedAbsences.length + totalEmp} total</div>
     </div>
     ${state.combinedAbsences.length ? `
     <div class="card" style="margin-bottom:14px;border:2px solid #F3C9C0;background:#FDF3F1;">
