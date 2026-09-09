@@ -396,12 +396,12 @@ let state = {
   supervisorLeaveRequests: [],
   hrLeaveRequests: [],
   ceoLeaveRequests: [],
-  dailyReportDraft: { projectId: "", unitId: "", teamIds: [], absentIds: [], rawText: "", polishedText: "", polishing: false },
+  dailyReportDraft: { projectId: "", unitId: "", absentIds: [], rawText: "", polishedText: "", polishing: false },
   allEmployeesForReport: [],
   reportUnits: [],
   myDailyReportsToday: [],
   editingDailyReportId: null,
-  combinedReportsDate: new Date().toISOString().slice(0,10),
+  combinedReportsDate: todayLocalISO(),
   combinedReports: [],
   selectedLeaveRequest: null,
   myPurchases: [],
@@ -465,6 +465,18 @@ function monthLabel(d){ return d.toLocaleDateString("en-GB",{month:"long",year:"
 function daysInMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0).getDate(); }
 function pad(n){ return String(n).padStart(2,"0"); }
 function fmtDate(y,m,day){ return `${y}-${pad(m+1)}-${pad(day)}`; }
+// Local-timezone-safe "today" and date-shift helpers. Using new Date().toISOString()
+// converts to UTC, which lands on the wrong calendar day for part of the day in any
+// timezone ahead of UTC (e.g. Saudi Arabia, UTC+3) — always use these instead.
+function todayLocalISO(){
+  const d = new Date();
+  return fmtDate(d.getFullYear(), d.getMonth(), d.getDate());
+}
+function shiftLocalISO(dateStr, days){
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return fmtDate(d.getFullYear(), d.getMonth(), d.getDate());
+}
 function isFriday(y,m,day){ return new Date(y,m,day).getDay() === 5; }
 function dayName(y,m,day){ return new Date(y,m,day).toLocaleDateString("en-GB",{weekday:"short"}); }
 function dayNameFull(y,m,day){ return new Date(y,m,day).toLocaleDateString("en-GB",{weekday:"long"}); }
@@ -876,7 +888,7 @@ async function submitLeaveRequest(){
   state.loading = true; render();
   const days = leaveDaysBetween(f.firstDay, f.lastDay);
   const payload = {
-    application_date: new Date().toISOString().slice(0,10),
+    application_date: todayLocalISO(),
     last_vacation_date: f.lastVacationDate || null,
     mobile_number: f.mobileNumber || null,
     home_mobile_number: f.homeMobileNumber || null,
@@ -1487,7 +1499,7 @@ async function scanPurchaseBill(file){
       }else{
         const parsed = new Date(aiResult.date);
         if(!isNaN(parsed.getTime())){
-          state.purchaseFormDraft.purchaseDate = parsed.toISOString().slice(0,10);
+          state.purchaseFormDraft.purchaseDate = fmtDate(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
         }
       }
     }
@@ -1503,7 +1515,7 @@ async function scanPurchaseBill(file){
 
 /* ---------------- Daily project reports ---------------- */
 function resetDailyReportDraft(){
-  state.dailyReportDraft = { projectId: "", unitId: "", teamIds: [], absentIds: [], rawText: "", polishedText: "", polishing: false };
+  state.dailyReportDraft = { projectId: "", unitId: "", absentIds: [], rawText: "", polishedText: "", polishing: false };
   state.editingDailyReportId = null;
   state.reportUnits = [];
 }
@@ -1540,7 +1552,7 @@ async function loadAllEmployeesForReport(){
 }
 
 async function loadMyDailyReportsToday(){
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayLocalISO();
   const { data } = await sb.from("ts_daily_reports")
     .select("*, ts_projects:project_id(name)")
     .eq("report_date", today)
@@ -1554,7 +1566,7 @@ async function polishDailyReport(){
   const project = state.projects.find(p=>p.id===d.projectId);
   const unit = state.reportUnits.find(u=>u.id===d.unitId);
   const projectLabel = unit ? `${project?.name || ""} - Unit ${unit.name}` : (project?.name || "");
-  const teamNames = state.allEmployeesForReport.filter(e=>d.teamIds.includes(e.id)).map(e=>e.short_name || e.name);
+  const teamNames = state.allEmployeesForReport.filter(e=>!d.absentIds.includes(e.id)).map(e=>e.short_name || e.name);
   d.polishing = true; render();
   try{
     const resp = await fetch(`${SUPABASE_URL}/functions/v1/smart-endpoint`, {
@@ -1578,18 +1590,19 @@ async function polishDailyReport(){
 async function saveDailyReport(){
   const d = state.dailyReportDraft;
   if(!d.projectId){ toast("Select a project."); return; }
-  if(!d.teamIds.length){ toast("Select at least one team member."); return; }
+  if(!state.allEmployeesForReport.length){ toast("No employees available."); return; }
   if(!d.rawText || !d.rawText.trim()){ toast("Write today's progress note."); return; }
-  const teamNames = state.allEmployeesForReport.filter(e=>d.teamIds.includes(e.id)).map(e=>e.short_name || e.name);
+  const teamIds = state.allEmployeesForReport.filter(e=>!d.absentIds.includes(e.id)).map(e=>e.id);
+  const teamNames = state.allEmployeesForReport.filter(e=>!d.absentIds.includes(e.id)).map(e=>e.short_name || e.name);
   const absentNames = state.allEmployeesForReport.filter(e=>d.absentIds.includes(e.id)).map(e=>e.short_name || e.name);
   const unit = state.reportUnits.find(u=>u.id===d.unitId);
   const payload = {
     supervisor_id: state.user.id,
-    report_date: new Date().toISOString().slice(0,10),
+    report_date: todayLocalISO(),
     project_id: d.projectId,
     unit_id: d.unitId || null,
     unit_name: unit ? unit.name : null,
-    team_member_ids: d.teamIds,
+    team_member_ids: teamIds,
     team_member_names: teamNames,
     absent_ids: d.absentIds,
     absent_names: absentNames,
@@ -1621,7 +1634,6 @@ function startEditDailyReport(reportId){
   state.dailyReportDraft = {
     projectId: r.project_id || "",
     unitId: r.unit_id || "",
-    teamIds: r.team_member_ids || [],
     absentIds: r.absent_ids || [],
     rawText: r.raw_notes || "",
     polishedText: r.polished_notes || "",
@@ -1653,9 +1665,7 @@ async function loadCombinedReports(){
 }
 
 function shiftCombinedReportsDate(days){
-  const d = new Date(state.combinedReportsDate + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  state.combinedReportsDate = d.toISOString().slice(0,10);
+  state.combinedReportsDate = shiftLocalISO(state.combinedReportsDate, days);
   loadCombinedReports();
 }
 
@@ -1671,7 +1681,7 @@ async function savePurchase(){
   const total = Math.round((amountNum + vatAmt) * 100) / 100;
 
   const payload = {
-    purchase_date: f.purchaseDate || new Date().toISOString().slice(0,10),
+    purchase_date: f.purchaseDate || todayLocalISO(),
     category: f.category || null,
     item_description: f.itemDescription.trim(),
     project_id: f.projectId || null,
@@ -3108,12 +3118,16 @@ function renderDailyReportForm(){
   const d = state.dailyReportDraft;
   const isEditing = !!state.editingDailyReportId;
   const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${d.projectId===p.id?"selected":""}>${p.name}</option>`).join("");
-  const teamChecks = state.allEmployeesForReport.map(e => `
-    <label><input type="checkbox" class="daily-report-team-chk" value="${e.id}" ${d.teamIds.includes(e.id)?"checked":""}> ${e.short_name || e.name}</label>
-  `).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>No employees found.</div>`;
-  const absentChecks = state.allEmployeesForReport.map(e => `
-    <label><input type="checkbox" class="daily-report-absent-chk" value="${e.id}" ${d.absentIds.includes(e.id)?"checked":""}> ${e.short_name || e.name}</label>
-  `).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>No employees found.</div>`;
+  const presentCount = state.allEmployeesForReport.length - d.absentIds.length;
+  const employeeRows = state.allEmployeesForReport.map(e => {
+    const isAbsent = d.absentIds.includes(e.id);
+    return `
+    <label style="display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:6px;${isAbsent?"background:#FDECEA;":""}">
+      <input type="checkbox" class="daily-report-absent-chk" value="${e.id}" ${isAbsent?"checked":""}>
+      <span style="${isAbsent?"color:var(--absent);text-decoration:line-through;":""}">${e.short_name || e.name}</span>
+      ${isAbsent ? `<span style="margin-left:auto;font-size:9.5px;font-weight:800;color:var(--absent);">ABSENT</span>` : ""}
+    </label>`;
+  }).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>No employees found.</div>`;
 
   const todayReportsHtml = state.myDailyReportsToday.map(r => `
     <div class="emp-list-item li-approved">
@@ -3151,14 +3165,10 @@ function renderDailyReportForm(){
     </select>
     ` : ""}
 
-    <label style="margin-top:12px;">Team working today</label>
-    <div class="checklist" style="background:#F8FAFC;border:2px solid var(--line);border-radius:10px;padding:12px;max-height:220px;overflow-y:auto;">
-      ${teamChecks}
-    </div>
-
-    <label style="margin-top:12px;">Absent today</label>
-    <div class="checklist" style="background:#FDF3F1;border:2px solid #F3C9C0;border-radius:10px;padding:12px;max-height:220px;overflow-y:auto;">
-      ${absentChecks}
+    <label style="margin-top:12px;">Employees — check anyone absent today</label>
+    <div class="meta" style="margin-bottom:6px;">${presentCount} working, ${d.absentIds.length} absent</div>
+    <div class="checklist" style="background:#F8FAFC;border:2px solid var(--line);border-radius:10px;padding:8px 10px;max-height:320px;overflow-y:auto;">
+      ${employeeRows}
     </div>
 
     <label style="margin-top:12px;">Today's progress (rough notes)</label>
@@ -3716,7 +3726,7 @@ function colorForProjectName(name){
 function renderCombinedReports(){
   const isCeo = state.user.role === "ceo";
   const dateLabel = new Date(state.combinedReportsDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-  const isToday = state.combinedReportsDate === new Date().toISOString().slice(0,10);
+  const isToday = state.combinedReportsDate === todayLocalISO();
 
   let totalEmp = 0, totalAbsent = 0;
   const rows = state.combinedReports.map(r => {
@@ -4234,14 +4244,14 @@ function handleDelegatedClick(e){
   const deleteDailyReportEl = e.target.closest("[data-delete-daily-report]");
   if(deleteDailyReportEl){ deleteDailyReport(deleteDailyReportEl.getAttribute("data-delete-daily-report")); return; }
   if(el("openCombinedReportsBtn")){
-    state.combinedReportsDate = new Date().toISOString().slice(0,10);
+    state.combinedReportsDate = todayLocalISO();
     state.view = "combined-reports";
     loadCombinedReports();
     return;
   }
   if(el("prevReportsDayBtn")){ shiftCombinedReportsDate(-1); return; }
   if(el("nextReportsDayBtn")){ shiftCombinedReportsDate(1); return; }
-  if(el("todayReportsBtn")){ state.combinedReportsDate = new Date().toISOString().slice(0,10); loadCombinedReports(); return; }
+  if(el("todayReportsBtn")){ state.combinedReportsDate = todayLocalISO(); loadCombinedReports(); return; }
   const viewLeaveCeoEl = e.target.closest("[data-view-leave-ceo]");
   if(viewLeaveCeoEl){
     const reqId = viewLeaveCeoEl.getAttribute("data-view-leave-ceo");
@@ -4316,18 +4326,16 @@ function handleDelegatedChange(e){
     state.dailyReportDraft.unitId = e.target.value;
     return;
   }
-  if(e.target.classList.contains("daily-report-team-chk")){
-    const id = e.target.value;
-    const ids = state.dailyReportDraft.teamIds;
-    if(e.target.checked){ if(!ids.includes(id)) ids.push(id); }
-    else{ state.dailyReportDraft.teamIds = ids.filter(x=>x!==id); }
-    return;
-  }
   if(e.target.classList.contains("daily-report-absent-chk")){
     const id = e.target.value;
     const ids = state.dailyReportDraft.absentIds;
     if(e.target.checked){ if(!ids.includes(id)) ids.push(id); }
     else{ state.dailyReportDraft.absentIds = ids.filter(x=>x!==id); }
+    const listEl = e.target.closest(".checklist");
+    const scrollTop = listEl ? listEl.scrollTop : 0;
+    render();
+    const newListEl = document.querySelector(".checklist");
+    if(newListEl) newListEl.scrollTop = scrollTop;
     return;
   }
   if(e.target.id === "purchaseDate"){ state.purchaseFormDraft.purchaseDate = e.target.value; return; }
