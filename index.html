@@ -619,6 +619,7 @@ async function markCeoMessageRead(id){
 }
 
 
+function monthKey(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0"); }
 function monthLabel(d){ return d.toLocaleDateString("en-GB",{month:"long",year:"numeric"}); }
 function daysInMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0).getDate(); }
 function pad(n){ return String(n).padStart(2,"0"); }
