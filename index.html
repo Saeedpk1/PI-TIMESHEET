@@ -401,6 +401,7 @@ let state = {
   reportUnits: [],
   todayAbsenceIds: [],
   attendanceDraftIds: [],
+  dailyReportDate: todayLocalISO(),
   myDailyReportsToday: [],
   editingDailyReportId: null,
   combinedReportsDate: todayLocalISO(),
@@ -1616,23 +1617,23 @@ function resetDailyReportDraft(){
   state.reportUnits = [];
 }
 
-async function loadTodayAbsences(){
-  const { data } = await sb.from("ts_daily_absences").select("*").eq("absence_date", todayLocalISO()).maybeSingle();
+async function loadAbsencesForDate(date){
+  const { data } = await sb.from("ts_daily_absences").select("*").eq("absence_date", date).maybeSingle();
   state.todayAbsenceIds = data ? (data.absent_ids || []) : [];
 }
 
-async function saveTodayAttendance(){
+async function saveAttendanceForDate(date){
   const ids = state.attendanceDraftIds;
   const names = state.allEmployeesForReport.filter(e=>ids.includes(e.id)).map(e=>e.short_name || e.name);
   state.loading = true; render();
   const { error } = await sb.from("ts_daily_absences").upsert({
-    absence_date: todayLocalISO(),
+    absence_date: date,
     absent_ids: ids,
     absent_names: names,
     updated_at: new Date().toISOString()
   }, { onConflict: "absence_date" });
   state.loading = false;
-  toast(error ? "Could not save attendance. Try again." : "Today's attendance saved.");
+  toast(error ? "Could not save attendance. Try again." : "Attendance saved.");
   if(!error) state.todayAbsenceIds = ids;
   render();
 }
@@ -1683,11 +1684,10 @@ async function loadAllEmployeesForReport(){
   state.allEmployeesForReport = data || [];
 }
 
-async function loadMyDailyReportsToday(){
-  const today = todayLocalISO();
+async function loadDailyReportsForDate(date){
   const { data } = await sb.from("ts_daily_reports")
     .select("*, ts_projects:project_id(name)")
-    .eq("report_date", today)
+    .eq("report_date", date)
     .order("created_at", { ascending: false });
   state.myDailyReportsToday = data || [];
 }
@@ -1728,7 +1728,7 @@ async function saveDailyReport(){
   const unit = state.reportUnits.find(u=>u.id===d.unitId);
   const payload = {
     supervisor_id: state.user.id,
-    report_date: todayLocalISO(),
+    report_date: state.dailyReportDate,
     project_id: d.projectId,
     unit_id: d.unitId || null,
     unit_name: unit ? unit.name : null,
@@ -1749,7 +1749,7 @@ async function saveDailyReport(){
   toast(error ? "Could not save. Try again." : "Progress report saved.");
   if(!error){
     resetDailyReportDraft();
-    await loadMyDailyReportsToday();
+    await loadDailyReportsForDate(state.dailyReportDate);
   }
   render();
 }
@@ -1776,7 +1776,7 @@ async function deleteDailyReport(reportId){
   const { error } = await sb.from("ts_daily_reports").delete().eq("id", reportId);
   state.loading = false;
   toast(error ? "Could not remove. Try again." : "Report removed.");
-  await loadMyDailyReportsToday();
+  await loadDailyReportsForDate(state.dailyReportDate);
   render();
 }
 
@@ -3266,8 +3266,8 @@ function renderDailyAttendanceForm(){
   return `
     <button class="back-link-glow" id="backToDailyReportBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);">
-      <h3 style="color:var(--navy);">🗓️ Today's Attendance</h3>
-      <div class="meta" style="color:var(--blue);">${new Date().toDateString()} — one list for the whole day, shared across every project/unit report.</div>
+      <h3 style="color:var(--navy);">🗓️ Attendance</h3>
+      <div class="meta" style="color:var(--blue);">${new Date(state.dailyReportDate + "T00:00:00").toDateString()} — one list for the whole day, shared across every project/unit report.</div>
     </div>
     <div class="meta" style="margin:10px 2px;">${remaining.length} present, ${ids.length} absent — check anyone absent below, the list shrinks as you go</div>
     ${absentChips ? `<div style="margin-bottom:8px;">${absentChips}</div>` : ""}
@@ -3318,13 +3318,20 @@ function renderDailyReportForm(){
       </div>
     </div>`).join("");
 
+  const isBackdated = state.dailyReportDate !== todayLocalISO();
+  const dateLabel = new Date(state.dailyReportDate + "T00:00:00").toDateString();
+
   return `
     <button class="back-link-glow" id="backToHrBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);">
       <h3 style="color:var(--navy);">📋 Daily Progress Report</h3>
-      <div class="meta" style="color:var(--blue);">${new Date().toDateString()}</div>
+      <div class="meta" style="color:var(--blue);">${dateLabel}${isBackdated ? " (backdated)" : ""}</div>
     </div>
-    <div class="meta" style="margin:8px 2px;">${state.todayAbsenceIds.length} absent today • <button class="link-btn ceo-gold-btn" id="openDailyAttendanceBtn" style="display:inline;padding:0;">manage attendance</button></div>
+
+    <label style="margin-top:10px;">Report date</label>
+    <input type="date" id="dailyReportDateInput" value="${state.dailyReportDate}" max="${todayLocalISO()}">
+
+    <div class="meta" style="margin:8px 2px;">${state.todayAbsenceIds.length} absent on this date • <button class="link-btn ceo-gold-btn" id="openDailyAttendanceBtn" style="display:inline;padding:0;">manage attendance</button></div>
 
     <label style="margin-top:10px;">Project</label>
     <select id="dailyReportProject">
@@ -3341,7 +3348,7 @@ function renderDailyReportForm(){
     </select>
     ` : ""}
 
-    <label style="margin-top:12px;">Who's working in this unit today?</label>
+    <label style="margin-top:12px;">Who's working in this unit on this date?</label>
     <div class="meta" style="margin-bottom:6px;">${d.teamIds.length} selected${d.unitId ? " — pre-filled from this unit's last report, adjust as needed" : ""}</div>
     ${pickedChips ? `<div style="margin-bottom:8px;">${pickedChips}</div>` : ""}
     <div class="checklist" style="background:#F8FAFC;border:2px solid var(--line);border-radius:10px;padding:6px 8px;max-height:280px;overflow-y:auto;">
@@ -3364,7 +3371,7 @@ function renderDailyReportForm(){
 
     ${todayReportsHtml ? `
     <div class="card" style="margin-top:18px;">
-      <h3 style="font-size:14px;">Your reports today</h3>
+      <h3 style="font-size:14px;">Reports for this date</h3>
     </div>
     <div style="margin-top:10px;">${todayReportsHtml}</div>` : ""}
   `;
@@ -4498,8 +4505,9 @@ function handleDelegatedClick(e){
   if(el("backToCeoHomeBtn")){ state.view = "ceo-home"; loadCeoLeaveRequests(); return; }
   if(el("openDailyReportBtn")){
     resetDailyReportDraft();
+    state.dailyReportDate = todayLocalISO();
     state.view = "daily-report-form";
-    Promise.all([loadAllEmployeesForReport(), loadMyDailyReportsToday(), loadTodayAbsences()]).then(render);
+    Promise.all([loadAllEmployeesForReport(), loadDailyReportsForDate(state.dailyReportDate), loadAbsencesForDate(state.dailyReportDate)]).then(render);
     return;
   }
   if(el("openDailyAttendanceBtn")){
@@ -4524,7 +4532,7 @@ function handleDelegatedClick(e){
     return;
   }
   if(el("saveDailyAttendanceBtn")){
-    saveTodayAttendance().then(() => { state.view = "daily-report-form"; render(); });
+    saveAttendanceForDate(state.dailyReportDate).then(() => { state.view = "daily-report-form"; render(); });
     return;
   }
 
@@ -4613,6 +4621,14 @@ function handleDelegatedChange(e){
   if(e.target.id === "leaveLastDay"){ state.leaveFormDraft.lastDay = e.target.value; render(); return; }
   if(e.target.name === "hasToolBox"){ state.leaveFormDraft.hasToolBox = e.target.value; return; }
   if(e.target.id === "leaveSiteIdChk"){ state.leaveFormDraft.hasSiteId = e.target.checked; return; }
+  if(e.target.id === "dailyReportDateInput"){
+    const newDate = e.target.value;
+    if(!newDate) return;
+    resetDailyReportDraft();
+    state.dailyReportDate = newDate;
+    Promise.all([loadDailyReportsForDate(newDate), loadAbsencesForDate(newDate)]).then(render);
+    return;
+  }
   if(e.target.id === "dailyReportProject"){
     state.dailyReportDraft.projectId = e.target.value;
     state.dailyReportDraft.unitId = "";
