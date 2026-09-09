@@ -3743,24 +3743,24 @@ function renderCombinedReports(){
     const bg = colorForProjectName(r.ts_projects?.name || "");
     return `
     <tr>
-      <td style="font-weight:700;color:var(--ksa-green-dark);vertical-align:top;background:${bg};">${r.ts_projects?.name || "-"}</td>
-      <td style="vertical-align:top;background:${bg};">${r.unit_name || "-"}</td>
-      <td style="vertical-align:top;background:${bg};">${teamList}${absentList}</td>
-      <td style="vertical-align:top;background:${bg};">${r.polished_notes || r.raw_notes || ""}</td>
-      <td style="text-align:center;font-weight:800;vertical-align:top;background:${bg};">${team.length}${absentNames.length ? `<div style="font-weight:700;color:var(--absent);font-size:8px;">(${absentNames.length} abs)</div>` : ""}</td>
+      <td style="font-weight:800;color:var(--ksa-green-dark);vertical-align:top;background:${bg};">${r.ts_projects?.name || "-"}</td>
+      <td style="vertical-align:top;background:${bg};color:var(--ink);font-weight:600;">${r.unit_name || "-"}</td>
+      <td style="vertical-align:top;background:${bg};color:var(--ink);line-height:1.5;">${teamList}${absentList}</td>
+      <td style="vertical-align:top;background:${bg};color:var(--ink);line-height:1.4;">${r.polished_notes || r.raw_notes || ""}</td>
+      <td style="text-align:center;font-weight:800;vertical-align:top;background:${bg};color:var(--ink);">${team.length}${absentNames.length ? `<div style="font-weight:700;color:var(--absent);font-size:10px;margin-top:3px;">(${absentNames.length} abs)</div>` : ""}</td>
     </tr>`;
   }).join("");
 
   const totalsRow = state.combinedReports.length ? `
     <tr>
       <td colspan="4" style="font-weight:800;background:var(--ksa-gold-light);color:var(--ksa-green-dark);text-align:right;">TOTAL</td>
-      <td style="text-align:center;font-weight:800;background:var(--ksa-gold-light);color:var(--ksa-green-dark);">${totalEmp}${totalAbsent ? `<div style="font-weight:700;color:var(--absent);font-size:8px;">(${totalAbsent} abs)</div>` : ""}</td>
+      <td style="text-align:center;font-weight:800;background:var(--ksa-gold-light);color:var(--ksa-green-dark);">${totalEmp}${totalAbsent ? `<div style="font-weight:700;color:var(--absent);font-size:10px;margin-top:3px;">(${totalAbsent} abs)</div>` : ""}</td>
     </tr>` : "";
 
   const body = state.combinedReports.length ? `
-    <div class="card" style="margin-top:6px;padding:6px 4px 2px;border:2px solid var(--ksa-gold-light);">
-      <table class="grid" style="font-size:8px;">
-        <colgroup><col style="width:14%;"><col style="width:10%;"><col style="width:24%;"><col style="width:40%;"><col style="width:12%;"></colgroup>
+    <div class="card" style="margin-top:6px;padding:6px 4px 2px;overflow-x:auto;border:2px solid var(--ksa-gold-light);">
+      <table class="grid" style="font-size:12px;min-width:600px;">
+        <colgroup><col style="width:16%;"><col style="width:12%;"><col style="width:20%;"><col style="width:40%;"><col style="width:12%;"></colgroup>
         <thead>
           <tr>
             <th>Project</th>
