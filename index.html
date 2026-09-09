@@ -406,6 +406,10 @@ let state = {
   combinedReportsDate: todayLocalISO(),
   combinedReports: [],
   combinedAbsences: [],
+  managerUnitsByProject: {},
+  expandedProjectId: null,
+  unitFinancials: null,
+  viewingUnitId: null,
   selectedLeaveRequest: null,
   myPurchases: [],
   purchaseFormDraft: { purchaseDate: "", category: "", itemDescription: "", projectId: "", billNo: "", vendorName: "", amount: "", hasVat: true, paymentMethod: "", notes: "", receiptPhoto: "" },
@@ -460,6 +464,95 @@ async function deactivateProject(id){
   state.loading = false;
   toast(error ? "Could not remove project." : "Project removed.");
   await loadProjects();
+  render();
+}
+
+async function toggleProjectExpand(projectId){
+  if(state.expandedProjectId === projectId){
+    state.expandedProjectId = null;
+    render();
+    return;
+  }
+  state.expandedProjectId = projectId;
+  render();
+  if(!state.managerUnitsByProject[projectId]){
+    const { data } = await sb.from("ts_project_units").select("*").eq("project_id", projectId).eq("active", true).order("name");
+    state.managerUnitsByProject[projectId] = data || [];
+    render();
+  }
+}
+
+async function addUnitFromManager(projectId){
+  const name = (prompt("New unit name (e.g. PE1):") || "").trim();
+  if(!name){ return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_project_units").insert({ project_id: projectId, name, active: true });
+  state.loading = false;
+  if(error){ toast("Could not add unit. Try again."); render(); return; }
+  const { data } = await sb.from("ts_project_units").select("*").eq("project_id", projectId).eq("active", true).order("name");
+  state.managerUnitsByProject[projectId] = data || [];
+  toast(`"${name}" added.`);
+  render();
+}
+
+async function deactivateUnit(unitId, projectId){
+  if(!confirm("Remove this unit? Past reports that used it are kept.")) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_project_units").update({ active: false }).eq("id", unitId);
+  state.loading = false;
+  if(error){ toast("Could not remove unit."); render(); return; }
+  const { data } = await sb.from("ts_project_units").select("*").eq("project_id", projectId).eq("active", true).order("name");
+  state.managerUnitsByProject[projectId] = data || [];
+  toast("Unit removed.");
+  render();
+}
+
+async function savePoValue(unitId, projectId){
+  const input = document.getElementById(`poValueInput-${unitId}`);
+  const val = input ? Number(input.value) || 0 : 0;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_project_units").update({ po_value: val }).eq("id", unitId);
+  state.loading = false;
+  toast(error ? "Could not save PO value." : "PO value saved.");
+  if(!error){
+    const list = state.managerUnitsByProject[projectId] || [];
+    const u = list.find(x=>x.id===unitId);
+    if(u) u.po_value = val;
+  }
+  render();
+}
+
+async function loadUnitFinancials(unitId){
+  state.loading = true; state.viewingUnitId = unitId; render();
+  const { data: unit } = await sb.from("ts_project_units").select("*, ts_projects:project_id(name)").eq("id", unitId).maybeSingle();
+  const { data: reports } = await sb.from("ts_daily_reports").select("report_date, team_member_ids").eq("unit_id", unitId).order("report_date", { ascending: true });
+
+  const allEmployeeIds = [...new Set((reports||[]).flatMap(r => r.team_member_ids || []))];
+  let rateById = {};
+  if(allEmployeeIds.length){
+    const { data: emps } = await sb.from("ts_employees").select("id, expenses_per_day").in("id", allEmployeeIds);
+    (emps||[]).forEach(e => { rateById[e.id] = Number(e.expenses_per_day) || 0; });
+  }
+
+  const dailyCost = {}; // report_date -> cost that day
+  (reports||[]).forEach(r => {
+    const cost = (r.team_member_ids||[]).reduce((sum,id) => sum + (rateById[id]||0), 0);
+    dailyCost[r.report_date] = (dailyCost[r.report_date]||0) + cost;
+  });
+
+  const daysWorked = Object.keys(dailyCost).length;
+  const totalCost = Object.values(dailyCost).reduce((s,c)=>s+c,0);
+  const poValue = Number(unit?.po_value) || 0;
+  const profit = poValue - totalCost;
+  const marginPct = poValue > 0 ? (profit / poValue) * 100 : null;
+
+  state.unitFinancials = {
+    unitName: unit?.name || "",
+    projectName: unit?.ts_projects?.name || "",
+    poValue, daysWorked, totalCost, profit, marginPct,
+    dailyCost // for the chart
+  };
+  state.loading = false;
   render();
 }
 
@@ -2941,6 +3034,7 @@ function render(){
   else if(state.view === "daily-report-form") body = renderDailyReportForm();
   else if(state.view === "daily-attendance-form") body = renderDailyAttendanceForm();
   else if(state.view === "combined-reports") body = renderCombinedReports();
+  else if(state.view === "unit-financial-report") body = renderUnitFinancialReport();
 
   root.innerHTML = header + `<main>${body}</main>` + renderPhotoOverlay();
   attachViewEvents();
@@ -3434,17 +3528,36 @@ function renderHrView(){
 }
 
 function renderProjectsManager(){
-  const rows = state.projects.filter(p=>p.active).map(p=>`
-    <div class="emp-list-item">
-      <div class="name">${p.name}</div>
-      <button class="link-btn" data-deactivate-project="${p.id}" style="color:var(--absent);">Remove</button>
-    </div>`).join("") || `<div class="empty-state"><div class="ic">📁</div>No projects added yet.</div>`;
+  const rows = state.projects.filter(p=>p.active).map(p=>{
+    const expanded = state.expandedProjectId === p.id;
+    const units = state.managerUnitsByProject[p.id] || [];
+    return `
+    <div style="border-bottom:1px solid var(--line);">
+      <div class="emp-list-item" style="border:none;cursor:pointer;" data-toggle-project-units="${p.id}">
+        <div class="name">${p.name} <span style="font-weight:400;color:var(--muted);font-size:11px;">${expanded ? "▲" : "▼"} units</span></div>
+        <button class="link-btn" data-deactivate-project="${p.id}" style="color:var(--absent);">Remove</button>
+      </div>
+      ${expanded ? `
+      <div style="padding:4px 8px 12px 8px;">
+        ${units.map(u => `
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-top:1px dashed var(--line);">
+            <div style="flex:1;font-weight:700;font-size:13px;">${u.name}</div>
+            <span style="font-size:11px;color:var(--muted);">PO:</span>
+            <input type="number" min="0" step="100" id="poValueInput-${u.id}" value="${u.po_value || 0}" style="width:100px;padding:6px 8px;border:2px solid var(--line);border-radius:8px;font-size:13px;">
+            <button class="link-btn" data-save-po="${u.id}|${p.id}" style="color:var(--present) !important;">💾</button>
+            <button class="link-btn" data-remove-unit="${u.id}|${p.id}" style="color:var(--absent) !important;">🗑</button>
+          </div>
+        `).join("") || `<div class="meta" style="padding:6px 4px;">No units yet.</div>`}
+        <button class="link-btn" data-add-unit="${p.id}" style="color:var(--blue) !important;margin-top:6px;">+ Add unit</button>
+      </div>` : ""}
+    </div>`;
+  }).join("") || `<div class="empty-state"><div class="ic">📁</div>No projects added yet.</div>`;
 
   return `
     <button class="link-btn" id="backToHrBtn" style="margin-bottom:12px;">‹ Back</button>
     <div class="card">
       <h3>Projects</h3>
-      <div class="meta">Employees pick from this list on their daily timesheet.</div>
+      <div class="meta">Employees pick from this list on their daily timesheet. Tap a project to manage its units and PO values (used in the CEO's financial report).</div>
     </div>
     <label>New project name</label>
     <input type="text" id="newProjectNameInput" placeholder="e.g. Riyadh Site A" value="${state.newProjectName || ""}">
@@ -3774,6 +3887,60 @@ function colorForProjectName(name){
   return PROJECT_ROW_COLORS[hash % PROJECT_ROW_COLORS.length];
 }
 
+function renderUnitFinancialReport(){
+  const f = state.unitFinancials;
+  if(!f) return `<div class="empty-state">Loading…</div>`;
+  const isCeo = state.user.role === "ceo";
+  const fmtSAR = n => `SAR ${Number(n).toLocaleString(undefined,{maximumFractionDigits:0})}`;
+  const marginColor = f.marginPct === null ? "var(--muted)" : (f.marginPct >= 0 ? "var(--present)" : "var(--absent)");
+  const profitColor = f.profit >= 0 ? "var(--present)" : "var(--absent)";
+
+  // Simple 3-bar SVG chart: PO value, Cost, Profit
+  const maxVal = Math.max(f.poValue, f.totalCost, Math.abs(f.profit), 1);
+  const chartW = 300, chartH = 140, barW = 60, gap = 40, baseY = 110;
+  const bars = [
+    { label: "PO Value", val: f.poValue, color: "#1B5A96" },
+    { label: "Cost", val: f.totalCost, color: "#C43B3B" },
+    { label: "Profit", val: f.profit, color: f.profit >= 0 ? "#1C8A4E" : "#C43B3B" }
+  ];
+  const svgBars = bars.map((b, i) => {
+    const h = Math.max(2, Math.abs(b.val) / maxVal * 90);
+    const x = 20 + i * (barW + gap);
+    const y = b.val >= 0 ? baseY - h : baseY;
+    return `
+      <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="4" fill="${b.color}"></rect>
+      <text x="${x + barW/2}" y="${baseY + 16}" text-anchor="middle" font-size="10" font-weight="700" fill="#5B6B7C">${b.label}</text>
+      <text x="${x + barW/2}" y="${b.val>=0 ? y-4 : y+h+12}" text-anchor="middle" font-size="10" font-weight="800" fill="${b.color}">${Math.round(b.val).toLocaleString()}</text>
+    `;
+  }).join("");
+
+  return `
+    <button class="back-link-glow" id="backToCombinedReportsBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);">
+      <h3 style="color:var(--navy);">💰 Financial Report</h3>
+      <div class="meta" style="color:var(--blue);">${f.projectName} — Unit ${f.unitName}</div>
+    </div>
+
+    <div class="summary-grid" style="margin-top:14px;grid-template-columns:repeat(2,1fr);">
+      <div class="summary-item"><div class="n" style="font-size:15px;">${fmtSAR(f.poValue)}</div><div class="l">PO Value</div></div>
+      <div class="summary-item"><div class="n" style="font-size:15px;">${f.daysWorked}</div><div class="l">Days Worked</div></div>
+      <div class="summary-item"><div class="n" style="font-size:15px;color:var(--absent);">${fmtSAR(f.totalCost)}</div><div class="l">Cost So Far</div></div>
+      <div class="summary-item"><div class="n" style="font-size:15px;color:${profitColor};">${fmtSAR(f.profit)}</div><div class="l">Profit</div></div>
+    </div>
+    <div class="card" style="margin-top:10px;text-align:center;">
+      <div class="meta">Profit Margin</div>
+      <div style="font-size:26px;font-weight:800;color:${marginColor};margin-top:2px;">${f.marginPct === null ? "-" : f.marginPct.toFixed(1) + "%"}</div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div class="meta" style="margin-bottom:6px;">PO Value vs Cost vs Profit</div>
+      <svg viewBox="0 0 ${chartW} ${chartH}" style="width:100%;height:auto;">${svgBars}</svg>
+    </div>
+
+    <div class="meta" style="margin-top:14px;text-align:center;">Cost is calculated from each employee's daily rate × days they were recorded working on this unit.</div>
+  `;
+}
+
 function renderCombinedReports(){
   const isCeo = state.user.role === "ceo";
   const dateLabel = new Date(state.combinedReportsDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
@@ -3791,7 +3958,7 @@ function renderCombinedReports(){
     <tr>
       <td style="vertical-align:top;background:${bg};padding:5px 4px;">
         <div style="font-weight:800;color:var(--blue);">${r.ts_projects?.name || "-"}</div>
-        ${r.unit_name ? `<div style="color:var(--ink);font-weight:600;font-size:10.5px;margin-top:2px;">${r.unit_name}</div>` : ""}
+        ${r.unit_name ? `<div style="color:var(--ink);font-weight:600;font-size:10.5px;margin-top:2px;">${r.unit_name} <button class="link-btn" data-view-unit-financials="${r.unit_id}" style="padding:0;font-size:12px;" title="Financial report">💰</button></div>` : ""}
       </td>
       <td style="vertical-align:top;background:${bg};color:var(--ink);line-height:1.5;padding:5px 4px;">${teamList}</td>
       <td style="vertical-align:top;background:${bg};color:var(--ink);line-height:1.4;padding:5px 4px;">${r.polished_notes || r.raw_notes || ""}</td>
@@ -4177,6 +4344,22 @@ function handleDelegatedClick(e){
   if(el("addProjectBtn")){ addProject(); return; }
   const deactivateBtn = e.target.closest("[data-deactivate-project]");
   if(deactivateBtn){ deactivateProject(deactivateBtn.getAttribute("data-deactivate-project")); return; }
+  const toggleUnitsBtn = e.target.closest("[data-toggle-project-units]");
+  if(toggleUnitsBtn){ toggleProjectExpand(toggleUnitsBtn.getAttribute("data-toggle-project-units")); return; }
+  const addUnitBtn = e.target.closest("[data-add-unit]");
+  if(addUnitBtn){ addUnitFromManager(addUnitBtn.getAttribute("data-add-unit")); return; }
+  const savePoBtn = e.target.closest("[data-save-po]");
+  if(savePoBtn){
+    const [unitId, projectId] = savePoBtn.getAttribute("data-save-po").split("|");
+    savePoValue(unitId, projectId);
+    return;
+  }
+  const removeUnitBtn = e.target.closest("[data-remove-unit]");
+  if(removeUnitBtn){
+    const [unitId, projectId] = removeUnitBtn.getAttribute("data-remove-unit").split("|");
+    deactivateUnit(unitId, projectId);
+    return;
+  }
   if(el("backToTeamBtn")){
     if(state.user.role === "hr"){ state.view = "hr"; loadHrMonth(); }
     else if(state.user.role === "supervisor"){ state.view = "supervisor"; loadSupervisorList(); }
@@ -4315,6 +4498,15 @@ function handleDelegatedClick(e){
   if(el("prevReportsDayBtn")){ shiftCombinedReportsDate(-1); return; }
   if(el("nextReportsDayBtn")){ shiftCombinedReportsDate(1); return; }
   if(el("todayReportsBtn")){ state.combinedReportsDate = todayLocalISO(); loadCombinedReports(); return; }
+  const viewUnitFinEl = e.target.closest("[data-view-unit-financials]");
+  if(viewUnitFinEl){
+    const unitId = viewUnitFinEl.getAttribute("data-view-unit-financials");
+    if(!unitId){ toast("No unit set for this report."); return; }
+    state.view = "unit-financial-report";
+    loadUnitFinancials(unitId);
+    return;
+  }
+  if(el("backToCombinedReportsBtn")){ state.view = "combined-reports"; state.unitFinancials = null; render(); return; }
   const viewLeaveCeoEl = e.target.closest("[data-view-leave-ceo]");
   if(viewLeaveCeoEl){
     const reqId = viewLeaveCeoEl.getAttribute("data-view-leave-ceo");
