@@ -2264,7 +2264,7 @@ function editFinancialPendingDraft(id){
   const knownGroups = ["OTIS", "TKE", "Schindler"];
   const parts = (v.client || "").split(" · ");
   const existingGroup = parts.length > 1 && knownGroups.includes(parts[0]) ? parts[0] : null;
-  const existingProject = existingGroup ? parts.slice(1).join(" · ") : v.client;
+  const existingProject = existingGroup ? parts.slice(1).join(" · ") : (v.client || "");
 
   let client;
   if(existingGroup){
@@ -2272,8 +2272,11 @@ function editFinancialPendingDraft(id){
     if(!project) return;
     client = `${existingGroup} · ${project}`;
   }else{
-    client = (prompt("Client (e.g. OTIS, TKE, Schindler):", v.client) || "").trim();
-    if(!client) return;
+    const choice = (prompt("Which group is this for?\n1 = OTIS\n2 = TKE\n3 = Schindler\n4 = Other (leave as-is)", "1") || "").trim();
+    const groupPicked = { "1": "OTIS", "2": "TKE", "3": "Schindler" }[choice];
+    const project = (prompt(groupPicked ? `${groupPicked} — Project name:` : "Client name:", existingProject) || "").trim();
+    if(!project) return;
+    client = groupPicked ? `${groupPicked} · ${project}` : project;
   }
   const invoiceNo = (prompt("Invoice No:", v.invoice_no) || "").trim();
   const amt = Number(prompt("Amount (SAR):", v.amount));
