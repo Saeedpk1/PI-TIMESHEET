@@ -443,7 +443,7 @@ let state = {
   employeeDirectory: [],
   selectedDirectoryEmployeeId: null,
   myProfile: null,
-  myProfileDraft: { mobile_number: "", passport_no: "", passport_expiry: "", iqama_expiry_date: "", photo_data: "" },
+  myProfileDraft: { mobile_number: "", passport_no: "", passport_expiry: "", iqama_expiry_date: "", medical_insurance_expiry: "", photo_data: "" },
   myDailyReportsToday: [],
   editingDailyReportId: null,
   combinedReportsDate: todayLocalISO(),
@@ -1785,10 +1785,10 @@ function daysUntil(dateStr){
 async function loadRenewalsScreen(){
   state.loading = true; render();
   const [{ data: emps }, { data: vehicles }] = await Promise.all([
-    sb.from("ts_employees").select("id, name, short_name, iqama_expiry_date").eq("active", true).not("iqama_expiry_date", "is", null).order("iqama_expiry_date"),
+    sb.from("ts_employees").select("id, name, short_name, iqama_expiry_date, medical_insurance_expiry").eq("active", true).order("iqama_expiry_date"),
     sb.from("ts_vehicles").select("*").eq("active", true).order("plate_no")
   ]);
-  state.employeesForRenewals = emps || [];
+  state.employeesForRenewals = (emps || []).filter(e => e.iqama_expiry_date || e.medical_insurance_expiry);
   state.vehicles = vehicles || [];
   state.loading = false;
   render();
@@ -1801,6 +1801,16 @@ async function saveIqamaExpiry(employeeId){
   const { error } = await sb.from("ts_employees").update({ iqama_expiry_date: val || null }).eq("id", employeeId);
   state.loading = false;
   toast(error ? "Could not save. Try again." : "Iqama expiry updated.");
+  await loadRenewalsScreen();
+}
+
+async function saveMedicalExpiry(employeeId){
+  const input = document.getElementById(`medicalExpiryInput-${employeeId}`);
+  const val = input ? input.value : "";
+  state.loading = true; render();
+  const { error } = await sb.from("ts_employees").update({ medical_insurance_expiry: val || null }).eq("id", employeeId);
+  state.loading = false;
+  toast(error ? "Could not save. Try again." : "Medical insurance expiry updated.");
   await loadRenewalsScreen();
 }
 
@@ -1846,6 +1856,7 @@ async function saveDirectoryEmployee(employeeId){
     passport_no: get(`dirPassportNo-${employeeId}`),
     passport_expiry: get(`dirPassportExpiry-${employeeId}`),
     iqama_expiry_date: get(`dirIqamaExpiry-${employeeId}`),
+    medical_insurance_expiry: get(`dirMedicalExpiry-${employeeId}`),
     joining_date: get(`dirJoining-${employeeId}`)
   };
   state.loading = true; render();
@@ -1864,6 +1875,7 @@ async function loadMyProfile(){
     passport_no: data?.passport_no || "",
     passport_expiry: data?.passport_expiry || "",
     iqama_expiry_date: data?.iqama_expiry_date || "",
+    medical_insurance_expiry: data?.medical_insurance_expiry || "",
     photo_data: data?.photo_data || ""
   };
   state.loading = false;
@@ -1878,6 +1890,7 @@ async function saveMyProfile(){
     passport_no: d.passport_no || null,
     passport_expiry: d.passport_expiry || null,
     iqama_expiry_date: d.iqama_expiry_date || null,
+    medical_insurance_expiry: d.medical_insurance_expiry || null,
     photo_data: d.photo_data || null
   }).eq("id", state.user.id);
   state.loading = false;
@@ -3546,8 +3559,9 @@ function renderCeoContactForm(){
 }
 
 function renderEmployeeDirectory(){
-  const emp = state.employeeDirectory.find(e=>e.id===state.selectedDirectoryEmployeeId);
-  const options = state.employeeDirectory.map(e => `<option value="${e.id}" ${e.id===state.selectedDirectoryEmployeeId?"selected":""}>${e.name}</option>`).join("");
+  const nonSaudiList = state.employeeDirectory.filter(e => e.supervisor_id !== state.hrmSupervisorId);
+  const emp = nonSaudiList.find(e=>e.id===state.selectedDirectoryEmployeeId);
+  const options = nonSaudiList.map(e => `<option value="${e.id}" ${e.id===state.selectedDirectoryEmployeeId?"selected":""}>${e.name}</option>`).join("");
 
   const field = (label, id, value, type="text") => `
     <div style="margin-bottom:8px;">
@@ -3583,6 +3597,7 @@ function renderEmployeeDirectory(){
       ${field("Passport No", `dirPassportNo-${emp.id}`, emp.passport_no)}
       ${field("Passport expiry", `dirPassportExpiry-${emp.id}`, emp.passport_expiry, "date")}
       ${field("Iqama expiry", `dirIqamaExpiry-${emp.id}`, emp.iqama_expiry_date, "date")}
+      ${field("Medical insurance expiry", `dirMedicalExpiry-${emp.id}`, emp.medical_insurance_expiry, "date")}
       <button class="btn btn-submit btn-sm" data-save-directory="${emp.id}" style="width:100%;margin-top:6px;">💾 Save</button>
     </div>` : ""}
   `;
@@ -3624,6 +3639,8 @@ function renderMyProfile(){
       <input type="date" id="myProfilePassportExpiry" value="${d.passport_expiry}">
       <label style="margin-top:10px;">Iqama expiry</label>
       <input type="date" id="myProfileIqamaExpiry" value="${d.iqama_expiry_date}">
+      <label style="margin-top:10px;">Medical insurance expiry</label>
+      <input type="date" id="myProfileMedicalExpiry" value="${d.medical_insurance_expiry}">
       <button class="btn btn-submit btn-sm" id="saveMyProfileBtn" style="width:100%;margin-top:10px;">💾 Save</button>
     </div>
   `;
@@ -3633,6 +3650,9 @@ function renderRenewalsScreen(){
   const iqamaAlerts = state.employeesForRenewals
     .map(e => ({ ...e, days: daysUntil(e.iqama_expiry_date) }))
     .filter(e => e.days !== null && e.days <= 15);
+  const medicalAlerts = state.employeesForRenewals
+    .map(e => ({ ...e, days: daysUntil(e.medical_insurance_expiry) }))
+    .filter(e => e.days !== null && e.days <= 30);
   const vehicleAlerts = [];
   state.vehicles.forEach(v => {
     [["Insurance", v.insurance_expiry], ["Istimara", v.istimara_expiry], ["Fahas", v.fahas_expiry]].forEach(([label, date]) => {
@@ -3640,7 +3660,7 @@ function renderRenewalsScreen(){
       if(days !== null && days <= 30) vehicleAlerts.push({ plate: v.plate_no, label, days });
     });
   });
-  const totalAlerts = iqamaAlerts.length + vehicleAlerts.length;
+  const totalAlerts = iqamaAlerts.length + medicalAlerts.length + vehicleAlerts.length;
 
   const alertLine = (label, days) => {
     const text = days < 0 ? `EXPIRED ${Math.abs(days)}d ago` : (days === 0 ? "expires today" : `${days}d left`);
@@ -3652,6 +3672,7 @@ function renderRenewalsScreen(){
     <div style="background:#FDF3E6;border:2px solid #F0C766;border-radius:12px;padding:14px;margin-bottom:16px;">
       <div style="font-weight:800;font-size:13px;color:#966109;">🔔 Expiring soon (${totalAlerts})</div>
       ${iqamaAlerts.map(e => alertLine(`🪪 ${e.short_name || e.name} — Iqama`, e.days)).join("")}
+      ${medicalAlerts.map(e => alertLine(`🩺 ${e.short_name || e.name} — Medical Insurance`, e.days)).join("")}
       ${vehicleAlerts.map(v => alertLine(`🚗 ${v.plate} — ${v.label}`, v.days)).join("")}
     </div>` : `<div class="empty-state" style="margin-bottom:16px;"><div class="ic">🎉</div>Nothing expiring soon.</div>`;
 
@@ -3661,6 +3682,13 @@ function renderRenewalsScreen(){
       <input type="date" id="iqamaExpiryInput-${e.id}" value="${e.iqama_expiry_date || ""}" style="width:140px;padding:6px 8px;border:2px solid var(--line);border-radius:8px;font-size:12.5px;">
       <button class="link-btn" data-save-iqama="${e.id}" style="color:var(--present) !important;">💾</button>
     </div>`).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">🪪</div>No iqama expiry dates on file yet.</div>`;
+
+  const medicalRows = state.employeesForRenewals.map(e => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-top:1px dashed var(--line);">
+      <div style="flex:1;font-weight:700;font-size:13px;">${e.short_name || e.name}</div>
+      <input type="date" id="medicalExpiryInput-${e.id}" value="${e.medical_insurance_expiry || ""}" style="width:140px;padding:6px 8px;border:2px solid var(--line);border-radius:8px;font-size:12.5px;">
+      <button class="link-btn" data-save-medical="${e.id}" style="color:var(--present) !important;">💾</button>
+    </div>`).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">🩺</div>No medical insurance dates on file yet.</div>`;
 
   const vehicleRows = state.vehicles.map(v => `
     <div style="padding:10px 4px;border-top:1px dashed var(--line);">
@@ -3678,7 +3706,7 @@ function renderRenewalsScreen(){
     <div style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);border-radius:16px;padding:18px;position:relative;overflow:hidden;">
       <div style="position:absolute;top:-8px;right:-6px;font-size:60px;opacity:0.15;">🔔</div>
       <h3 style="color:var(--navy);position:relative;">🔔 Renewals & Expiry</h3>
-      <div class="meta" style="color:var(--blue);position:relative;">Iqama alerts at 15 days · Vehicle document alerts at 30 days</div>
+      <div class="meta" style="color:var(--blue);position:relative;">Iqama and medical insurance alerts at 15/30 days · Vehicle document alerts at 30 days</div>
     </div>
 
     <div style="margin-top:14px;">${alertsCard}</div>
@@ -3687,6 +3715,12 @@ function renderRenewalsScreen(){
       <h3 style="font-size:14px;">🪪 Iqama Expiry</h3>
       <div class="meta">Update the date here right after a renewal — the alert clears itself automatically.</div>
       <div style="margin-top:6px;">${iqamaRows}</div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <h3 style="font-size:14px;">🩺 Medical Insurance Expiry</h3>
+      <div class="meta">Update the date here right after renewal.</div>
+      <div style="margin-top:6px;">${medicalRows}</div>
     </div>
 
     <div class="card" style="margin-top:14px;">
@@ -5165,6 +5199,8 @@ function handleDelegatedClick(e){
   if(el("addVehicleBtn")){ addVehicle(); return; }
   const saveIqamaEl = e.target.closest("[data-save-iqama]");
   if(saveIqamaEl){ saveIqamaExpiry(saveIqamaEl.getAttribute("data-save-iqama")); return; }
+  const saveMedicalEl = e.target.closest("[data-save-medical]");
+  if(saveMedicalEl){ saveMedicalExpiry(saveMedicalEl.getAttribute("data-save-medical")); return; }
   const saveVehicleEl = e.target.closest("[data-save-vehicle]");
   if(saveVehicleEl){ saveVehicleDates(saveVehicleEl.getAttribute("data-save-vehicle")); return; }
   if(el("openEmployeeDirectoryBtn")){
@@ -5279,6 +5315,7 @@ function handleDelegatedChange(e){
   }
   if(e.target.id === "myProfilePassportExpiry"){ state.myProfileDraft.passport_expiry = e.target.value; return; }
   if(e.target.id === "myProfileIqamaExpiry"){ state.myProfileDraft.iqama_expiry_date = e.target.value; return; }
+  if(e.target.id === "myProfileMedicalExpiry"){ state.myProfileDraft.medical_insurance_expiry = e.target.value; return; }
   if(e.target.classList.contains("hr-ts-status")){
     setHrEntry(e.target.getAttribute("data-date"), "status", e.target.value);
     return;
