@@ -4338,14 +4338,19 @@ function renderFinancialReport(){
       </div>
     </div>
 
-    ${state.financialIqamaSoon.length ? `
-    <h3 style="font-size:12.5px;color:var(--absent);margin:0 0 6px;">🪪 IQAMA EXPIRING SOON (&lt;15 days)</h3>
-    ${compactTable("#C43B3B", "#FDECEA", iqamaHeaders, iqamaRows)}
-    ` : ""}
-
-    ${sectionHead("🏦 LOANS", "#1B5A96", "addLoanBtn")}
-    ${compactTable("#1B5A96", "#EAF1FC", loanHeaders, loanRows)}
-    <div style="text-align:right;font-weight:800;font-size:11.5px;color:#1B5A96;padding:4px 4px 0;">Total: SAR ${fmt(totalLoans)}</div>
+    <div style="display:grid;grid-template-columns:${state.financialIqamaSoon.length ? "1fr 1fr" : "1fr"};gap:10px;align-items:start;">
+      ${state.financialIqamaSoon.length ? `
+      <div>
+        <h3 style="font-size:11.5px;color:var(--absent);margin:0 0 4px;">🪪 IQAMA &lt;15 DAYS</h3>
+        ${compactTable("#C43B3B", "#FDECEA", iqamaHeaders, iqamaRows)}
+      </div>
+      ` : ""}
+      <div>
+        ${sectionHead("🏦 LOANS", "#1B5A96", "addLoanBtn")}
+        ${compactTable("#1B5A96", "#EAF1FC", loanHeaders, loanRows)}
+        <div style="text-align:right;font-weight:800;font-size:11.5px;color:#1B5A96;padding:4px 4px 0;">Total: SAR ${fmt(totalLoans)}</div>
+      </div>
+    </div>
 
     ${sectionHead("📄 INVOICES", "#1B5A96", "addInvoiceBtn")}
     ${compactTable("#1B5A96", "#EAF1FC", invHeaders, invRows)}
