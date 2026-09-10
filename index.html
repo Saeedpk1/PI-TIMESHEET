@@ -2019,6 +2019,13 @@ async function exportVehicleDocumentsPdf(vehicleId){
 }
 
 /* ---------------- Financial Report ---------------- */
+function shiftFinancialReportDate(days){
+  const newDate = shiftLocalISO(state.financialReportDate, days);
+  if(newDate > todayLocalISO()) return;
+  if(state.financialDirty && !confirm("You have unsaved changes on this date. Switch anyway and lose them?")) return;
+  loadFinancialReport(newDate);
+}
+
 async function loadFinancialReport(date){
   const reportDate = date || state.financialReportDate || todayLocalISO();
   state.financialReportDate = reportDate;
@@ -4490,9 +4497,8 @@ function renderFinancialReport(){
 
   return `
     <button class="link-btn" id="${backBtnId}" style="margin-bottom:12px;">‹ Back</button>
-    <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:18px;margin-bottom:14px;">
-      <h3 style="color:#fff;">💰 Financial Report</h3>
-      <div class="meta" style="color:#BFDCF5;">${new Date(state.financialReportDate + "T00:00:00").toDateString()}${canEdit ? " — add and update entries directly below" : " — view only"}</div>
+    <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:14px;padding:12px 16px;margin-bottom:14px;">
+      <h3 style="color:#fff;font-size:15px;margin:0;">💰 Financial Report</h3>
     </div>
 
     ${state.financialBalance?.updated_at ? `
@@ -4510,8 +4516,14 @@ function renderFinancialReport(){
     <button class="btn btn-sm" id="toggleFinancialSummaryBtn" style="width:100%;margin-bottom:14px;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff;border:none;font-weight:800;">${state.financialSummaryMode ? "📋 Show Full Report" : "📊 Summary View"}</button>
 
     ${state.financialSummaryMode ? "" : `
-    <label style="margin-bottom:10px;">Report date</label>
-    <input type="date" id="financialReportDateInput" value="${state.financialReportDate}" max="${todayLocalISO()}">
+    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--ksa-cream);border:2px solid var(--ksa-gold-light);border-radius:10px;padding:8px 12px;margin-bottom:14px;">
+      <button class="link-btn ceo-gold-btn" id="prevFinancialDayBtn" style="font-size:18px;font-weight:800;">‹</button>
+      <div style="text-align:center;">
+        <div style="font-weight:800;font-size:13px;color:var(--blue);">${new Date(state.financialReportDate + "T00:00:00").toLocaleDateString(undefined,{weekday:"short",day:"2-digit",month:"short",year:"numeric"})}</div>
+        ${state.financialReportDate !== todayLocalISO() ? `<button class="link-btn ceo-gold-btn" id="todayFinancialBtn" style="font-size:11px;">Jump to today</button>` : ""}
+      </div>
+      <button class="link-btn ceo-gold-btn" id="nextFinancialDayBtn" style="font-size:18px;font-weight:800;" ${state.financialReportDate>=todayLocalISO()?"disabled":""}>›</button>
+    </div>
 
     ${canEdit ? `
     <div style="display:flex;gap:8px;margin-top:10px;">
@@ -6371,6 +6383,13 @@ function handleDelegatedClick(e){
   if(el("copyPreviousDayBtn")){ copyPreviousDayFinancialReport(); return; }
   if(el("saveFinancialReportBtn")){ saveFinancialReportForDay(); return; }
   if(el("toggleFinancialSummaryBtn")){ state.financialSummaryMode = !state.financialSummaryMode; render(); return; }
+  if(el("prevFinancialDayBtn")){ shiftFinancialReportDate(-1); return; }
+  if(el("nextFinancialDayBtn")){ shiftFinancialReportDate(1); return; }
+  if(el("todayFinancialBtn")){
+    if(state.financialDirty && !confirm("You have unsaved changes on this date. Switch anyway and lose them?")) return;
+    loadFinancialReport(todayLocalISO());
+    return;
+  }
   const toggleyPoEl = e.target.closest("[data-toggle-po]");
   if(toggleyPoEl){ togglePoReceivedDraft(toggleyPoEl.getAttribute("data-toggle-po")); return; }
   const finDeleteEl = e.target.closest("[data-fin-delete]");
@@ -6597,16 +6616,6 @@ function handleDelegatedChange(e){
     resetDailyReportDraft();
     state.dailyReportDate = newDate;
     Promise.all([loadDailyReportsForDate(newDate), loadAbsencesForDate(newDate), loadVacationsForDate(newDate)]).then(render);
-    return;
-  }
-  if(e.target.id === "financialReportDateInput"){
-    const newDate = e.target.value;
-    if(!newDate) return;
-    if(state.financialDirty && !confirm("You have unsaved changes on this date. Switch anyway and lose them?")){
-      render();
-      return;
-    }
-    loadFinancialReport(newDate);
     return;
   }
   if(e.target.id === "dailyReportProject"){
