@@ -443,6 +443,7 @@ let state = {
   companyMedicalExpiry: "",
   vehicleDocuments: {},
   selectedVehicleForDocs: null,
+  vehicleDocsSearch: "",
   vehicleDocUploadType: "Registration (Istimara)",
   employeeDirectory: [],
   selectedDirectoryEmployeeId: null,
@@ -3899,7 +3900,8 @@ function renderVehicleDocumentsScreen(){
   const isCeoUser = state.user.role === "ceo";
   const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (isHrUser ? "backToHrBtn" : "backToSupervisorHomeBtn");
   const vehicle = state.vehicles.find(v=>v.id===state.selectedVehicleForDocs);
-  const options = state.vehicles.map(v => `<option value="${v.id}" ${v.id===state.selectedVehicleForDocs?"selected":""}>${v.plate_no} ${v.vehicle_type ? "— " + v.vehicle_type : ""}</option>`).join("");
+  const search = (state.vehicleDocsSearch || "").trim().toLowerCase();
+  const matches = search ? state.vehicles.filter(v => (v.plate_no||"").toLowerCase().includes(search)) : [];
 
   const docTypeOptions = ["Registration (Istimara)", "Insurance", "Operation Card", "Other"]
     .map(t => `<option value="${t}" ${state.vehicleDocUploadType===t?"selected":""}>${t}</option>`).join("");
@@ -3910,6 +3912,7 @@ function renderVehicleDocumentsScreen(){
         <div class="name">${d.document_type || "Document"}</div>
         <div class="sub">${d.file_name || ""} • ${new Date(d.uploaded_at).toLocaleDateString()}</div>
       </div>
+      <button class="link-btn" data-view-vehicle-doc="${d.id}" style="color:var(--blue) !important;margin-right:6px;">👁 View</button>
       <button class="link-btn" data-delete-vehicle-doc="${d.id}" style="color:var(--absent) !important;">🗑</button>
     </div>`).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">📄</div>No documents uploaded yet.</div>` : "";
 
@@ -3920,11 +3923,20 @@ function renderVehicleDocumentsScreen(){
       <div class="meta" style="color:var(--blue);">Registration, insurance, operation card — upload, remove, or send as one PDF.</div>
     </div>
 
-    <label style="margin-top:12px;">Vehicle</label>
-    <select id="vehicleDocsSelect">
-      <option value="">Select vehicle</option>
-      ${options}
-    </select>
+    <label style="margin-top:12px;">🔍 Search by plate number</label>
+    <input type="text" inputmode="numeric" id="vehicleDocsSearchInput" placeholder="e.g. 6576" value="${state.vehicleDocsSearch}">
+
+    ${search ? `
+    <div style="margin-top:6px;">
+      ${matches.map(v => `
+        <div class="emp-list-item li-approved" data-pick-vehicle-doc="${v.id}" style="cursor:pointer;">
+          <div style="flex:1;min-width:0;">
+            <div class="name">${v.plate_no}</div>
+            <div class="sub">${v.vehicle_type || ""}</div>
+          </div>
+          <span style="color:var(--blue);font-weight:800;">›</span>
+        </div>`).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">🚗</div>No matching vehicle.</div>`}
+    </div>` : ""}
 
     ${vehicle ? `
     <div class="card" style="margin-top:14px;">
@@ -5510,12 +5522,32 @@ function handleDelegatedClick(e){
   if(el("exportProfilePdfBtn")){ generateEmployeeProfilePdf(); return; }
   if(el("openVehicleDocumentsBtn")){
     state.view = "vehicle-documents";
+    state.vehicleDocsSearch = "";
+    state.selectedVehicleForDocs = null;
     loadVehicleDocumentsScreen();
     return;
   }
   if(el("exportVehicleDocsBtn")){ exportVehicleDocumentsPdf(state.selectedVehicleForDocs); return; }
   const deleteVehicleDocEl = e.target.closest("[data-delete-vehicle-doc]");
   if(deleteVehicleDocEl){ deleteVehicleDocument(deleteVehicleDocEl.getAttribute("data-delete-vehicle-doc")); return; }
+  const viewVehicleDocEl = e.target.closest("[data-view-vehicle-doc]");
+  if(viewVehicleDocEl){
+    const docId = viewVehicleDocEl.getAttribute("data-view-vehicle-doc");
+    const allDocs = Object.values(state.vehicleDocuments).flat();
+    const doc = allDocs.find(d=>d.id===docId);
+    if(doc && doc.file_data){
+      const w = window.open();
+      if(w) w.document.write(`<img src="${doc.file_data}" style="max-width:100%;">`);
+    }
+    return;
+  }
+  const pickVehicleDocEl = e.target.closest("[data-pick-vehicle-doc]");
+  if(pickVehicleDocEl){
+    state.selectedVehicleForDocs = pickVehicleDocEl.getAttribute("data-pick-vehicle-doc");
+    state.vehicleDocsSearch = "";
+    render();
+    return;
+  }
   if(el("openMyProfileBtn")){
     state.view = "my-profile";
     loadMyProfile();
@@ -5612,11 +5644,6 @@ function handleDelegatedClick(e){
 function handleDelegatedChange(e){
   if(e.target.id === "directoryEmployeeSelect"){
     state.selectedDirectoryEmployeeId = e.target.value || null;
-    render();
-    return;
-  }
-  if(e.target.id === "vehicleDocsSelect"){
-    state.selectedVehicleForDocs = e.target.value || null;
     render();
     return;
   }
@@ -5776,6 +5803,13 @@ function handleDelegatedInput(e){
   if(e.target.id === "purchaseNotes"){ state.purchaseFormDraft.notes = e.target.value; }
   if(e.target.id === "dailyReportRaw"){ state.dailyReportDraft.rawText = e.target.value; }
   if(e.target.id === "ceoMessageInput"){ state.ceoMessageDraft = e.target.value; }
+  if(e.target.id === "vehicleDocsSearchInput"){
+    state.vehicleDocsSearch = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    render();
+    const freshInput = document.getElementById("vehicleDocsSearchInput");
+    if(freshInput){ freshInput.focus(); freshInput.setSelectionRange(cursorPos, cursorPos); }
+  }
   if(e.target.id === "myProfileMobile"){ state.myProfileDraft.mobile_number = e.target.value; }
   if(e.target.id === "myProfilePassportNo"){ state.myProfileDraft.passport_no = e.target.value; }
   if(e.target.id === "myProfileBankName"){ state.myProfileDraft.bank_name = e.target.value; }
