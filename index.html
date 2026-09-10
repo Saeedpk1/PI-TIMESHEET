@@ -445,6 +445,12 @@ let state = {
   selectedVehicleForDocs: null,
   vehicleDocsSearch: "",
   vehicleDocUploadType: "Registration (Istimara)",
+  financialBalance: null,
+  financialLoans: [],
+  financialInvoices: [],
+  financialPayments: [],
+  financialPending: [],
+  financialPo: [],
   employeeDirectory: [],
   selectedDirectoryEmployeeId: null,
   myProfile: null,
@@ -1978,6 +1984,156 @@ async function exportVehicleDocumentsPdf(vehicleId){
   }
   state.loading = false;
   render();
+}
+
+/* ---------------- Financial Report ---------------- */
+async function loadFinancialReport(){
+  state.loading = true; render();
+  const [{ data: bal }, { data: loans }, { data: inv }, { data: pay }, { data: pend }, { data: po }] = await Promise.all([
+    sb.from("ts_financial_balance").select("*").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+    sb.from("ts_financial_loans").select("*").order("created_at", { ascending: false }),
+    sb.from("ts_financial_invoices").select("*").order("created_at", { ascending: false }),
+    sb.from("ts_financial_payments").select("*").order("created_at", { ascending: false }),
+    sb.from("ts_financial_pending").select("*").order("due_date", { ascending: true }),
+    sb.from("ts_financial_po").select("*").order("created_at", { ascending: false })
+  ]);
+  state.financialBalance = bal || null;
+  state.financialLoans = loans || [];
+  state.financialInvoices = inv || [];
+  state.financialPayments = pay || [];
+  state.financialPending = pend || [];
+  state.financialPo = po || [];
+  state.loading = false;
+  render();
+}
+
+async function saveFinancialBalance(){
+  const val = prompt("Enter current account balance:", state.financialBalance?.balance ?? "0");
+  if(val === null) return;
+  const num = Number(val);
+  if(isNaN(num)){ toast("Enter a valid number."); return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_financial_balance").insert({ balance: num });
+  state.loading = false;
+  toast(error ? "Could not save." : "Balance updated.");
+  await loadFinancialReport();
+}
+
+async function addFinancialLoan(){
+  const name = (prompt("Loan name:") || "").trim();
+  if(!name) return;
+  const amt = Number(prompt("Amount (SAR):", "0"));
+  if(isNaN(amt)){ toast("Enter a valid amount."); return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_financial_loans").insert({ name, amount: amt });
+  state.loading = false;
+  toast(error ? "Could not add." : "Loan added.");
+  await loadFinancialReport();
+}
+async function deleteFinancialLoan(id){
+  if(!confirm("Remove this loan entry?")) return;
+  state.loading = true; render();
+  await sb.from("ts_financial_loans").delete().eq("id", id);
+  state.loading = false;
+  await loadFinancialReport();
+}
+
+async function addFinancialInvoice(){
+  const description = (prompt("Description:") || "").trim();
+  if(!description) return;
+  const invoiceNo = (prompt("Invoice No:") || "").trim();
+  const noVat = Number(prompt("Amount without VAT:", "0"));
+  const withVat = Number(prompt("Amount with VAT:", "0"));
+  const month = (prompt("Month (e.g. Sep 2026):") || "").trim();
+  state.loading = true; render();
+  const { error } = await sb.from("ts_financial_invoices").insert({
+    description, invoice_no: invoiceNo, amount_no_vat: noVat || null, amount_with_vat: withVat || null, invoice_month: month
+  });
+  state.loading = false;
+  toast(error ? "Could not add." : "Invoice added.");
+  await loadFinancialReport();
+}
+async function deleteFinancialInvoice(id){
+  if(!confirm("Remove this invoice entry?")) return;
+  state.loading = true; render();
+  await sb.from("ts_financial_invoices").delete().eq("id", id);
+  state.loading = false;
+  await loadFinancialReport();
+}
+
+async function addFinancialPayment(){
+  const project = (prompt("Project:") || "").trim();
+  const company = (prompt("Company:") || "").trim();
+  const invoiceNo = (prompt("Invoice No:") || "").trim();
+  const amt = Number(prompt("Amount (SAR):", "0"));
+  if(isNaN(amt)){ toast("Enter a valid amount."); return; }
+  const date = (prompt("Payment date (YYYY-MM-DD):", todayLocalISO()) || "").trim();
+  state.loading = true; render();
+  const { error } = await sb.from("ts_financial_payments").insert({
+    project, company, invoice_no: invoiceNo, amount: amt, payment_date: date || null
+  });
+  state.loading = false;
+  toast(error ? "Could not add." : "Payment added.");
+  await loadFinancialReport();
+}
+async function deleteFinancialPayment(id){
+  if(!confirm("Remove this payment entry?")) return;
+  state.loading = true; render();
+  await sb.from("ts_financial_payments").delete().eq("id", id);
+  state.loading = false;
+  await loadFinancialReport();
+}
+
+async function addFinancialPending(){
+  const client = (prompt("Client (e.g. OTIS, TKE, Schindler):") || "").trim();
+  if(!client) return;
+  const invoiceNo = (prompt("Invoice No:") || "").trim();
+  const amt = Number(prompt("Amount (SAR):", "0"));
+  if(isNaN(amt)){ toast("Enter a valid amount."); return; }
+  const issueDate = (prompt("Issue date (YYYY-MM-DD):") || "").trim();
+  const dueDate = (prompt("Due date (YYYY-MM-DD):") || "").trim();
+  state.loading = true; render();
+  const { error } = await sb.from("ts_financial_pending").insert({
+    client, invoice_no: invoiceNo, amount: amt, issue_date: issueDate || null, due_date: dueDate || null
+  });
+  state.loading = false;
+  toast(error ? "Could not add." : "Pending collection added.");
+  await loadFinancialReport();
+}
+async function deleteFinancialPending(id){
+  if(!confirm("Remove this entry? (e.g. once it's been paid)")) return;
+  state.loading = true; render();
+  await sb.from("ts_financial_pending").delete().eq("id", id);
+  state.loading = false;
+  await loadFinancialReport();
+}
+
+async function addFinancialPo(){
+  const project = (prompt("Project name:") || "").trim();
+  if(!project) return;
+  const month = (prompt("Month (e.g. Sep 2026):") || "").trim();
+  const amt = Number(prompt("Amount (SAR):", "0"));
+  if(isNaN(amt)){ toast("Enter a valid amount."); return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_financial_po").insert({ project, po_month: month, amount: amt, received: false });
+  state.loading = false;
+  toast(error ? "Could not add." : "PO added.");
+  await loadFinancialReport();
+}
+async function togglePoReceived(id){
+  const po = state.financialPo.find(p=>p.id===id);
+  if(!po) return;
+  state.loading = true; render();
+  await sb.from("ts_financial_po").update({ received: !po.received }).eq("id", id);
+  state.loading = false;
+  await loadFinancialReport();
+}
+async function deleteFinancialPo(id){
+  if(!confirm("Remove this PO entry?")) return;
+  state.loading = true; render();
+  await sb.from("ts_financial_po").delete().eq("id", id);
+  state.loading = false;
+  await loadFinancialReport();
 }
 
 /* ---------------- Employee directory & self-service profile ---------------- */
@@ -3515,6 +3671,7 @@ function render(){
   else if(state.view === "vacation-manager") body = renderVacationManager();
   else if(state.view === "renewals-screen") body = renderRenewalsScreen();
   else if(state.view === "vehicle-documents") body = renderVehicleDocumentsScreen();
+  else if(state.view === "financial-report") body = renderFinancialReport();
   else if(state.view === "employee-directory") body = renderEmployeeDirectory();
   else if(state.view === "my-profile") body = renderMyProfile();
   else if(state.view === "combined-reports") body = renderCombinedReports();
@@ -3786,6 +3943,11 @@ function renderRajeshDashboard(){
       <div class="hr-tile" id="openEmployeeDirectoryBtn" style="border-color:#DCD0F5;"><span class="icon">👤</span><span class="label">Employee<br>Directory</span></div>
       <div class="hr-tile" id="openVehicleDocumentsBtn" style="border-color:#A9D9CD;"><span class="icon">🚗</span><span class="label">Vehicle<br>Documents</span></div>
     </div>
+
+    <div class="hr-section-label" style="color:var(--navy);">💰 Finance</div>
+    <div class="hr-tile-grid">
+      <div class="hr-tile" id="openFinancialReportBtn" style="border-color:#C7D9EA;"><span class="icon">💰</span><span class="label">Financial<br>Report</span></div>
+    </div>
   `;
 }
 
@@ -3941,6 +4103,110 @@ function renderMyProfile(){
     </div>
   `;
 }
+
+function renderFinancialReport(){
+  const isHrUser = state.user.role === "hr";
+  const isCeoUser = state.user.role === "ceo";
+  const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (isHrUser ? "backToHrBtn" : "backToSupervisorHomeBtn");
+  const canEdit = isHrUser;
+  const fmt = n => `SAR ${Number(n||0).toLocaleString(undefined,{maximumFractionDigits:0})}`;
+
+  const totalLoans = state.financialLoans.reduce((s,l)=>s+Number(l.amount||0),0);
+  const totalPending = state.financialPending.reduce((s,p)=>s+Number(p.amount||0),0);
+
+  const sectionHeader = (title, addId) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="font-weight:800;font-size:14px;">${title}</div>
+      ${canEdit ? `<button class="link-btn" id="${addId}" style="color:var(--blue) !important;font-size:20px;padding:0 4px;">+</button>` : ""}
+    </div>`;
+
+  const rowLine = (main, sub, right, rightColor, deleteId, extraBtn) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px dashed var(--line);gap:8px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12.5px;font-weight:700;">${main}</div>
+        ${sub ? `<div class="meta" style="margin-top:1px;">${sub}</div>` : ""}
+      </div>
+      <div style="font-size:12.5px;font-weight:800;color:${rightColor||"var(--ink)"};white-space:nowrap;">${right}</div>
+      ${extraBtn || ""}
+      ${canEdit ? `<button class="link-btn" data-fin-delete="${deleteId}" style="color:var(--absent) !important;padding:0 2px;">🗑</button>` : ""}
+    </div>`;
+
+  const loansHtml = state.financialLoans.map(l => rowLine(l.name, "", fmt(l.amount), null, `loan:${l.id}`)).join("")
+    || `<div class="empty-state" style="padding:10px;"><div class="ic">🏦</div>No loans on file.</div>`;
+
+  const invoicesHtml = state.financialInvoices.map(i => rowLine(
+    `${i.description||""} ${i.invoice_no?"· "+i.invoice_no:""}`,
+    `${i.amount_no_vat ? "w/o VAT " + fmt(i.amount_no_vat) + " · " : ""}${i.invoice_month||""}`,
+    fmt(i.amount_with_vat || i.amount_no_vat), "var(--blue)", `invoice:${i.id}`
+  )).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">📄</div>No invoices yet.</div>`;
+
+  const paymentsHtml = state.financialPayments.map(p => rowLine(
+    `${p.project||""} ${p.company?"· "+p.company:""}`,
+    `${p.invoice_no ? "Inv "+p.invoice_no+" · " : ""}${p.payment_date||""}`,
+    fmt(p.amount), "var(--present)", `payment:${p.id}`
+  )).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">✅</div>No payments recorded yet.</div>`;
+
+  const pendingHtml = state.financialPending.map(p => rowLine(
+    `${p.client||""} ${p.invoice_no?"· "+p.invoice_no:""}`,
+    `Due ${p.due_date||"-"}`,
+    fmt(p.amount), "#C4791F", `pending:${p.id}`
+  )).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">⏳</div>Nothing pending.</div>`;
+
+  const poHtml = state.financialPo.map(p => rowLine(
+    p.project, p.po_month||"",
+    fmt(p.amount), p.received ? "var(--present)" : "#C4791F", `po:${p.id}`,
+    canEdit ? `<button class="link-btn" data-toggle-po="${p.id}" style="font-size:11px;color:${p.received?"var(--present)":"#C4791F"} !important;white-space:nowrap;">${p.received?"✓ Received":"Mark received"}</button>` : `<span style="font-size:11px;color:${p.received?"var(--present)":"#C4791F"};">${p.received?"Received":"Not received"}</span>`
+  )).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">📋</div>No POs on file.</div>`;
+
+  return `
+    <button class="link-btn" id="${backBtnId}" style="margin-bottom:12px;">‹ Back</button>
+    <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:18px;margin-bottom:14px;">
+      <h3 style="color:#fff;">💰 Financial Report</h3>
+      <div class="meta" style="color:#BFDCF5;">${canEdit ? "Add and update entries below" : "View only"}</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+      <div class="card" style="padding:12px;${canEdit?"cursor:pointer;":""}" ${canEdit?'id="editBalanceBtn"':""}>
+        <div class="meta">Account balance</div>
+        <div style="font-size:17px;font-weight:800;margin-top:2px;">${fmt(state.financialBalance?.balance)}</div>
+        ${canEdit ? `<div class="meta" style="margin-top:2px;color:var(--blue);">tap to update</div>` : ""}
+      </div>
+      <div class="card" style="padding:12px;">
+        <div class="meta">Total loans</div>
+        <div style="font-size:17px;font-weight:800;margin-top:2px;">${fmt(totalLoans)}</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      ${sectionHeader("🏦 Loans", "addLoanBtn")}
+      ${loansHtml}
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      ${sectionHeader("📄 Invoices Raised", "addInvoiceBtn")}
+      ${invoicesHtml}
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      ${sectionHeader("✅ Payments Received", "addPaymentBtn")}
+      ${paymentsHtml}
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      ${sectionHeader("⏳ Pending Collection", "addPendingBtn")}
+      ${pendingHtml}
+      <div style="display:flex;justify-content:space-between;padding-top:8px;margin-top:4px;border-top:2px solid var(--line);font-weight:800;font-size:13px;">
+        <span>Total outstanding</span><span style="color:#C4791F;">${fmt(totalPending)}</span>
+      </div>
+    </div>
+
+    <div class="card">
+      ${sectionHeader("📋 PO Tracker", "addPoBtn")}
+      ${poHtml}
+    </div>
+  `;
+}
+
 
 function renderVehicleDocumentsScreen(){
   const isHrUser = state.user.role === "hr";
@@ -4516,6 +4782,11 @@ function renderHrView(){
     <div class="hr-tile-grid">
       <div class="hr-tile" id="openCeoInboxBtn" style="border-color:#C7D9EA;"><span class="icon">📨</span><span class="label">Messages to<br>CEO</span></div>
     </div>
+
+    <div class="hr-section-label" style="color:var(--navy);">💰 Finance</div>
+    <div class="hr-tile-grid">
+      <div class="hr-tile" id="openFinancialReportBtn" style="border-color:#C7D9EA;"><span class="icon">💰</span><span class="label">Financial<br>Report</span></div>
+    </div>
   `;
 }
 
@@ -4881,6 +5152,13 @@ function renderCeoHome(){
       <div class="body">
         <div class="title">Employee Directory</div>
         <div class="desc">View any employee's full profile</div>
+      </div>
+    </div>
+    <div class="ceo-tile" id="openFinancialReportBtn">
+      <div class="icon">💰</div>
+      <div class="body">
+        <div class="title">Financial Report</div>
+        <div class="desc">Balance, loans, invoices, and PO tracker</div>
       </div>
     </div>
     <div class="ceo-soon">More sections will appear here soon.</div>
@@ -5617,6 +5895,29 @@ function handleDelegatedClick(e){
     return;
   }
   if(el("exportVehicleDocsBtn")){ exportVehicleDocumentsPdf(state.selectedVehicleForDocs); return; }
+  if(el("openFinancialReportBtn")){
+    state.view = "financial-report";
+    loadFinancialReport();
+    return;
+  }
+  if(el("editBalanceBtn")){ saveFinancialBalance(); return; }
+  if(el("addLoanBtn")){ addFinancialLoan(); return; }
+  if(el("addInvoiceBtn")){ addFinancialInvoice(); return; }
+  if(el("addPaymentBtn")){ addFinancialPayment(); return; }
+  if(el("addPendingBtn")){ addFinancialPending(); return; }
+  if(el("addPoBtn")){ addFinancialPo(); return; }
+  const toggleyPoEl = e.target.closest("[data-toggle-po]");
+  if(toggleyPoEl){ togglePoReceived(toggleyPoEl.getAttribute("data-toggle-po")); return; }
+  const finDeleteEl = e.target.closest("[data-fin-delete]");
+  if(finDeleteEl){
+    const [kind, id] = finDeleteEl.getAttribute("data-fin-delete").split(":");
+    if(kind === "loan") deleteFinancialLoan(id);
+    else if(kind === "invoice") deleteFinancialInvoice(id);
+    else if(kind === "payment") deleteFinancialPayment(id);
+    else if(kind === "pending") deleteFinancialPending(id);
+    else if(kind === "po") deleteFinancialPo(id);
+    return;
+  }
   const deleteVehicleDocEl = e.target.closest("[data-delete-vehicle-doc]");
   if(deleteVehicleDocEl){ deleteVehicleDocument(deleteVehicleDocEl.getAttribute("data-delete-vehicle-doc")); return; }
   const viewVehicleDocEl = e.target.closest("[data-view-vehicle-doc]");
