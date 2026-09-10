@@ -2136,6 +2136,135 @@ async function deleteFinancialPo(id){
   await loadFinancialReport();
 }
 
+async function exportFinancialReportExcel(){
+  state.loading = true; render();
+  try{
+    const wb = new ExcelJS.Workbook();
+    const NAVY = "FF0F3556", WHITE = "FFFFFFFF";
+    const GOLD_HEAD = "FFB8912A", GOLD_TINT = "FFFDF6E3";
+    const BLUE_HEAD = "FF1B5A96", BLUE_TINT = "FFEAF1FC";
+    const GREEN_HEAD = "FF1C8A4E", GREEN_TINT = "FFEAF6ED";
+    const AMBER_HEAD = "FFC4791F", AMBER_TINT = "FFFDF3E6";
+    const thin = { style: "thin", color: { argb: "FFB9C6D6" } };
+    const allB = { top: thin, left: thin, bottom: thin, right: thin };
+    const money = "#,##0.00";
+
+    function addTableSheet(name, title, headColor, tintColor, columns, rows, totalsRow){
+      const ws = wb.addWorksheet(name, { views: [{ showGridLines: false }] });
+      ws.columns = columns.map(c => ({ width: c.width }));
+      const lastCol = columns.length;
+
+      ws.mergeCells(1, 1, 1, lastCol);
+      const titleCell = ws.getCell(1, 1);
+      titleCell.value = title;
+      titleCell.font = { bold: true, size: 14, color: { argb: WHITE }, name: "Calibri" };
+      titleCell.alignment = { horizontal: "center", vertical: "middle" };
+      titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
+      ws.getRow(1).height = 26;
+
+      const hr = ws.getRow(2);
+      hr.values = columns.map(c => c.header);
+      hr.eachCell({ includeEmpty: true }, cell => {
+        cell.font = { bold: true, size: 10, color: { argb: WHITE } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: headColor } };
+        cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+        cell.border = allB;
+      });
+      hr.height = 20;
+
+      rows.forEach((r, i) => {
+        const row = ws.getRow(3 + i);
+        row.values = r;
+        row.eachCell({ includeEmpty: true }, (cell, colNum) => {
+          cell.border = allB;
+          cell.font = { size: 10 };
+          cell.alignment = { vertical: "middle", horizontal: columns[colNum-1].numeric ? "right" : "left" };
+          if(columns[colNum-1].numeric) cell.numFmt = money;
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: i % 2 === 0 ? tintColor : WHITE } };
+        });
+      });
+
+      if(totalsRow){
+        const row = ws.getRow(3 + rows.length);
+        row.values = totalsRow;
+        row.eachCell({ includeEmpty: true }, (cell, colNum) => {
+          cell.border = allB;
+          cell.font = { bold: true, size: 10 };
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0C766" } };
+          if(columns[colNum-1].numeric) cell.numFmt = money;
+        });
+      }
+      return ws;
+    }
+
+    // Summary — balance + loans
+    const loanRows = state.financialLoans.map((l,i) => [i+1, l.name, Number(l.amount)||0]);
+    const totalLoans = state.financialLoans.reduce((s,l)=>s+Number(l.amount||0),0);
+    addTableSheet("Summary",
+      `FINANCIAL SUMMARY — Balance SAR ${Number(state.financialBalance?.balance||0).toLocaleString()}`,
+      NAVY, BLUE_TINT,
+      [{header:"No",width:5},{header:"Loan",width:32},{header:"Amount",width:16,numeric:true}],
+      loanRows,
+      ["", "TOTAL", totalLoans]
+    );
+
+    // Invoices
+    const invRows = state.financialInvoices.map((v,i) => [i+1, v.description, v.invoice_no, Number(v.amount_no_vat)||0, Number(v.amount_with_vat)||0, v.invoice_month||""]);
+    const invTotalNoVat = state.financialInvoices.reduce((s,v)=>s+Number(v.amount_no_vat||0),0);
+    const invTotalWithVat = state.financialInvoices.reduce((s,v)=>s+Number(v.amount_with_vat||0),0);
+    addTableSheet("Invoices", "AMOUNT INVOICED", BLUE_HEAD, BLUE_TINT,
+      [{header:"No",width:5},{header:"Description",width:24},{header:"Invoice No",width:16},{header:"W/O VAT",width:14,numeric:true},{header:"With VAT",width:14,numeric:true},{header:"Month",width:12}],
+      invRows,
+      ["", "TOTAL", "", invTotalNoVat, invTotalWithVat, ""]
+    );
+
+    // Payments received
+    const payRows = state.financialPayments.map((v,i) => [i+1, v.project, v.company, v.invoice_no, Number(v.amount)||0, v.payment_date||""]);
+    const payTotal = state.financialPayments.reduce((s,v)=>s+Number(v.amount||0),0);
+    addTableSheet("Payments Received", "AMOUNT RECEIVED", GREEN_HEAD, GREEN_TINT,
+      [{header:"No",width:5},{header:"Project",width:22},{header:"Company",width:14},{header:"Invoice No",width:16},{header:"Amount",width:14,numeric:true},{header:"Date",width:14}],
+      payRows,
+      ["", "", "", "TOTAL", payTotal, ""]
+    );
+
+    // Pending collection — split by client group (OTIS / TKE / Schindler / other)
+    const groups = {};
+    state.financialPending.forEach(p => {
+      const parts = (p.client || "").split(" · ");
+      const groupName = parts.length > 1 ? parts[0] : "Other";
+      const projectName = parts.length > 1 ? parts.slice(1).join(" · ") : p.client;
+      if(!groups[groupName]) groups[groupName] = [];
+      groups[groupName].push({ ...p, projectName });
+    });
+    Object.entries(groups).forEach(([groupName, items]) => {
+      const rows = items.map((v,i) => [i+1, v.projectName, v.invoice_no||"", Number(v.amount)||0, v.issue_date||"", v.due_date||""]);
+      const total = items.reduce((s,v)=>s+Number(v.amount||0),0);
+      addTableSheet(`${groupName} Pending`.slice(0,31), `${groupName.toUpperCase()} — TOTAL PENDING COLLECTION`, AMBER_HEAD, AMBER_TINT,
+        [{header:"No",width:5},{header:"Project",width:24},{header:"Invoice No",width:16},{header:"Amount",width:14,numeric:true},{header:"Issue Date",width:14},{header:"Due Date",width:14}],
+        rows,
+        ["", "", "TOTAL", total, "", ""]
+      );
+    });
+
+    // PO tracker
+    const poRows = state.financialPo.map((v,i) => [i+1, v.project, v.po_month||"", Number(v.amount)||0, v.received ? "Received" : "Not Received"]);
+    const poTotal = state.financialPo.reduce((s,v)=>s+Number(v.amount||0),0);
+    addTableSheet("PO Tracker", "PO DETAILS", GOLD_HEAD, GOLD_TINT,
+      [{header:"No",width:5},{header:"Project",width:26},{header:"Month",width:18},{header:"Amount",width:14,numeric:true},{header:"Status",width:14}],
+      poRows,
+      ["", "", "TOTAL", poTotal, ""]
+    );
+
+    await downloadWorkbook(wb, `Financial_Report_${todayLocalISO()}.xlsx`);
+    toast("Report downloaded.");
+  }catch(e){
+    console.error("Financial report export error:", e);
+    toast("Export error: " + (e && e.message ? e.message : "unknown"));
+  }
+  state.loading = false;
+  render();
+}
+
 /* ---------------- Employee directory & self-service profile ---------------- */
 async function loadEmployeeDirectory(){
   state.loading = true; render();
@@ -3672,6 +3801,7 @@ function render(){
   else if(state.view === "renewals-screen") body = renderRenewalsScreen();
   else if(state.view === "vehicle-documents") body = renderVehicleDocumentsScreen();
   else if(state.view === "financial-report") body = renderFinancialReport();
+  else if(state.view === "financial-report-view") body = renderFinancialReportView();
   else if(state.view === "employee-directory") body = renderEmployeeDirectory();
   else if(state.view === "my-profile") body = renderMyProfile();
   else if(state.view === "combined-reports") body = renderCombinedReports();
@@ -4165,6 +4295,8 @@ function renderFinancialReport(){
       <div class="meta" style="color:#BFDCF5;">${canEdit ? "Add and update entries below" : "View only"}</div>
     </div>
 
+    <button class="btn btn-outline btn-sm" id="viewFinancialReportBtn" style="width:100%;margin-bottom:14px;">📊 View Report</button>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
       <div class="card" style="padding:12px;${canEdit?"cursor:pointer;":""}" ${canEdit?'id="editBalanceBtn"':""}>
         <div class="meta">Account balance</div>
@@ -4207,6 +4339,77 @@ function renderFinancialReport(){
   `;
 }
 
+
+function renderFinancialReportView(){
+  const isHrUser = state.user.role === "hr";
+  const isCeoUser = state.user.role === "ceo";
+  const backBtnId = "backToFinancialReportBtn";
+  const fmt = n => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
+
+  const table = (headColor, headers, rows, totalRow) => `
+    <table class="grid report-table" style="font-size:11px;width:100%;margin-bottom:18px;">
+      <thead><tr>${headers.map(h=>`<th style="background:${headColor};color:#fff;padding:6px 4px;">${h}</th>`).join("")}</tr></thead>
+      <tbody>
+        ${rows.map(r => `<tr>${r.map((c,i)=>`<td style="padding:5px 4px;text-align:${i===0?"center":(typeof c==="number"?"right":"left")};">${typeof c==="number"?fmt(c):c}</td>`).join("")}</tr>`).join("")}
+        ${totalRow ? `<tr style="background:var(--ksa-cream);font-weight:800;">${totalRow.map((c,i)=>`<td style="padding:6px 4px;text-align:${i===0?"center":(typeof c==="number"?"right":"left")};">${typeof c==="number"?fmt(c):c}</td>`).join("")}</tr>` : ""}
+      </tbody>
+    </table>`;
+
+  const loanRows = state.financialLoans.map((l,i)=>[i+1, l.name, Number(l.amount)||0]);
+  const totalLoans = state.financialLoans.reduce((s,l)=>s+Number(l.amount||0),0);
+
+  const invRows = state.financialInvoices.map((v,i)=>[i+1, v.description, v.invoice_no, Number(v.amount_no_vat)||0, Number(v.amount_with_vat)||0, v.invoice_month||"-"]);
+  const invTotalNoVat = state.financialInvoices.reduce((s,v)=>s+Number(v.amount_no_vat||0),0);
+  const invTotalWithVat = state.financialInvoices.reduce((s,v)=>s+Number(v.amount_with_vat||0),0);
+
+  const payRows = state.financialPayments.map((v,i)=>[i+1, v.project, v.company, v.invoice_no, Number(v.amount)||0, v.payment_date||"-"]);
+  const payTotal = state.financialPayments.reduce((s,v)=>s+Number(v.amount||0),0);
+
+  const groups = {};
+  state.financialPending.forEach(p => {
+    const parts = (p.client || "").split(" · ");
+    const groupName = parts.length > 1 ? parts[0] : "Other";
+    const projectName = parts.length > 1 ? parts.slice(1).join(" · ") : p.client;
+    if(!groups[groupName]) groups[groupName] = [];
+    groups[groupName].push({ ...p, projectName });
+  });
+  let grandTotalPending = 0;
+
+  const poRows = state.financialPo.map((v,i)=>[i+1, v.project, v.po_month||"-", Number(v.amount)||0, v.received?"Received":"Not Received"]);
+  const poTotal = state.financialPo.reduce((s,v)=>s+Number(v.amount||0),0);
+
+  return `
+    <button class="link-btn" id="${backBtnId}" style="margin-bottom:12px;">‹ Back</button>
+    <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:18px;margin-bottom:16px;">
+      <h3 style="color:#fff;">💰 Financial Report</h3>
+      <div class="meta" style="color:#BFDCF5;">Account Balance: SAR ${fmt(state.financialBalance?.balance)}</div>
+    </div>
+
+    <h3 style="font-size:13px;color:var(--navy);margin:0 0 6px;">🏦 LOANS</h3>
+    ${table("#1B5A96", ["No","Loan","Amount"], loanRows, ["","TOTAL", totalLoans])}
+
+    <h3 style="font-size:13px;color:var(--navy);margin:0 0 6px;">📄 AMOUNT INVOICED</h3>
+    ${table("#1B5A96", ["No","Description","Invoice No","W/O VAT","With VAT","Month"], invRows, ["","TOTAL","", invTotalNoVat, invTotalWithVat, ""])}
+
+    <h3 style="font-size:13px;color:var(--navy);margin:0 0 6px;">✅ AMOUNT RECEIVED</h3>
+    ${table("#1C8A4E", ["No","Project","Company","Invoice No","Amount","Date"], payRows, ["","","","TOTAL", payTotal, ""])}
+
+    <h3 style="font-size:13px;color:var(--navy);margin:16px 0 4px;">⏳ TOTAL PENDING COLLECTION</h3>
+    ${Object.entries(groups).map(([groupName, items]) => {
+      const rows = items.map((v,i)=>[i+1, v.projectName, v.invoice_no||"-", Number(v.amount)||0, v.issue_date||"-", v.due_date||"-"]);
+      const total = items.reduce((s,v)=>s+Number(v.amount||0),0);
+      grandTotalPending += total;
+      return `<h3 style="font-size:12px;color:#C4791F;margin:8px 0 4px;">${groupName.toUpperCase()}</h3>` +
+        table("#C4791F", ["No","Project","Invoice No","Amount","Issue Date","Due Date"], rows, ["","","TOTAL", total, "", ""]);
+    }).join("")}
+    <div style="background:var(--navy);color:#fff;padding:10px 14px;border-radius:10px;font-weight:800;font-size:13px;display:flex;justify-content:space-between;margin-bottom:18px;">
+      <span>NET TOTAL PENDING</span><span>SAR ${fmt(grandTotalPending)}</span>
+    </div>
+
+    <h3 style="font-size:13px;color:var(--navy);margin:0 0 6px;">📋 PO DETAILS</h3>
+    ${table("#B8912A", ["No","Project","Month","Amount","Status"], poRows, ["","","TOTAL", poTotal, ""])}
+  `;
+}
 
 function renderVehicleDocumentsScreen(){
   const isHrUser = state.user.role === "hr";
@@ -5901,6 +6104,8 @@ function handleDelegatedClick(e){
     return;
   }
   if(el("editBalanceBtn")){ saveFinancialBalance(); return; }
+  if(el("viewFinancialReportBtn")){ state.view = "financial-report-view"; render(); return; }
+  if(el("backToFinancialReportBtn")){ state.view = "financial-report"; render(); return; }
   if(el("addLoanBtn")){ addFinancialLoan(); return; }
   if(el("addInvoiceBtn")){ addFinancialInvoice(); return; }
   if(el("addPaymentBtn")){ addFinancialPayment(); return; }
