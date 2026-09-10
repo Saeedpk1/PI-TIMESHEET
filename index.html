@@ -441,6 +441,9 @@ let state = {
   vehicles: [],
   employeesForRenewals: [],
   companyMedicalExpiry: "",
+  vehicleDocuments: {},
+  selectedVehicleForDocs: null,
+  vehicleDocUploadType: "Registration (Istimara)",
   employeeDirectory: [],
   selectedDirectoryEmployeeId: null,
   myProfile: null,
@@ -1842,6 +1845,91 @@ async function addVehicle(){
   state.loading = false;
   toast(error ? "Could not add. Try again." : "Vehicle added.");
   await loadRenewalsScreen();
+}
+
+/* ---------------- Vehicle document files ---------------- */
+async function loadVehicleDocumentsScreen(){
+  state.loading = true; render();
+  const [{ data: vehicles }, { data: docs }] = await Promise.all([
+    sb.from("ts_vehicles").select("*").eq("active", true).order("plate_no"),
+    sb.from("ts_vehicle_documents").select("*").order("uploaded_at", { ascending: false })
+  ]);
+  state.vehicles = vehicles || [];
+  const grouped = {};
+  (docs || []).forEach(d => {
+    if(!grouped[d.vehicle_id]) grouped[d.vehicle_id] = [];
+    grouped[d.vehicle_id].push(d);
+  });
+  state.vehicleDocuments = grouped;
+  state.loading = false;
+  render();
+}
+
+function handleVehicleDocFile(file){
+  if(!file || !state.selectedVehicleForDocs) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    state.loading = true; render();
+    const { error } = await sb.from("ts_vehicle_documents").insert({
+      vehicle_id: state.selectedVehicleForDocs,
+      document_type: state.vehicleDocUploadType,
+      file_name: file.name,
+      file_data: reader.result
+    });
+    state.loading = false;
+    toast(error ? "Could not upload. Try again." : "Document added.");
+    await loadVehicleDocumentsScreen();
+  };
+  reader.readAsDataURL(file);
+}
+
+async function deleteVehicleDocument(docId){
+  if(!confirm("Remove this document?")) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_vehicle_documents").delete().eq("id", docId);
+  state.loading = false;
+  toast(error ? "Could not remove. Try again." : "Document removed.");
+  await loadVehicleDocumentsScreen();
+}
+
+async function exportVehicleDocumentsPdf(vehicleId){
+  const vehicle = state.vehicles.find(v=>v.id===vehicleId);
+  const docs = state.vehicleDocuments[vehicleId] || [];
+  if(!docs.length){ toast("No documents uploaded for this vehicle yet."); return; }
+  state.loading = true; render();
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const PAGE_W = 595.28, PAGE_H = 841.89, MARGIN = 30;
+
+    for(let i=0; i<docs.length; i++){
+      if(i > 0) doc.addPage();
+      const d = docs[i];
+      doc.setFont("helvetica","bold"); doc.setFontSize(12); doc.setTextColor(15,53,86);
+      doc.text(`${vehicle?.plate_no || ""} — ${d.document_type || "Document"}`, MARGIN, 30);
+      try{
+        const imgProps = doc.getImageProperties ? doc.getImageProperties(d.file_data) : null;
+        let w = PAGE_W - MARGIN*2, h = PAGE_H - 80;
+        if(imgProps && imgProps.width && imgProps.height){
+          const ratio = imgProps.width / imgProps.height;
+          h = w / ratio;
+          if(h > PAGE_H - 80){ h = PAGE_H - 80; w = h * ratio; }
+        }
+        doc.addImage(d.file_data, "JPEG", MARGIN, 45, w, h);
+      }catch(e){
+        doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(150,150,150);
+        doc.text("Could not embed this file (unsupported format).", MARGIN, 60);
+      }
+    }
+
+    doc.save(`Vehicle_Documents_${(vehicle?.plate_no||"vehicle").replace(/[\/\s]+/g,"_")}.pdf`);
+    toast("PDF downloaded.");
+  }catch(e){
+    console.error("Vehicle docs PDF error:", e);
+    toast("PDF error: " + (e && e.message ? e.message : "unknown"));
+  }
+  state.loading = false;
+  render();
 }
 
 /* ---------------- Employee directory & self-service profile ---------------- */
@@ -3378,6 +3466,7 @@ function render(){
   else if(state.view === "daily-attendance-form") body = renderDailyAttendanceForm();
   else if(state.view === "vacation-manager") body = renderVacationManager();
   else if(state.view === "renewals-screen") body = renderRenewalsScreen();
+  else if(state.view === "vehicle-documents") body = renderVehicleDocumentsScreen();
   else if(state.view === "employee-directory") body = renderEmployeeDirectory();
   else if(state.view === "my-profile") body = renderMyProfile();
   else if(state.view === "combined-reports") body = renderCombinedReports();
@@ -3647,6 +3736,7 @@ function renderRajeshDashboard(){
     <div class="hr-section-label" style="color:#6B4FC4;">👤 Directory</div>
     <div class="hr-tile-grid">
       <div class="hr-tile" id="openEmployeeDirectoryBtn" style="border-color:#DCD0F5;"><span class="icon">👤</span><span class="label">Employee<br>Directory</span></div>
+      <div class="hr-tile" id="openVehicleDocumentsBtn" style="border-color:#A9D9CD;"><span class="icon">🚗</span><span class="label">Vehicle<br>Documents</span></div>
     </div>
   `;
 }
@@ -3801,6 +3891,58 @@ function renderMyProfile(){
       <input type="text" id="myProfileBankName" value="${d.bank_name}">
       <button class="btn btn-submit btn-sm" id="saveMyProfileBtn" style="width:100%;margin-top:10px;">💾 Save</button>
     </div>
+  `;
+}
+
+function renderVehicleDocumentsScreen(){
+  const isHrUser = state.user.role === "hr";
+  const isCeoUser = state.user.role === "ceo";
+  const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (isHrUser ? "backToHrBtn" : "backToSupervisorHomeBtn");
+  const vehicle = state.vehicles.find(v=>v.id===state.selectedVehicleForDocs);
+  const options = state.vehicles.map(v => `<option value="${v.id}" ${v.id===state.selectedVehicleForDocs?"selected":""}>${v.plate_no} ${v.vehicle_type ? "— " + v.vehicle_type : ""}</option>`).join("");
+
+  const docTypeOptions = ["Registration (Istimara)", "Insurance", "Operation Card", "Other"]
+    .map(t => `<option value="${t}" ${state.vehicleDocUploadType===t?"selected":""}>${t}</option>`).join("");
+
+  const docsHtml = vehicle ? (state.vehicleDocuments[vehicle.id] || []).map(d => `
+    <div class="emp-list-item li-approved">
+      <div style="flex:1;min-width:0;">
+        <div class="name">${d.document_type || "Document"}</div>
+        <div class="sub">${d.file_name || ""} • ${new Date(d.uploaded_at).toLocaleDateString()}</div>
+      </div>
+      <button class="link-btn" data-delete-vehicle-doc="${d.id}" style="color:var(--absent) !important;">🗑</button>
+    </div>`).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">📄</div>No documents uploaded yet.</div>` : "";
+
+  return `
+    <button class="link-btn" id="${backBtnId}" style="margin-bottom:12px;">‹ Back</button>
+    <div style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);border-radius:16px;padding:18px;">
+      <h3 style="color:var(--navy);">🚗 Vehicle Documents</h3>
+      <div class="meta" style="color:var(--blue);">Registration, insurance, operation card — upload, remove, or send as one PDF.</div>
+    </div>
+
+    <label style="margin-top:12px;">Vehicle</label>
+    <select id="vehicleDocsSelect">
+      <option value="">Select vehicle</option>
+      ${options}
+    </select>
+
+    ${vehicle ? `
+    <div class="card" style="margin-top:14px;">
+      <div class="row-between">
+        <h3 style="font-size:14px;margin:0;">${vehicle.plate_no} <span style="font-weight:400;color:var(--muted);">${vehicle.vehicle_type || ""}</span></h3>
+        <button class="btn btn-outline btn-sm" id="exportVehicleDocsBtn" style="padding:6px 12px;">📤 Send as PDF</button>
+      </div>
+      <div style="margin-top:8px;">${docsHtml}</div>
+    </div>
+
+    <div class="card" style="margin-top:14px;border:2px solid var(--ksa-gold-light);">
+      <h3 style="font-size:14px;">+ Add Document</h3>
+      <label>Document type</label>
+      <select id="vehicleDocTypeSelect">${docTypeOptions}</select>
+      <label style="margin-top:10px;">File (photo or scan)</label>
+      <input type="file" id="vehicleDocFileInput" accept="image/*">
+    </div>
+    ` : ""}
   `;
 }
 
@@ -4301,6 +4443,7 @@ function renderHrView(){
     <div class="hr-tile-grid">
       <div class="hr-tile" id="openRenewalsBtn" style="border-color:#F0C766;"><span class="icon">🔔</span><span class="label">Renewals &<br>Expiry</span></div>
       <div class="hr-tile" id="openEmployeeDirectoryBtn" style="border-color:#C7D9EA;"><span class="icon">👤</span><span class="label">Employee<br>Directory</span></div>
+      <div class="hr-tile" id="openVehicleDocumentsBtn" style="border-color:#A9D9CD;"><span class="icon">🚗</span><span class="label">Vehicle<br>Documents</span></div>
     </div>
   `;
 }
@@ -5365,6 +5508,14 @@ function handleDelegatedClick(e){
     return;
   }
   if(el("exportProfilePdfBtn")){ generateEmployeeProfilePdf(); return; }
+  if(el("openVehicleDocumentsBtn")){
+    state.view = "vehicle-documents";
+    loadVehicleDocumentsScreen();
+    return;
+  }
+  if(el("exportVehicleDocsBtn")){ exportVehicleDocumentsPdf(state.selectedVehicleForDocs); return; }
+  const deleteVehicleDocEl = e.target.closest("[data-delete-vehicle-doc]");
+  if(deleteVehicleDocEl){ deleteVehicleDocument(deleteVehicleDocEl.getAttribute("data-delete-vehicle-doc")); return; }
   if(el("openMyProfileBtn")){
     state.view = "my-profile";
     loadMyProfile();
@@ -5462,6 +5613,19 @@ function handleDelegatedChange(e){
   if(e.target.id === "directoryEmployeeSelect"){
     state.selectedDirectoryEmployeeId = e.target.value || null;
     render();
+    return;
+  }
+  if(e.target.id === "vehicleDocsSelect"){
+    state.selectedVehicleForDocs = e.target.value || null;
+    render();
+    return;
+  }
+  if(e.target.id === "vehicleDocTypeSelect"){
+    state.vehicleDocUploadType = e.target.value;
+    return;
+  }
+  if(e.target.id === "vehicleDocFileInput"){
+    handleVehicleDocFile(e.target.files[0]);
     return;
   }
   if(e.target.id === "myProfilePhotoInput"){
