@@ -3618,30 +3618,59 @@ function renderEmployeeDirectory(){
   const isCeoUser = state.user.role === "ceo";
   const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (isHrUser ? "backToHrBtn" : "backToSupervisorHomeBtn");
 
-  const row = (icon, label, value) => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid rgba(0,0,0,0.06);">
-      <span style="color:var(--muted);font-size:12.5px;">${icon} ${label}</span>
-      <span style="font-weight:700;font-size:12.5px;text-align:right;">${value || "-"}</span>
+  const row = (icon, label, value, dateForStatus) => {
+    let statusBadge = "";
+    if(dateForStatus){
+      const days = daysUntil(dateForStatus);
+      if(days !== null){
+        const ok = days > 30;
+        const warn = days >= 0 && days <= 30;
+        const bg = ok ? "#EAF6ED" : (warn ? "#FDF3E6" : "#FDECEA");
+        const fg = ok ? "var(--present)" : (warn ? "#C4791F" : "var(--absent)");
+        const text = days < 0 ? `EXPIRED` : (days <= 30 ? `${days}d left` : "Valid");
+        statusBadge = `<span style="background:${bg};color:${fg};font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:999px;margin-left:6px;">${text}</span>`;
+      }
+    }
+    return `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid rgba(0,0,0,0.06);">
+      <span style="font-size:12px;opacity:0.85;">${icon} ${label}</span>
+      <span style="font-weight:800;font-size:12.5px;text-align:right;">${value || "-"}${statusBadge}</span>
+    </div>`;
+  };
+
+  const section = (title, color, bg, rowsHtml) => `
+    <div style="background:${bg};border-left:4px solid ${color};border-radius:10px;padding:10px 14px;margin-top:12px;">
+      <div style="font-weight:800;font-size:12.5px;color:${color};margin-bottom:2px;">${title}</div>
+      ${rowsHtml}
     </div>`;
 
   const profileCard = emp ? `
-    <div style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);border-radius:16px;padding:20px;text-align:center;margin-top:14px;">
-      ${emp.photo_data ? `<img src="${emp.photo_data}" style="width:76px;height:76px;border-radius:50%;object-fit:cover;border:3px solid #fff;">` : `<div style="width:76px;height:76px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto;">👤</div>`}
-      <div style="font-weight:800;font-size:17px;color:var(--navy);margin-top:10px;">${emp.name}</div>
-      <div class="meta" style="color:var(--blue);">${emp.employee_no || ""}${emp.project_site ? " • " + emp.project_site : ""}</div>
+    <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:18px;padding:24px 20px;text-align:center;margin-top:16px;position:relative;overflow:hidden;box-shadow:0 6px 18px rgba(15,53,86,0.25);">
+      <div style="position:absolute;inset:0;background-image:linear-gradient(45deg,rgba(255,255,255,0.05) 25%,transparent 25%),linear-gradient(-45deg,rgba(255,255,255,0.05) 25%,transparent 25%);background-size:22px 22px;pointer-events:none;"></div>
+      ${emp.photo_data ? `<img src="${emp.photo_data}" style="position:relative;width:88px;height:88px;border-radius:50%;object-fit:cover;border:3px solid var(--ksa-gold);">` : `<div style="position:relative;width:88px;height:88px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto;border:3px solid var(--ksa-gold);">👤</div>`}
+      <div style="position:relative;font-weight:800;font-size:19px;color:#fff;margin-top:12px;">${emp.name}</div>
+      <div style="position:relative;font-size:12px;color:#BFDCF5;margin-top:4px;letter-spacing:0.3px;">${emp.employee_no || ""}${emp.project_site ? "  •  " + emp.project_site : ""}</div>
     </div>
-    <div class="card" style="margin-top:12px;">
-      ${row("🌍", "Nationality", emp.nationality)}
-      ${row("🎂", "Date of birth", emp.date_of_birth)}
-      ${row("📅", "Joining date", emp.joining_date)}
-      ${row("📱", "Mobile number", emp.mobile_number)}
-      ${row("🪪", "Iqama No", emp.iqama_number)}
-      ${row("🪪", "Iqama expiry", emp.iqama_expiry_date)}
-      ${row("📔", "Passport No", emp.passport_no)}
-      ${row("📔", "Passport expiry", emp.passport_expiry)}
-      ${row("🩺", "Medical insurance expiry", emp.medical_insurance_expiry)}
-    </div>
-    <button class="btn btn-outline btn-sm" id="exportProfilePdfBtn" style="width:100%;margin-top:12px;">⬇ Export as PDF</button>
+
+    ${section("👤 PERSONAL INFORMATION", "#1B5A96", "#EAF1FC",
+      row("🌍", "Nationality", emp.nationality) +
+      row("🎂", "Date of birth", emp.date_of_birth) +
+      row("📅", "Joining date", emp.joining_date) +
+      row("📱", "Mobile number", emp.mobile_number)
+    )}
+
+    ${section("🪪 IDENTITY DOCUMENTS", "#C4791F", "#FDF6E3",
+      row("🪪", "Iqama No", emp.iqama_number) +
+      row("🪪", "Iqama expiry", emp.iqama_expiry_date, emp.iqama_expiry_date) +
+      row("📔", "Passport No", emp.passport_no) +
+      row("📔", "Passport expiry", emp.passport_expiry, emp.passport_expiry)
+    )}
+
+    ${section("🩺 HEALTH COVERAGE", "#1C8A4E", "#EAF6ED",
+      row("🩺", "Medical insurance expiry", emp.medical_insurance_expiry, emp.medical_insurance_expiry)
+    )}
+
+    <button class="btn btn-sm" id="exportProfilePdfBtn" style="width:100%;margin-top:16px;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff;border:none;font-weight:800;">⬇ Export as PDF</button>
     ${isHrUser ? `<div class="field-note" style="text-align:center;">To update dates, use "Renewals & Expiry" instead.</div>` : ""}
   ` : "";
 
