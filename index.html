@@ -451,6 +451,7 @@ let state = {
   financialPayments: [],
   financialPending: [],
   financialPo: [],
+  financialIqamaSoon: [],
   employeeDirectory: [],
   selectedDirectoryEmployeeId: null,
   myProfile: null,
@@ -1989,13 +1990,14 @@ async function exportVehicleDocumentsPdf(vehicleId){
 /* ---------------- Financial Report ---------------- */
 async function loadFinancialReport(){
   state.loading = true; render();
-  const [{ data: bal }, { data: loans }, { data: inv }, { data: pay }, { data: pend }, { data: po }] = await Promise.all([
+  const [{ data: bal }, { data: loans }, { data: inv }, { data: pay }, { data: pend }, { data: po }, { data: iqama }] = await Promise.all([
     sb.from("ts_financial_balance").select("*").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
     sb.from("ts_financial_loans").select("*").order("created_at", { ascending: false }),
     sb.from("ts_financial_invoices").select("*").order("created_at", { ascending: false }),
     sb.from("ts_financial_payments").select("*").order("created_at", { ascending: false }),
     sb.from("ts_financial_pending").select("*").order("due_date", { ascending: true }),
-    sb.from("ts_financial_po").select("*").order("created_at", { ascending: false })
+    sb.from("ts_financial_po").select("*").order("created_at", { ascending: false }),
+    sb.from("ts_employees").select("id, name, short_name, iqama_expiry_date").eq("active", true).not("iqama_expiry_date", "is", null).order("iqama_expiry_date")
   ]);
   state.financialBalance = bal || null;
   state.financialLoans = loans || [];
@@ -2003,6 +2005,9 @@ async function loadFinancialReport(){
   state.financialPayments = pay || [];
   state.financialPending = pend || [];
   state.financialPo = po || [];
+  state.financialIqamaSoon = (iqama || [])
+    .map(e => ({ ...e, days: daysUntil(e.iqama_expiry_date) }))
+    .filter(e => e.days !== null && e.days < 15);
   state.loading = false;
   render();
 }
@@ -3801,7 +3806,6 @@ function render(){
   else if(state.view === "renewals-screen") body = renderRenewalsScreen();
   else if(state.view === "vehicle-documents") body = renderVehicleDocumentsScreen();
   else if(state.view === "financial-report") body = renderFinancialReport();
-  else if(state.view === "financial-report-view") body = renderFinancialReportView();
   else if(state.view === "employee-directory") body = renderEmployeeDirectory();
   else if(state.view === "my-profile") body = renderMyProfile();
   else if(state.view === "combined-reports") body = renderCombinedReports();
@@ -4239,132 +4243,42 @@ function renderFinancialReport(){
   const isCeoUser = state.user.role === "ceo";
   const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (isHrUser ? "backToHrBtn" : "backToSupervisorHomeBtn");
   const canEdit = isHrUser;
-  const fmt = n => `SAR ${Number(n||0).toLocaleString(undefined,{maximumFractionDigits:0})}`;
-
-  const totalLoans = state.financialLoans.reduce((s,l)=>s+Number(l.amount||0),0);
-  const totalPending = state.financialPending.reduce((s,p)=>s+Number(p.amount||0),0);
-
-  const sectionHeader = (title, addId) => `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <div style="font-weight:800;font-size:14px;">${title}</div>
-      ${canEdit ? `<button class="link-btn" id="${addId}" style="color:var(--blue) !important;font-size:20px;padding:0 4px;">+</button>` : ""}
-    </div>`;
-
-  const rowLine = (main, sub, right, rightColor, deleteId, extraBtn) => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px dashed var(--line);gap:8px;">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:12.5px;font-weight:700;">${main}</div>
-        ${sub ? `<div class="meta" style="margin-top:1px;">${sub}</div>` : ""}
-      </div>
-      <div style="font-size:12.5px;font-weight:800;color:${rightColor||"var(--ink)"};white-space:nowrap;">${right}</div>
-      ${extraBtn || ""}
-      ${canEdit ? `<button class="link-btn" data-fin-delete="${deleteId}" style="color:var(--absent) !important;padding:0 2px;">🗑</button>` : ""}
-    </div>`;
-
-  const loansHtml = state.financialLoans.map(l => rowLine(l.name, "", fmt(l.amount), null, `loan:${l.id}`)).join("")
-    || `<div class="empty-state" style="padding:10px;"><div class="ic">🏦</div>No loans on file.</div>`;
-
-  const invoicesHtml = state.financialInvoices.map(i => rowLine(
-    `${i.description||""} ${i.invoice_no?"· "+i.invoice_no:""}`,
-    `${i.amount_no_vat ? "w/o VAT " + fmt(i.amount_no_vat) + " · " : ""}${i.invoice_month||""}`,
-    fmt(i.amount_with_vat || i.amount_no_vat), "var(--blue)", `invoice:${i.id}`
-  )).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">📄</div>No invoices yet.</div>`;
-
-  const paymentsHtml = state.financialPayments.map(p => rowLine(
-    `${p.project||""} ${p.company?"· "+p.company:""}`,
-    `${p.invoice_no ? "Inv "+p.invoice_no+" · " : ""}${p.payment_date||""}`,
-    fmt(p.amount), "var(--present)", `payment:${p.id}`
-  )).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">✅</div>No payments recorded yet.</div>`;
-
-  const pendingHtml = state.financialPending.map(p => rowLine(
-    `${p.client||""} ${p.invoice_no?"· "+p.invoice_no:""}`,
-    `Due ${p.due_date||"-"}`,
-    fmt(p.amount), "#C4791F", `pending:${p.id}`
-  )).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">⏳</div>Nothing pending.</div>`;
-
-  const poHtml = state.financialPo.map(p => rowLine(
-    p.project, p.po_month||"",
-    fmt(p.amount), p.received ? "var(--present)" : "#C4791F", `po:${p.id}`,
-    canEdit ? `<button class="link-btn" data-toggle-po="${p.id}" style="font-size:11px;color:${p.received?"var(--present)":"#C4791F"} !important;white-space:nowrap;">${p.received?"✓ Received":"Mark received"}</button>` : `<span style="font-size:11px;color:${p.received?"var(--present)":"#C4791F"};">${p.received?"Received":"Not received"}</span>`
-  )).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">📋</div>No POs on file.</div>`;
-
-  return `
-    <button class="link-btn" id="${backBtnId}" style="margin-bottom:12px;">‹ Back</button>
-    <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:18px;margin-bottom:14px;">
-      <h3 style="color:#fff;">💰 Financial Report</h3>
-      <div class="meta" style="color:#BFDCF5;">${canEdit ? "Add and update entries below" : "View only"}</div>
-    </div>
-
-    <button class="btn btn-outline btn-sm" id="viewFinancialReportBtn" style="width:100%;margin-bottom:14px;">📊 View Report</button>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
-      <div class="card" style="padding:12px;${canEdit?"cursor:pointer;":""}" ${canEdit?'id="editBalanceBtn"':""}>
-        <div class="meta">Account balance</div>
-        <div style="font-size:17px;font-weight:800;margin-top:2px;">${fmt(state.financialBalance?.balance)}</div>
-        ${canEdit ? `<div class="meta" style="margin-top:2px;color:var(--blue);">tap to update</div>` : ""}
-      </div>
-      <div class="card" style="padding:12px;">
-        <div class="meta">Total loans</div>
-        <div style="font-size:17px;font-weight:800;margin-top:2px;">${fmt(totalLoans)}</div>
-      </div>
-    </div>
-
-    <div class="card" style="margin-bottom:12px;">
-      ${sectionHeader("🏦 Loans", "addLoanBtn")}
-      ${loansHtml}
-    </div>
-
-    <div class="card" style="margin-bottom:12px;">
-      ${sectionHeader("📄 Invoices Raised", "addInvoiceBtn")}
-      ${invoicesHtml}
-    </div>
-
-    <div class="card" style="margin-bottom:12px;">
-      ${sectionHeader("✅ Payments Received", "addPaymentBtn")}
-      ${paymentsHtml}
-    </div>
-
-    <div class="card" style="margin-bottom:12px;">
-      ${sectionHeader("⏳ Pending Collection", "addPendingBtn")}
-      ${pendingHtml}
-      <div style="display:flex;justify-content:space-between;padding-top:8px;margin-top:4px;border-top:2px solid var(--line);font-weight:800;font-size:13px;">
-        <span>Total outstanding</span><span style="color:#C4791F;">${fmt(totalPending)}</span>
-      </div>
-    </div>
-
-    <div class="card">
-      ${sectionHeader("📋 PO Tracker", "addPoBtn")}
-      ${poHtml}
-    </div>
-  `;
-}
-
-
-function renderFinancialReportView(){
-  const isHrUser = state.user.role === "hr";
-  const isCeoUser = state.user.role === "ceo";
-  const backBtnId = "backToFinancialReportBtn";
   const fmt = n => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
 
-  const table = (headColor, headers, rows, totalRow) => `
-    <table class="grid report-table" style="font-size:11px;width:100%;margin-bottom:18px;">
+  const totalLoans = state.financialLoans.reduce((s,l)=>s+Number(l.amount||0),0);
+  const totalPo = state.financialPo.reduce((s,p)=>s+Number(p.amount||0),0);
+
+  const table = (headColor, tintColor, headers, rows, totalRow) => `
+    <table class="grid report-table" style="font-size:11px;width:100%;margin-bottom:4px;">
       <thead><tr>${headers.map(h=>`<th style="background:${headColor};color:#fff;padding:6px 4px;">${h}</th>`).join("")}</tr></thead>
       <tbody>
-        ${rows.map(r => `<tr>${r.map((c,i)=>`<td style="padding:5px 4px;text-align:${i===0?"center":(typeof c==="number"?"right":"left")};">${typeof c==="number"?fmt(c):c}</td>`).join("")}</tr>`).join("")}
+        ${rows.map((r,ri) => `<tr style="background:${ri%2===0?tintColor:"#fff"};">${r.map((c,i)=>`<td style="padding:5px 4px;text-align:${i===0?"center":(typeof c==="number"?"right":"left")};">${typeof c==="number"?fmt(c):c}</td>`).join("")}</tr>`).join("")}
         ${totalRow ? `<tr style="background:var(--ksa-cream);font-weight:800;">${totalRow.map((c,i)=>`<td style="padding:6px 4px;text-align:${i===0?"center":(typeof c==="number"?"right":"left")};">${typeof c==="number"?fmt(c):c}</td>`).join("")}</tr>` : ""}
       </tbody>
     </table>`;
 
-  const loanRows = state.financialLoans.map((l,i)=>[i+1, l.name, Number(l.amount)||0]);
-  const totalLoans = state.financialLoans.reduce((s,l)=>s+Number(l.amount||0),0);
+  const sectionHead = (title, color, addId) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 6px;">
+      <h3 style="font-size:13px;color:${color};margin:0;">${title}</h3>
+      ${canEdit ? `<button class="link-btn" id="${addId}" style="color:${color} !important;font-size:18px;padding:0 4px;font-weight:800;">+ Add</button>` : ""}
+    </div>`;
 
-  const invRows = state.financialInvoices.map((v,i)=>[i+1, v.description, v.invoice_no, Number(v.amount_no_vat)||0, Number(v.amount_with_vat)||0, v.invoice_month||"-"]);
+  // Iqama expiring soon (<15 days)
+  const iqamaRows = state.financialIqamaSoon.map((e,i) => [i+1, e.short_name || e.name, e.days < 0 ? `EXPIRED ${Math.abs(e.days)}d ago` : `${e.days}d left`]);
+
+  // Loans
+  const loanRows = state.financialLoans.map((l,i) => [i+1, l.name, Number(l.amount)||0, canEdit ? `<button class="link-btn" data-fin-delete="loan:${l.id}" style="color:var(--absent) !important;padding:0;">🗑</button>` : ""]);
+
+  // Invoices
+  const invRows = state.financialInvoices.map((v,i) => [i+1, v.description, v.invoice_no||"-", Number(v.amount_no_vat)||0, Number(v.amount_with_vat)||0, v.invoice_month||"-", canEdit ? `<button class="link-btn" data-fin-delete="invoice:${v.id}" style="color:var(--absent) !important;padding:0;">🗑</button>` : ""]);
   const invTotalNoVat = state.financialInvoices.reduce((s,v)=>s+Number(v.amount_no_vat||0),0);
   const invTotalWithVat = state.financialInvoices.reduce((s,v)=>s+Number(v.amount_with_vat||0),0);
 
-  const payRows = state.financialPayments.map((v,i)=>[i+1, v.project, v.company, v.invoice_no, Number(v.amount)||0, v.payment_date||"-"]);
+  // Payments
+  const payRows = state.financialPayments.map((v,i) => [i+1, v.project, v.company, v.invoice_no||"-", Number(v.amount)||0, v.payment_date||"-", canEdit ? `<button class="link-btn" data-fin-delete="payment:${v.id}" style="color:var(--absent) !important;padding:0;">🗑</button>` : ""]);
   const payTotal = state.financialPayments.reduce((s,v)=>s+Number(v.amount||0),0);
 
+  // Pending — grouped by client prefix (OTIS / TKE / Schindler / Other)
   const groups = {};
   state.financialPending.forEach(p => {
     const parts = (p.client || "").split(" · ");
@@ -4375,39 +4289,61 @@ function renderFinancialReportView(){
   });
   let grandTotalPending = 0;
 
-  const poRows = state.financialPo.map((v,i)=>[i+1, v.project, v.po_month||"-", Number(v.amount)||0, v.received?"Received":"Not Received"]);
-  const poTotal = state.financialPo.reduce((s,v)=>s+Number(v.amount||0),0);
+  // PO
+  const poRows = state.financialPo.map((v,i) => [
+    i+1, v.project, v.po_month||"-", Number(v.amount)||0,
+    canEdit ? `<button class="link-btn" data-toggle-po="${v.id}" style="font-size:10px;color:${v.received?"var(--present)":"#C4791F"} !important;padding:0;">${v.received?"✓ Received":"Mark received"}</button>` : (v.received?"Received":"Not received"),
+    canEdit ? `<button class="link-btn" data-fin-delete="po:${v.id}" style="color:var(--absent) !important;padding:0;">🗑</button>` : ""
+  ]);
 
   return `
     <button class="link-btn" id="${backBtnId}" style="margin-bottom:12px;">‹ Back</button>
-    <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:18px;margin-bottom:16px;">
+    <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:18px;margin-bottom:14px;">
       <h3 style="color:#fff;">💰 Financial Report</h3>
-      <div class="meta" style="color:#BFDCF5;">Account Balance: SAR ${fmt(state.financialBalance?.balance)}</div>
+      <div class="meta" style="color:#BFDCF5;">${canEdit ? "Add and update entries directly below" : "View only"}</div>
     </div>
 
-    <h3 style="font-size:13px;color:var(--navy);margin:0 0 6px;">🏦 LOANS</h3>
-    ${table("#1B5A96", ["No","Loan","Amount"], loanRows, ["","TOTAL", totalLoans])}
+    ${state.financialIqamaSoon.length ? `
+    <h3 style="font-size:13px;color:var(--absent);margin:0 0 6px;">🪪 IQAMA EXPIRING SOON (&lt;15 days)</h3>
+    ${table("#C43B3B", "#FDECEA", ["No","Name","Days Left"], iqamaRows)}
+    ` : ""}
 
-    <h3 style="font-size:13px;color:var(--navy);margin:0 0 6px;">📄 AMOUNT INVOICED</h3>
-    ${table("#1B5A96", ["No","Description","Invoice No","W/O VAT","With VAT","Month"], invRows, ["","TOTAL","", invTotalNoVat, invTotalWithVat, ""])}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0;">
+      <div class="card" style="padding:12px;${canEdit?"cursor:pointer;":""}" ${canEdit?'id="editBalanceBtn"':""}>
+        <div class="meta">Account balance</div>
+        <div style="font-size:17px;font-weight:800;margin-top:2px;">SAR ${fmt(state.financialBalance?.balance)}</div>
+        ${canEdit ? `<div class="meta" style="margin-top:2px;color:var(--blue);">tap to update</div>` : ""}
+      </div>
+      <div class="card" style="padding:12px;">
+        <div class="meta">Total loans</div>
+        <div style="font-size:17px;font-weight:800;margin-top:2px;">SAR ${fmt(totalLoans)}</div>
+      </div>
+    </div>
 
-    <h3 style="font-size:13px;color:var(--navy);margin:0 0 6px;">✅ AMOUNT RECEIVED</h3>
-    ${table("#1C8A4E", ["No","Project","Company","Invoice No","Amount","Date"], payRows, ["","","","TOTAL", payTotal, ""])}
+    ${sectionHead("🏦 LOANS", "#1B5A96", "addLoanBtn")}
+    ${table("#1B5A96", "#EAF1FC", ["No","Loan","Amount",""], loanRows, ["","TOTAL", totalLoans, ""])}
 
-    <h3 style="font-size:13px;color:var(--navy);margin:16px 0 4px;">⏳ TOTAL PENDING COLLECTION</h3>
+    ${sectionHead("📄 AMOUNT INVOICED", "#1B5A96", "addInvoiceBtn")}
+    ${table("#1B5A96", "#EAF1FC", ["No","Description","Invoice No","W/O VAT","With VAT","Month",""], invRows, ["","TOTAL","", invTotalNoVat, invTotalWithVat, "", ""])}
+
+    ${sectionHead("✅ AMOUNT RECEIVED", "#1C8A4E", "addPaymentBtn")}
+    ${table("#1C8A4E", "#EAF6ED", ["No","Project","Company","Invoice No","Amount","Date",""], payRows, ["","","","TOTAL", payTotal, "", ""])}
+
+    <h3 style="font-size:13px;color:#C4791F;margin:16px 0 4px;">⏳ TOTAL PENDING COLLECTION</h3>
+    ${canEdit ? `<button class="link-btn" id="addPendingBtn" style="color:#C4791F !important;font-weight:800;font-size:13px;margin-bottom:6px;display:inline-block;">+ Add</button>` : ""}
     ${Object.entries(groups).map(([groupName, items]) => {
-      const rows = items.map((v,i)=>[i+1, v.projectName, v.invoice_no||"-", Number(v.amount)||0, v.issue_date||"-", v.due_date||"-"]);
+      const rows = items.map((v,i)=>[i+1, v.projectName, v.invoice_no||"-", Number(v.amount)||0, v.issue_date||"-", v.due_date||"-", canEdit ? `<button class="link-btn" data-fin-delete="pending:${v.id}" style="color:var(--absent) !important;padding:0;">🗑</button>` : ""]);
       const total = items.reduce((s,v)=>s+Number(v.amount||0),0);
       grandTotalPending += total;
       return `<h3 style="font-size:12px;color:#C4791F;margin:8px 0 4px;">${groupName.toUpperCase()}</h3>` +
-        table("#C4791F", ["No","Project","Invoice No","Amount","Issue Date","Due Date"], rows, ["","","TOTAL", total, "", ""]);
+        table("#C4791F", "#FDF3E6", ["No","Project","Invoice No","Amount","Issue Date","Due Date",""], rows, ["","","TOTAL", total, "", "", ""]);
     }).join("")}
-    <div style="background:var(--navy);color:#fff;padding:10px 14px;border-radius:10px;font-weight:800;font-size:13px;display:flex;justify-content:space-between;margin-bottom:18px;">
+    <div style="background:var(--navy);color:#fff;padding:10px 14px;border-radius:10px;font-weight:800;font-size:13px;display:flex;justify-content:space-between;margin-bottom:8px;">
       <span>NET TOTAL PENDING</span><span>SAR ${fmt(grandTotalPending)}</span>
     </div>
 
-    <h3 style="font-size:13px;color:var(--navy);margin:0 0 6px;">📋 PO DETAILS</h3>
-    ${table("#B8912A", ["No","Project","Month","Amount","Status"], poRows, ["","","TOTAL", poTotal, ""])}
+    ${sectionHead("📋 PO DETAILS", "#B8912A", "addPoBtn")}
+    ${table("#B8912A", "#FDF6E3", ["No","Project","Month","Amount","Status",""], poRows, ["","","TOTAL", totalPo, "", ""])}
   `;
 }
 
@@ -6104,8 +6040,6 @@ function handleDelegatedClick(e){
     return;
   }
   if(el("editBalanceBtn")){ saveFinancialBalance(); return; }
-  if(el("viewFinancialReportBtn")){ state.view = "financial-report-view"; render(); return; }
-  if(el("backToFinancialReportBtn")){ state.view = "financial-report"; render(); return; }
   if(el("addLoanBtn")){ addFinancialLoan(); return; }
   if(el("addInvoiceBtn")){ addFinancialInvoice(); return; }
   if(el("addPaymentBtn")){ addFinancialPayment(); return; }
