@@ -2261,8 +2261,20 @@ function addFinancialPendingDraft(clientGroup){
 function editFinancialPendingDraft(id){
   const v = state.financialPending.find(x=>x.id===id);
   if(!v) return;
-  const client = (prompt("Client (e.g. OTIS, TKE, Schindler):", v.client) || "").trim();
-  if(!client) return;
+  const knownGroups = ["OTIS", "TKE", "Schindler"];
+  const parts = (v.client || "").split(" · ");
+  const existingGroup = parts.length > 1 && knownGroups.includes(parts[0]) ? parts[0] : null;
+  const existingProject = existingGroup ? parts.slice(1).join(" · ") : v.client;
+
+  let client;
+  if(existingGroup){
+    const project = (prompt(`${existingGroup} — Project name:`, existingProject) || "").trim();
+    if(!project) return;
+    client = `${existingGroup} · ${project}`;
+  }else{
+    client = (prompt("Client (e.g. OTIS, TKE, Schindler):", v.client) || "").trim();
+    if(!client) return;
+  }
   const invoiceNo = (prompt("Invoice No:", v.invoice_no) || "").trim();
   const amt = Number(prompt("Amount (SAR):", v.amount));
   if(isNaN(amt)){ toast("Enter a valid amount."); return; }
