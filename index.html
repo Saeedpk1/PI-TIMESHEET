@@ -458,6 +458,7 @@ let state = {
   financialIqamaSoon: [],
   financialViewOnly: false,
   financialReportDate: todayLocalISO(),
+  financialDirty: false,
   employeeDirectory: [],
   selectedDirectoryEmployeeId: null,
   myProfile: null,
@@ -2016,91 +2017,164 @@ async function loadFinancialReport(date){
   state.financialIqamaSoon = (iqama || [])
     .map(e => ({ ...e, days: daysUntil(e.iqama_expiry_date) }))
     .filter(e => e.days !== null && e.days < 15);
+  state.financialDirty = false;
   state.loading = false;
   render();
 }
 
-async function saveFinancialBalance(){
+function financialTempId(){ return "tmp-" + Date.now() + "-" + Math.random().toString(36).slice(2,8); }
+function markFinancialDirty(){ state.financialDirty = true; }
+
+async function copyPreviousDayFinancialReport(){
+  state.loading = true; render();
+  const { data: recentBal } = await sb.from("ts_financial_balance").select("report_date").lt("report_date", state.financialReportDate).order("report_date", { ascending: false }).limit(1).maybeSingle();
+  const prevDate = recentBal?.report_date;
+  if(!prevDate){
+    state.loading = false;
+    toast("No earlier report found to copy from.");
+    render();
+    return;
+  }
+  const [{ data: bal }, { data: loans }, { data: inv }, { data: pay }, { data: pend }, { data: po }] = await Promise.all([
+    sb.from("ts_financial_balance").select("*").eq("report_date", prevDate).maybeSingle(),
+    sb.from("ts_financial_loans").select("*").eq("report_date", prevDate),
+    sb.from("ts_financial_invoices").select("*").eq("report_date", prevDate),
+    sb.from("ts_financial_payments").select("*").eq("report_date", prevDate),
+    sb.from("ts_financial_pending").select("*").eq("report_date", prevDate),
+    sb.from("ts_financial_po").select("*").eq("report_date", prevDate)
+  ]);
+  state.financialBalance = bal ? { balance: bal.balance } : null;
+  state.financialLoans = (loans||[]).map(l => ({ ...l, id: financialTempId() }));
+  state.financialInvoices = (inv||[]).map(v => ({ ...v, id: financialTempId() }));
+  state.financialPayments = (pay||[]).map(v => ({ ...v, id: financialTempId() }));
+  state.financialPending = (pend||[]).map(v => ({ ...v, id: financialTempId() }));
+  state.financialPo = (po||[]).map(v => ({ ...v, id: financialTempId() }));
+  state.financialDirty = true;
+  state.loading = false;
+  toast(`Copied from ${prevDate}. Review, then tap "Save Report".`);
+  render();
+}
+
+async function saveFinancialReportForDay(){
+  const date = state.financialReportDate;
+  if(!confirm(`Save this report for ${date}? This replaces anything currently saved for that date.`)) return;
+  state.loading = true; render();
+  try{
+    await Promise.all([
+      sb.from("ts_financial_balance").delete().eq("report_date", date),
+      sb.from("ts_financial_loans").delete().eq("report_date", date),
+      sb.from("ts_financial_invoices").delete().eq("report_date", date),
+      sb.from("ts_financial_payments").delete().eq("report_date", date),
+      sb.from("ts_financial_pending").delete().eq("report_date", date),
+      sb.from("ts_financial_po").delete().eq("report_date", date)
+    ]);
+    const inserts = [];
+    if(state.financialBalance) inserts.push(sb.from("ts_financial_balance").insert({ report_date: date, balance: state.financialBalance.balance }));
+    if(state.financialLoans.length) inserts.push(sb.from("ts_financial_loans").insert(state.financialLoans.map(l => ({ name: l.name, amount: l.amount, report_date: date }))));
+    if(state.financialInvoices.length) inserts.push(sb.from("ts_financial_invoices").insert(state.financialInvoices.map(v => ({ description: v.description, invoice_no: v.invoice_no, amount_no_vat: v.amount_no_vat, amount_with_vat: v.amount_with_vat, invoice_month: v.invoice_month, report_date: date }))));
+    if(state.financialPayments.length) inserts.push(sb.from("ts_financial_payments").insert(state.financialPayments.map(v => ({ project: v.project, company: v.company, invoice_no: v.invoice_no, amount: v.amount, payment_date: v.payment_date, report_date: date }))));
+    if(state.financialPending.length) inserts.push(sb.from("ts_financial_pending").insert(state.financialPending.map(v => ({ client: v.client, invoice_no: v.invoice_no, amount: v.amount, issue_date: v.issue_date, due_date: v.due_date, report_date: date }))));
+    if(state.financialPo.length) inserts.push(sb.from("ts_financial_po").insert(state.financialPo.map(v => ({ project: v.project, po_month: v.po_month, amount: v.amount, received: v.received, report_date: date }))));
+    await Promise.all(inserts);
+    toast(`Report saved for ${date}.`);
+  }catch(e){
+    console.error("Save report error:", e);
+    toast("Could not save. Try again.");
+  }
+  await loadFinancialReport(date);
+}
+
+function updateFinancialBalanceDraft(){
   const val = prompt("Enter account balance for this date:", state.financialBalance?.balance ?? "0");
   if(val === null) return;
   const num = Number(val);
   if(isNaN(num)){ toast("Enter a valid number."); return; }
-  state.loading = true; render();
-  const { error } = await sb.from("ts_financial_balance").upsert(
-    { report_date: state.financialReportDate, balance: num },
-    { onConflict: "report_date" }
-  );
-  state.loading = false;
-  toast(error ? "Could not save." : "Balance updated.");
-  await loadFinancialReport(state.financialReportDate);
+  state.financialBalance = { balance: num };
+  markFinancialDirty();
+  render();
 }
 
-async function addFinancialLoan(){
+function addFinancialLoanDraft(){
   const name = (prompt("Loan name:") || "").trim();
   if(!name) return;
   const amt = Number(prompt("Amount (SAR):", "0"));
   if(isNaN(amt)){ toast("Enter a valid amount."); return; }
-  state.loading = true; render();
-  const { error } = await sb.from("ts_financial_loans").insert({ name, amount: amt, report_date: state.financialReportDate });
-  state.loading = false;
-  toast(error ? "Could not add." : "Loan added.");
-  await loadFinancialReport(state.financialReportDate);
+  state.financialLoans.push({ id: financialTempId(), name, amount: amt });
+  markFinancialDirty(); render();
 }
-async function deleteFinancialLoan(id){
+function editFinancialLoanDraft(id){
+  const l = state.financialLoans.find(x=>x.id===id);
+  if(!l) return;
+  const name = (prompt("Loan name:", l.name) || "").trim();
+  if(!name) return;
+  const amt = Number(prompt("Amount (SAR):", l.amount));
+  if(isNaN(amt)){ toast("Enter a valid amount."); return; }
+  l.name = name; l.amount = amt;
+  markFinancialDirty(); render();
+}
+function deleteFinancialLoanDraft(id){
   if(!confirm("Remove this loan entry?")) return;
-  state.loading = true; render();
-  await sb.from("ts_financial_loans").delete().eq("id", id);
-  state.loading = false;
-  await loadFinancialReport(state.financialReportDate);
+  state.financialLoans = state.financialLoans.filter(x=>x.id!==id);
+  markFinancialDirty(); render();
 }
 
-async function addFinancialInvoice(){
+function addFinancialInvoiceDraft(){
   const description = (prompt("Description:") || "").trim();
   if(!description) return;
   const invoiceNo = (prompt("Invoice No:") || "").trim();
   const noVat = Number(prompt("Amount without VAT:", "0"));
   const withVat = Number(prompt("Amount with VAT:", "0"));
   const month = (prompt("Month (e.g. Sep 2026):") || "").trim();
-  state.loading = true; render();
-  const { error } = await sb.from("ts_financial_invoices").insert({
-    description, invoice_no: invoiceNo, amount_no_vat: noVat || null, amount_with_vat: withVat || null, invoice_month: month, report_date: state.financialReportDate
-  });
-  state.loading = false;
-  toast(error ? "Could not add." : "Invoice added.");
-  await loadFinancialReport(state.financialReportDate);
+  state.financialInvoices.push({ id: financialTempId(), description, invoice_no: invoiceNo, amount_no_vat: noVat || null, amount_with_vat: withVat || null, invoice_month: month });
+  markFinancialDirty(); render();
 }
-async function deleteFinancialInvoice(id){
+function editFinancialInvoiceDraft(id){
+  const v = state.financialInvoices.find(x=>x.id===id);
+  if(!v) return;
+  const description = (prompt("Description:", v.description) || "").trim();
+  if(!description) return;
+  const invoiceNo = (prompt("Invoice No:", v.invoice_no) || "").trim();
+  const noVat = Number(prompt("Amount without VAT:", v.amount_no_vat ?? "0"));
+  const withVat = Number(prompt("Amount with VAT:", v.amount_with_vat ?? "0"));
+  const month = (prompt("Month (e.g. Sep 2026):", v.invoice_month) || "").trim();
+  v.description = description; v.invoice_no = invoiceNo; v.amount_no_vat = noVat || null; v.amount_with_vat = withVat || null; v.invoice_month = month;
+  markFinancialDirty(); render();
+}
+function deleteFinancialInvoiceDraft(id){
   if(!confirm("Remove this invoice entry?")) return;
-  state.loading = true; render();
-  await sb.from("ts_financial_invoices").delete().eq("id", id);
-  state.loading = false;
-  await loadFinancialReport(state.financialReportDate);
+  state.financialInvoices = state.financialInvoices.filter(x=>x.id!==id);
+  markFinancialDirty(); render();
 }
 
-async function addFinancialPayment(){
+function addFinancialPaymentDraft(){
   const project = (prompt("Project:") || "").trim();
   const company = (prompt("Company:") || "").trim();
   const invoiceNo = (prompt("Invoice No:") || "").trim();
   const amt = Number(prompt("Amount (SAR):", "0"));
   if(isNaN(amt)){ toast("Enter a valid amount."); return; }
   const date = (prompt("Payment date (YYYY-MM-DD):", state.financialReportDate) || "").trim();
-  state.loading = true; render();
-  const { error } = await sb.from("ts_financial_payments").insert({
-    project, company, invoice_no: invoiceNo, amount: amt, payment_date: date || null, report_date: state.financialReportDate
-  });
-  state.loading = false;
-  toast(error ? "Could not add." : "Payment added.");
-  await loadFinancialReport(state.financialReportDate);
+  state.financialPayments.push({ id: financialTempId(), project, company, invoice_no: invoiceNo, amount: amt, payment_date: date || null });
+  markFinancialDirty(); render();
 }
-async function deleteFinancialPayment(id){
+function editFinancialPaymentDraft(id){
+  const v = state.financialPayments.find(x=>x.id===id);
+  if(!v) return;
+  const project = (prompt("Project:", v.project) || "").trim();
+  const company = (prompt("Company:", v.company) || "").trim();
+  const invoiceNo = (prompt("Invoice No:", v.invoice_no) || "").trim();
+  const amt = Number(prompt("Amount (SAR):", v.amount));
+  if(isNaN(amt)){ toast("Enter a valid amount."); return; }
+  const date = (prompt("Payment date (YYYY-MM-DD):", v.payment_date) || "").trim();
+  v.project = project; v.company = company; v.invoice_no = invoiceNo; v.amount = amt; v.payment_date = date || null;
+  markFinancialDirty(); render();
+}
+function deleteFinancialPaymentDraft(id){
   if(!confirm("Remove this payment entry?")) return;
-  state.loading = true; render();
-  await sb.from("ts_financial_payments").delete().eq("id", id);
-  state.loading = false;
-  await loadFinancialReport(state.financialReportDate);
+  state.financialPayments = state.financialPayments.filter(x=>x.id!==id);
+  markFinancialDirty(); render();
 }
 
-async function addFinancialPending(){
+function addFinancialPendingDraft(){
   const client = (prompt("Client (e.g. OTIS, TKE, Schindler):") || "").trim();
   if(!client) return;
   const invoiceNo = (prompt("Invoice No:") || "").trim();
@@ -2108,48 +2182,63 @@ async function addFinancialPending(){
   if(isNaN(amt)){ toast("Enter a valid amount."); return; }
   const issueDate = (prompt("Issue date (YYYY-MM-DD):") || "").trim();
   const dueDate = (prompt("Due date (YYYY-MM-DD):") || "").trim();
-  state.loading = true; render();
-  const { error } = await sb.from("ts_financial_pending").insert({
-    client, invoice_no: invoiceNo, amount: amt, issue_date: issueDate || null, due_date: dueDate || null, report_date: state.financialReportDate
-  });
-  state.loading = false;
-  toast(error ? "Could not add." : "Pending collection added.");
-  await loadFinancialReport(state.financialReportDate);
+  state.financialPending.push({ id: financialTempId(), client, invoice_no: invoiceNo, amount: amt, issue_date: issueDate || null, due_date: dueDate || null });
+  // Auto-create a matching invoice entry -- one-way link at creation only;
+  // deleting this pending entry later will NOT remove the invoice.
+  const monthLabel = new Date(state.financialReportDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", year: "numeric" });
+  state.financialInvoices.push({ id: financialTempId(), description: client, invoice_no: invoiceNo, amount_no_vat: null, amount_with_vat: amt, invoice_month: monthLabel });
+  toast("Pending entry added, and a matching invoice was created too.");
+  markFinancialDirty(); render();
 }
-async function deleteFinancialPending(id){
-  if(!confirm("Remove this entry? (e.g. once it's been paid)")) return;
-  state.loading = true; render();
-  await sb.from("ts_financial_pending").delete().eq("id", id);
-  state.loading = false;
-  await loadFinancialReport(state.financialReportDate);
+function editFinancialPendingDraft(id){
+  const v = state.financialPending.find(x=>x.id===id);
+  if(!v) return;
+  const client = (prompt("Client (e.g. OTIS, TKE, Schindler):", v.client) || "").trim();
+  if(!client) return;
+  const invoiceNo = (prompt("Invoice No:", v.invoice_no) || "").trim();
+  const amt = Number(prompt("Amount (SAR):", v.amount));
+  if(isNaN(amt)){ toast("Enter a valid amount."); return; }
+  const issueDate = (prompt("Issue date (YYYY-MM-DD):", v.issue_date) || "").trim();
+  const dueDate = (prompt("Due date (YYYY-MM-DD):", v.due_date) || "").trim();
+  v.client = client; v.invoice_no = invoiceNo; v.amount = amt; v.issue_date = issueDate || null; v.due_date = dueDate || null;
+  markFinancialDirty(); render();
+}
+function deleteFinancialPendingDraft(id){
+  if(!confirm("Remove this entry? (e.g. once it's been paid) The matching invoice will NOT be removed.")) return;
+  state.financialPending = state.financialPending.filter(x=>x.id!==id);
+  markFinancialDirty(); render();
 }
 
-async function addFinancialPo(){
+function addFinancialPoDraft(){
   const project = (prompt("Project name:") || "").trim();
   if(!project) return;
   const month = (prompt("Month (e.g. Sep 2026):") || "").trim();
   const amt = Number(prompt("Amount (SAR):", "0"));
   if(isNaN(amt)){ toast("Enter a valid amount."); return; }
-  state.loading = true; render();
-  const { error } = await sb.from("ts_financial_po").insert({ project, po_month: month, amount: amt, received: false, report_date: state.financialReportDate });
-  state.loading = false;
-  toast(error ? "Could not add." : "PO added.");
-  await loadFinancialReport(state.financialReportDate);
+  state.financialPo.push({ id: financialTempId(), project, po_month: month, amount: amt, received: false });
+  markFinancialDirty(); render();
 }
-async function togglePoReceived(id){
+function editFinancialPoDraft(id){
+  const v = state.financialPo.find(x=>x.id===id);
+  if(!v) return;
+  const project = (prompt("Project name:", v.project) || "").trim();
+  if(!project) return;
+  const month = (prompt("Month (e.g. Sep 2026):", v.po_month) || "").trim();
+  const amt = Number(prompt("Amount (SAR):", v.amount));
+  if(isNaN(amt)){ toast("Enter a valid amount."); return; }
+  v.project = project; v.po_month = month; v.amount = amt;
+  markFinancialDirty(); render();
+}
+function togglePoReceivedDraft(id){
   const po = state.financialPo.find(p=>p.id===id);
   if(!po) return;
-  state.loading = true; render();
-  await sb.from("ts_financial_po").update({ received: !po.received }).eq("id", id);
-  state.loading = false;
-  await loadFinancialReport();
+  po.received = !po.received;
+  markFinancialDirty(); render();
 }
-async function deleteFinancialPo(id){
+function deleteFinancialPoDraft(id){
   if(!confirm("Remove this PO entry?")) return;
-  state.loading = true; render();
-  await sb.from("ts_financial_po").delete().eq("id", id);
-  state.loading = false;
-  await loadFinancialReport();
+  state.financialPo = state.financialPo.filter(x=>x.id!==id);
+  markFinancialDirty(); render();
 }
 
 async function exportFinancialReportExcel(){
@@ -4276,7 +4365,7 @@ function renderFinancialReport(){
       </tbody>
     </table>`;
 
-  const delBtn = (id) => canEdit ? `<button class="link-btn" data-fin-delete="${id}" style="color:var(--absent) !important;padding:0;font-size:13px;">🗑</button>` : "";
+  const editDelBtns = (kind, id) => canEdit ? `<button data-fin-edit="${kind}:${id}" style="border:none;background:none;padding:0;font-size:11px;cursor:pointer;margin-right:6px;">✎</button><button data-fin-delete="${kind}:${id}" style="border:none;background:none;padding:0;font-size:11px;cursor:pointer;color:var(--absent);">🗑</button>` : "";
 
   const sectionHead = (title, color, addId) => `
     <div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 4px;">
@@ -4293,13 +4382,14 @@ function renderFinancialReport(){
 
   // Loans
   const loanHeaders = ["Loan","Amount", ...(canEdit?[""]:[])];
-  const loanRows = state.financialLoans.map(l => [l.name, fmt(l.amount), delBtn(`loan:${l.id}`)].filter((_,i)=>i<loanHeaders.length));
+  const loanWidths = ["50%","30%", ...(canEdit?["20%"]:[])];
+  const loanRows = state.financialLoans.map(l => [l.name, fmt(l.amount), editDelBtns("loan", l.id)].filter((_,i)=>i<loanHeaders.length));
 
   // Invoices — separate columns
   const invHeaders = ["Description","Invoice No","W/O VAT","With VAT", ...(canEdit?[""]:[])];
-  const invWidths = ["28%","22%","20%","20%", ...(canEdit?["10%"]:[])];
+  const invWidths = ["26%","18%","18%","18%", ...(canEdit?["20%"]:[])];
   const invRows = state.financialInvoices.map(v => [
-    v.description || "-", v.invoice_no || "-", fmt(v.amount_no_vat), fmt(v.amount_with_vat), delBtn(`invoice:${v.id}`)
+    v.description || "-", v.invoice_no || "-", fmt(v.amount_no_vat), fmt(v.amount_with_vat), editDelBtns("invoice", v.id)
   ].filter((_,i)=>i<invHeaders.length));
   const invTotalNoVat = state.financialInvoices.reduce((s,v)=>s+Number(v.amount_no_vat||0),0);
   const invTotalWithVat = state.financialInvoices.reduce((s,v)=>s+Number(v.amount_with_vat||0),0);
@@ -4307,9 +4397,9 @@ function renderFinancialReport(){
 
   // Payments — separate columns
   const payHeaders = ["Project","Company","Amount","Date", ...(canEdit?[""]:[])];
-  const payWidths = ["30%","22%","20%","16%", ...(canEdit?["12%"]:[])];
+  const payWidths = ["26%","20%","16%","16%", ...(canEdit?["22%"]:[])];
   const payRows = state.financialPayments.map(v => [
-    v.project || "-", v.company || "-", fmt(v.amount), fmtD(v.payment_date), delBtn(`payment:${v.id}`)
+    v.project || "-", v.company || "-", fmt(v.amount), fmtD(v.payment_date), editDelBtns("payment", v.id)
   ].filter((_,i)=>i<payHeaders.length));
   const payTotal = state.financialPayments.reduce((s,v)=>s+Number(v.amount||0),0);
 
@@ -4324,15 +4414,15 @@ function renderFinancialReport(){
   });
   let grandTotalPending = 0;
   const pendingHeaders = ["Client","Invoice","Amount","Due", ...(canEdit?[""]:[])];
-  const pendingWidths = ["32%","20%","20%","20%", ...(canEdit?["8%"]:[])];
+  const pendingWidths = ["28%","16%","16%","16%", ...(canEdit?["24%"]:[])];
 
   // PO — separate columns
   const poHeaders = ["Project","Month","Amount","✓", ...(canEdit?[""]:[])];
-  const poWidths = ["34%","24%","24%","10%", ...(canEdit?["8%"]:[])];
+  const poWidths = ["28%","20%","18%","10%", ...(canEdit?["24%"]:[])];
   const poRows = state.financialPo.map(v => [
     v.project, v.po_month || "-", fmt(v.amount),
     canEdit ? `<button data-toggle-po="${v.id}" style="border:none;background:none;padding:0;line-height:1;font-size:11px;color:${v.received?"var(--present)":"#D9C89A"};cursor:pointer;">${v.received?"✅":"⬜"}</button>` : `<span style="font-size:10px;line-height:1;">${v.received?"✅":"⬜"}</span>`,
-    delBtn(`po:${v.id}`)
+    editDelBtns("po", v.id)
   ].filter((_,i)=>i<poHeaders.length));
 
   return `
@@ -4344,6 +4434,14 @@ function renderFinancialReport(){
 
     <label style="margin-bottom:10px;">Report date</label>
     <input type="date" id="financialReportDateInput" value="${state.financialReportDate}" max="${todayLocalISO()}">
+
+    ${canEdit ? `
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="btn btn-outline btn-sm" id="copyPreviousDayBtn" style="flex:1;">📋 Copy Previous Day</button>
+      <button class="btn btn-sm" id="saveFinancialReportBtn" style="flex:1;background:${state.financialDirty ? "linear-gradient(135deg,var(--ksa-gold),#B8912A)" : "var(--line)"};color:#fff;border:none;font-weight:800;">💾 Save Report${state.financialDirty ? " •" : ""}</button>
+    </div>
+    ${state.financialDirty ? `<div class="field-note" style="text-align:center;color:#C4791F;font-weight:700;">Unsaved changes — tap "Save Report" to keep them.</div>` : ""}
+    ` : ""}
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0;">
       <div class="card" style="padding:12px;background:linear-gradient(135deg,#1B5A96,#3E86C4);border-radius:12px;${canEdit?"cursor:pointer;":""}" ${canEdit?'id="editBalanceBtn"':""}>
@@ -4358,7 +4456,7 @@ function renderFinancialReport(){
     </div>
 
     ${sectionHead("🏦 LOANS", "#1B5A96", "addLoanBtn")}
-    ${finTable("#1B5A96", "#EAF1FC", loanHeaders, loanRows)}
+    ${finTable("#1B5A96", "#EAF1FC", loanHeaders, loanRows, loanWidths)}
     <div style="text-align:right;font-weight:800;font-size:10px;color:#1B5A96;padding:4px 4px 0;">Total: SAR ${fmt(totalLoans)}</div>
 
     ${state.financialIqamaSoon.length ? `
@@ -4381,6 +4479,7 @@ function renderFinancialReport(){
       <h3 style="font-size:12px;color:#C4791F;margin:0;font-weight:800;">⏳ PENDING COLLECTION</h3>
       ${canEdit ? `<button class="link-btn" id="addPendingBtn" style="color:#C4791F !important;font-size:11.5px;font-weight:800;padding:0;">+ Add</button>` : ""}
     </div>
+    ${canEdit ? `<div class="field-note" style="margin-top:-2px;">Adding here also creates a matching invoice automatically.</div>` : ""}
     ${(() => {
       const groupColors = {
         "OTIS": { c: "#D8583A", t: "#FCEDE8" },
@@ -4390,7 +4489,7 @@ function renderFinancialReport(){
       const fallback = { c: "#C4791F", t: "#FDF3E6" };
       return Object.entries(groups).map(([groupName, items]) => {
         const rows = items.map(v => [
-          v.projectName || "-", v.invoice_no || "-", fmt(v.amount), fmtD(v.due_date), delBtn(`pending:${v.id}`)
+          v.projectName || "-", v.invoice_no || "-", fmt(v.amount), fmtD(v.due_date), editDelBtns("pending", v.id)
         ].filter((_,i)=>i<pendingHeaders.length));
         const total = items.reduce((s,v)=>s+Number(v.amount||0),0);
         grandTotalPending += total;
@@ -6109,22 +6208,34 @@ function handleDelegatedClick(e){
     loadFinancialReport(todayLocalISO());
     return;
   }
-  if(el("editBalanceBtn")){ saveFinancialBalance(); return; }
-  if(el("addLoanBtn")){ addFinancialLoan(); return; }
-  if(el("addInvoiceBtn")){ addFinancialInvoice(); return; }
-  if(el("addPaymentBtn")){ addFinancialPayment(); return; }
-  if(el("addPendingBtn")){ addFinancialPending(); return; }
-  if(el("addPoBtn")){ addFinancialPo(); return; }
+  if(el("editBalanceBtn")){ updateFinancialBalanceDraft(); return; }
+  if(el("addLoanBtn")){ addFinancialLoanDraft(); return; }
+  if(el("addInvoiceBtn")){ addFinancialInvoiceDraft(); return; }
+  if(el("addPaymentBtn")){ addFinancialPaymentDraft(); return; }
+  if(el("addPendingBtn")){ addFinancialPendingDraft(); return; }
+  if(el("addPoBtn")){ addFinancialPoDraft(); return; }
+  if(el("copyPreviousDayBtn")){ copyPreviousDayFinancialReport(); return; }
+  if(el("saveFinancialReportBtn")){ saveFinancialReportForDay(); return; }
   const toggleyPoEl = e.target.closest("[data-toggle-po]");
-  if(toggleyPoEl){ togglePoReceived(toggleyPoEl.getAttribute("data-toggle-po")); return; }
+  if(toggleyPoEl){ togglePoReceivedDraft(toggleyPoEl.getAttribute("data-toggle-po")); return; }
   const finDeleteEl = e.target.closest("[data-fin-delete]");
   if(finDeleteEl){
     const [kind, id] = finDeleteEl.getAttribute("data-fin-delete").split(":");
-    if(kind === "loan") deleteFinancialLoan(id);
-    else if(kind === "invoice") deleteFinancialInvoice(id);
-    else if(kind === "payment") deleteFinancialPayment(id);
-    else if(kind === "pending") deleteFinancialPending(id);
-    else if(kind === "po") deleteFinancialPo(id);
+    if(kind === "loan") deleteFinancialLoanDraft(id);
+    else if(kind === "invoice") deleteFinancialInvoiceDraft(id);
+    else if(kind === "payment") deleteFinancialPaymentDraft(id);
+    else if(kind === "pending") deleteFinancialPendingDraft(id);
+    else if(kind === "po") deleteFinancialPoDraft(id);
+    return;
+  }
+  const finEditEl = e.target.closest("[data-fin-edit]");
+  if(finEditEl){
+    const [kind, id] = finEditEl.getAttribute("data-fin-edit").split(":");
+    if(kind === "loan") editFinancialLoanDraft(id);
+    else if(kind === "invoice") editFinancialInvoiceDraft(id);
+    else if(kind === "payment") editFinancialPaymentDraft(id);
+    else if(kind === "pending") editFinancialPendingDraft(id);
+    else if(kind === "po") editFinancialPoDraft(id);
     return;
   }
   const deleteVehicleDocEl = e.target.closest("[data-delete-vehicle-doc]");
@@ -6336,6 +6447,10 @@ function handleDelegatedChange(e){
   if(e.target.id === "financialReportDateInput"){
     const newDate = e.target.value;
     if(!newDate) return;
+    if(state.financialDirty && !confirm("You have unsaved changes on this date. Switch anyway and lose them?")){
+      render();
+      return;
+    }
     loadFinancialReport(newDate);
     return;
   }
