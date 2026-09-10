@@ -4295,12 +4295,14 @@ function renderFinancialReport(){
   const loanRows = state.financialLoans.map(l => [l.name, fmt(l.amount), delBtn(`loan:${l.id}`)].filter((_,i)=>i<loanHeaders.length));
 
   // Invoices — separate columns
-  const invHeaders = ["Description","Invoice No","With VAT","Month", ...(canEdit?[""]:[])];
-  const invWidths = ["30%","22%","20%","16%", ...(canEdit?["12%"]:[])];
+  const invHeaders = ["Description","Invoice No","W/O VAT","With VAT", ...(canEdit?[""]:[])];
+  const invWidths = ["28%","22%","20%","20%", ...(canEdit?["10%"]:[])];
   const invRows = state.financialInvoices.map(v => [
-    v.description || "-", v.invoice_no || "-", fmt(v.amount_with_vat || v.amount_no_vat), v.invoice_month || "-", delBtn(`invoice:${v.id}`)
+    v.description || "-", v.invoice_no || "-", fmt(v.amount_no_vat), fmt(v.amount_with_vat), delBtn(`invoice:${v.id}`)
   ].filter((_,i)=>i<invHeaders.length));
-  const invTotalWithVat = state.financialInvoices.reduce((s,v)=>s+Number(v.amount_with_vat||v.amount_no_vat||0),0);
+  const invTotalNoVat = state.financialInvoices.reduce((s,v)=>s+Number(v.amount_no_vat||0),0);
+  const invTotalWithVat = state.financialInvoices.reduce((s,v)=>s+Number(v.amount_with_vat||0),0);
+  const monthLabelStr = new Date(state.financialReportDate + "T00:00:00").toLocaleDateString(undefined, { month: "long" });
 
   // Payments — separate columns
   const payHeaders = ["Project","Company","Amount","Date", ...(canEdit?[""]:[])];
@@ -4363,9 +4365,12 @@ function renderFinancialReport(){
     ${finTable("#C43B3B", "#FDECEA", iqamaHeaders, iqamaRows)}
     ` : ""}
 
-    ${sectionHead("📄 INVOICES", "#3E86C4", "addInvoiceBtn")}
+    ${sectionHead(`📄 INVOICES IN ${monthLabelStr.toUpperCase()}`, "#3E86C4", "addInvoiceBtn")}
     ${finTable("#3E86C4", "#EAF1FC", invHeaders, invRows, invWidths)}
-    <div style="text-align:right;font-weight:800;font-size:10px;color:#3E86C4;padding:4px 4px 0;">Total: SAR ${fmt(invTotalWithVat)}</div>
+    <div style="display:flex;justify-content:space-between;font-weight:800;font-size:10px;color:#3E86C4;padding:4px 4px 0;">
+      <span>Total W/O VAT: SAR ${fmt(invTotalNoVat)}</span>
+      <span>Total With VAT: SAR ${fmt(invTotalWithVat)}</span>
+    </div>
 
     ${sectionHead("✅ PAYMENTS RECEIVED", "#1C8A4E", "addPaymentBtn")}
     ${finTable("#1C8A4E", "#EAF6ED", payHeaders, payRows, payWidths)}
