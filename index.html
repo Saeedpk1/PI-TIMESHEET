@@ -462,6 +462,8 @@ let state = {
   ceoMessageDraft: "",
   myCeoMessages: [],
   ceoInboxMessages: [],
+  editingCeoMessageId: null,
+  ceoMessageEditText: "",
   selectedLeaveRequest: null,
   myPurchases: [],
   purchaseFormDraft: { purchaseDate: "", category: "", itemDescription: "", projectId: "", billNo: "", vendorName: "", amount: "", hasVat: true, paymentMethod: "", notes: "", receiptPhoto: "" },
@@ -621,7 +623,8 @@ async function sendCeoMessage(){
   const { error } = await sb.from("ts_ceo_messages").insert({
     employee_id: state.user.id,
     employee_name: state.user.name,
-    message: msg
+    message: msg,
+    status: "pending"
   });
   state.loading = false;
   toast(error ? "Could not send. Try again." : "Sent to the CEO.");
@@ -634,7 +637,9 @@ async function sendCeoMessage(){
 
 async function loadCeoInboxMessages(){
   state.loading = true; render();
-  const { data } = await sb.from("ts_ceo_messages").select("*").order("created_at", { ascending: false });
+  let q = sb.from("ts_ceo_messages").select("*").order("created_at", { ascending: false });
+  if(state.user.role === "ceo") q = q.eq("status", "sent");
+  const { data } = await q;
   state.ceoInboxMessages = data || [];
   state.loading = false;
   render();
@@ -645,6 +650,48 @@ async function markCeoMessageRead(id){
   if(!msg || msg.is_read) return;
   msg.is_read = true; render();
   await sb.from("ts_ceo_messages").update({ is_read: true }).eq("id", id);
+}
+
+function startEditCeoMessage(id){
+  const msg = state.ceoInboxMessages.find(m=>m.id===id);
+  if(!msg) return;
+  state.editingCeoMessageId = id;
+  state.ceoMessageEditText = msg.message;
+  render();
+}
+
+function cancelEditCeoMessage(){
+  state.editingCeoMessageId = null;
+  state.ceoMessageEditText = "";
+  render();
+}
+
+async function saveEditedCeoMessage(id){
+  const text = (state.ceoMessageEditText || "").trim();
+  if(!text){ toast("Message can't be empty."); return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_ceo_messages").update({ message: text }).eq("id", id);
+  state.loading = false;
+  toast(error ? "Could not save. Try again." : "Message updated.");
+  if(!error){ state.editingCeoMessageId = null; state.ceoMessageEditText = ""; }
+  await loadCeoInboxMessages();
+}
+
+async function sendMessageToCeo(id){
+  state.loading = true; render();
+  const { error } = await sb.from("ts_ceo_messages").update({ status: "sent" }).eq("id", id);
+  state.loading = false;
+  toast(error ? "Could not send. Try again." : "Sent to the CEO.");
+  await loadCeoInboxMessages();
+}
+
+async function deleteCeoMessage(id){
+  if(!confirm("Remove this message? The CEO will never see it.")) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_ceo_messages").delete().eq("id", id);
+  state.loading = false;
+  toast(error ? "Could not remove. Try again." : "Message removed.");
+  await loadCeoInboxMessages();
 }
 
 
@@ -4464,6 +4511,11 @@ function renderHrView(){
       <div class="hr-tile" id="openEmployeeDirectoryBtn" style="border-color:#C7D9EA;"><span class="icon">👤</span><span class="label">Employee<br>Directory</span></div>
       <div class="hr-tile" id="openVehicleDocumentsBtn" style="border-color:#A9D9CD;"><span class="icon">🚗</span><span class="label">Vehicle<br>Documents</span></div>
     </div>
+
+    <div class="hr-section-label" style="color:var(--blue);">📨 Employee Requests</div>
+    <div class="hr-tile-grid">
+      <div class="hr-tile" id="openCeoInboxBtn" style="border-color:#C7D9EA;"><span class="icon">📨</span><span class="label">Messages to<br>CEO</span></div>
+    </div>
   `;
 }
 
@@ -5019,21 +5071,42 @@ function renderCombinedReports(){
 }
 
 function renderCeoInbox(){
-  const rows = state.ceoInboxMessages.map(m => `
-    <div class="card" style="margin-bottom:10px;border:2px solid ${m.is_read ? "var(--line)" : "var(--ksa-gold)"};" data-view-ceo-message="${m.id}">
+  const isCeoUser = state.user.role === "ceo";
+  const backBtnId = isCeoUser ? "backToCeoHomeBtn" : "backToHrBtn";
+
+  const rows = state.ceoInboxMessages.map(m => {
+    const isPending = m.status === "pending";
+    const isEditing = state.editingCeoMessageId === m.id;
+    return `
+    <div class="card" style="margin-bottom:10px;border:2px solid ${isPending ? "#F0C766" : (m.is_read ? "var(--line)" : "var(--ksa-gold)")};" ${isCeoUser ? `data-view-ceo-message="${m.id}"` : ""}>
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div style="font-weight:800;color:var(--blue);">${m.employee_name || "Employee"}</div>
-        ${!m.is_read ? `<span class="badge badge-submitted">NEW</span>` : ""}
+        ${isPending && !isCeoUser ? `<span class="badge" style="background:#FDF3E6;color:#966109;border-color:#F0C766;">AWAITING REVIEW</span>` : (!m.is_read ? `<span class="badge badge-submitted">NEW</span>` : "")}
       </div>
       <div class="meta" style="margin-top:2px;">${new Date(m.created_at).toLocaleDateString()} ${new Date(m.created_at).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</div>
+      ${isEditing ? `
+      <textarea id="ceoMessageEditInput-${m.id}" rows="3" style="margin-top:8px;">${m.message}</textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-submit btn-sm" data-save-ceo-edit="${m.id}" style="flex:1;">💾 Save</button>
+        <button class="btn btn-outline btn-sm" id="cancelCeoEditBtn" style="flex:1;">Cancel</button>
+      </div>
+      ` : `
       <div style="margin-top:8px;">${m.message}</div>
-    </div>`).join("");
+      ${!isCeoUser ? `
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="link-btn" data-edit-ceo-message="${m.id}" style="color:var(--blue) !important;">✎ Edit</button>
+        ${isPending ? `<button class="link-btn" data-send-ceo-message="${m.id}" style="color:var(--present) !important;">✅ Send to CEO</button>` : ""}
+        <button class="link-btn" data-delete-ceo-message="${m.id}" style="color:var(--absent) !important;">🗑 Remove</button>
+      </div>` : ""}
+      `}
+    </div>`;
+  }).join("");
 
   return `
-    <button class="back-link-glow" id="backToCeoHomeBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    <button class="back-link-glow" id="${backBtnId}" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);margin-bottom:14px;">
-      <div style="font-weight:800;font-size:14.5px;color:var(--navy);">📨 View Employee Requests</div>
-      <div class="meta" style="color:var(--blue);">Messages sent directly to you by employees</div>
+      <div style="font-weight:800;font-size:14.5px;color:var(--navy);">📨 Employee Requests to CEO</div>
+      <div class="meta" style="color:var(--blue);">${isCeoUser ? "Messages sent directly to you by employees" : "Review before they reach the CEO — edit, send, or remove"}</div>
     </div>
     ${rows || `<div class="empty-state"><div class="ic">📨</div>Nothing here yet.</div>`}
   `;
@@ -5505,6 +5578,15 @@ function handleDelegatedClick(e){
   }
   const viewCeoMsgEl = e.target.closest("[data-view-ceo-message]");
   if(viewCeoMsgEl){ markCeoMessageRead(viewCeoMsgEl.getAttribute("data-view-ceo-message")); return; }
+  const editCeoMsgEl = e.target.closest("[data-edit-ceo-message]");
+  if(editCeoMsgEl){ startEditCeoMessage(editCeoMsgEl.getAttribute("data-edit-ceo-message")); return; }
+  if(el("cancelCeoEditBtn")){ cancelEditCeoMessage(); return; }
+  const saveCeoEditEl = e.target.closest("[data-save-ceo-edit]");
+  if(saveCeoEditEl){ saveEditedCeoMessage(saveCeoEditEl.getAttribute("data-save-ceo-edit")); return; }
+  const sendCeoMsgEl = e.target.closest("[data-send-ceo-message]");
+  if(sendCeoMsgEl){ sendMessageToCeo(sendCeoMsgEl.getAttribute("data-send-ceo-message")); return; }
+  const deleteCeoMsgEl = e.target.closest("[data-delete-ceo-message]");
+  if(deleteCeoMsgEl){ deleteCeoMessage(deleteCeoMsgEl.getAttribute("data-delete-ceo-message")); return; }
   if(el("openRenewalsBtn")){
     state.view = "renewals-screen";
     loadRenewalsScreen();
@@ -5833,6 +5915,7 @@ function handleDelegatedInput(e){
   if(e.target.id === "purchaseNotes"){ state.purchaseFormDraft.notes = e.target.value; }
   if(e.target.id === "dailyReportRaw"){ state.dailyReportDraft.rawText = e.target.value; }
   if(e.target.id === "ceoMessageInput"){ state.ceoMessageDraft = e.target.value; }
+  if(e.target.id.startsWith("ceoMessageEditInput-")){ state.ceoMessageEditText = e.target.value; }
   if(e.target.id === "vehicleDocsSearchInput"){
     state.vehicleDocsSearch = e.target.value;
     const cursorPos = e.target.selectionStart;
