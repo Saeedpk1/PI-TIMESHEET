@@ -221,6 +221,8 @@
   table.fin-table td, table.fin-table th{border:none !important;}
   table.fin-table td{border-bottom:1px solid rgba(0,0,0,0.16) !important;}
   table.fin-table td:not(:last-child){border-right:1px solid rgba(0,0,0,0.09) !important;}
+  @keyframes finBlink{0%,100%{opacity:1;}50%{opacity:0.45;}}
+  .fin-blink{animation:finBlink 1.1s ease-in-out infinite;}
   tr.friday-row td.date-cell{background:linear-gradient(135deg,#B8380D,var(--friday));}
   select.status-select{padding:3px 1px;font-size:8.5px;font-weight:700;border-radius:6px;border:2px solid var(--line);width:100%;max-width:100%;box-sizing:border-box;-webkit-appearance:none;appearance:none;background-image:none;text-indent:1px;}
   select.status-select.st-Present{color:var(--present);border-color:var(--present);background:#E6F7EC;}
@@ -456,6 +458,8 @@ let state = {
   financialPending: [],
   financialPo: [],
   financialIqamaSoon: [],
+  financialDocsSoon: [],
+  companyDocuments: null,
   financialViewOnly: false,
   financialReportDate: todayLocalISO(),
   financialDirty: false,
@@ -1851,14 +1855,16 @@ function daysUntil(dateStr){
 
 async function loadRenewalsScreen(){
   state.loading = true; render();
-  const [{ data: emps }, { data: vehicles }] = await Promise.all([
+  const [{ data: emps }, { data: vehicles }, { data: companyDocs }] = await Promise.all([
     sb.from("ts_employees").select("id, name, short_name, iqama_expiry_date, medical_insurance_expiry, passport_no, passport_expiry").eq("active", true).order("iqama_expiry_date"),
-    sb.from("ts_vehicles").select("*").eq("active", true).order("plate_no")
+    sb.from("ts_vehicles").select("*").eq("active", true).order("plate_no"),
+    sb.from("ts_company_documents").select("*").limit(1).maybeSingle()
   ]);
   const allEmps = emps || [];
   state.employeesForRenewals = allEmps.filter(e => e.iqama_expiry_date || e.passport_expiry);
   state.companyMedicalExpiry = allEmps.find(e => e.medical_insurance_expiry)?.medical_insurance_expiry || "";
   state.vehicles = vehicles || [];
+  state.companyDocuments = companyDocs || null;
   state.loading = false;
   render();
 }
@@ -1872,6 +1878,23 @@ async function saveCompanyMedicalExpiry(){
   const { error } = await sb.from("ts_employees").update({ medical_insurance_expiry: val }).eq("active", true);
   state.loading = false;
   toast(error ? "Could not save. Try again." : "Medical insurance renewal date updated for everyone.");
+  await loadRenewalsScreen();
+}
+
+async function saveCompanyDocuments(){
+  const crInput = document.getElementById("companyCrExpiryInput");
+  const rentInput = document.getElementById("companyRoomRentExpiryInput");
+  const cr = crInput ? crInput.value : "";
+  const rent = rentInput ? rentInput.value : "";
+  state.loading = true; render();
+  let error;
+  if(state.companyDocuments?.id){
+    ({ error } = await sb.from("ts_company_documents").update({ cr_expiry: cr || null, room_rent_expiry: rent || null }).eq("id", state.companyDocuments.id));
+  }else{
+    ({ error } = await sb.from("ts_company_documents").insert({ cr_expiry: cr || null, room_rent_expiry: rent || null }));
+  }
+  state.loading = false;
+  toast(error ? "Could not save. Try again." : "Company documents updated.");
   await loadRenewalsScreen();
 }
 
@@ -1999,14 +2022,16 @@ async function loadFinancialReport(date){
   const reportDate = date || state.financialReportDate || todayLocalISO();
   state.financialReportDate = reportDate;
   state.loading = true; render();
-  const [{ data: bal }, { data: loans }, { data: inv }, { data: pay }, { data: pend }, { data: po }, { data: iqama }] = await Promise.all([
+  const [{ data: bal }, { data: loans }, { data: inv }, { data: pay }, { data: pend }, { data: po }, { data: iqama }, { data: vehicles }, { data: companyDocs }] = await Promise.all([
     sb.from("ts_financial_balance").select("*").eq("report_date", reportDate).maybeSingle(),
     sb.from("ts_financial_loans").select("*").eq("report_date", reportDate).order("created_at", { ascending: false }),
     sb.from("ts_financial_invoices").select("*").eq("report_date", reportDate).order("created_at", { ascending: false }),
     sb.from("ts_financial_payments").select("*").eq("report_date", reportDate).order("created_at", { ascending: false }),
     sb.from("ts_financial_pending").select("*").eq("report_date", reportDate).order("due_date", { ascending: true }),
     sb.from("ts_financial_po").select("*").eq("report_date", reportDate).order("created_at", { ascending: false }),
-    sb.from("ts_employees").select("id, name, short_name, iqama_expiry_date").eq("active", true).not("iqama_expiry_date", "is", null).order("iqama_expiry_date")
+    sb.from("ts_employees").select("id, name, short_name, iqama_expiry_date").eq("active", true).not("iqama_expiry_date", "is", null).order("iqama_expiry_date"),
+    sb.from("ts_vehicles").select("*").eq("active", true),
+    sb.from("ts_company_documents").select("*").limit(1).maybeSingle()
   ]);
   state.financialBalance = bal || null;
   state.financialLoans = loans || [];
@@ -2017,6 +2042,25 @@ async function loadFinancialReport(date){
   state.financialIqamaSoon = (iqama || [])
     .map(e => ({ ...e, days: daysUntil(e.iqama_expiry_date) }))
     .filter(e => e.days !== null && e.days < 15);
+  state.companyDocuments = companyDocs || null;
+
+  // Combined "documents expiring soon" (<1 month): vehicle docs + CR + Room Rent
+  const docsSoon = [];
+  (vehicles || []).forEach(v => {
+    [["Insurance", v.insurance_expiry], ["Istimara", v.istimara_expiry], ["Fahas", v.fahas_expiry]].forEach(([label, d]) => {
+      const days = daysUntil(d);
+      if(days !== null && days < 30) docsSoon.push({ label: `🚗 ${v.plate_no} — ${label}`, days });
+    });
+  });
+  if(companyDocs){
+    const crDays = daysUntil(companyDocs.cr_expiry);
+    if(crDays !== null && crDays < 30) docsSoon.push({ label: "🏢 CR Expiry", days: crDays });
+    const rentDays = daysUntil(companyDocs.room_rent_expiry);
+    if(rentDays !== null && rentDays < 30) docsSoon.push({ label: "🏠 Room Rent / Accommodation", days: rentDays });
+  }
+  docsSoon.sort((a,b) => a.days - b.days);
+  state.financialDocsSoon = docsSoon;
+
   state.financialDirty = false;
   state.loading = false;
   render();
@@ -4455,6 +4499,17 @@ function renderFinancialReport(){
       </div>
     </div>
 
+    ${state.financialDocsSoon.length ? `
+    <div class="${state.financialDocsSoon.some(d=>d.days<15) ? "fin-blink" : ""}" style="background:linear-gradient(135deg,#C43B3B,#E0645F);border-radius:12px;padding:12px 14px;margin-bottom:14px;box-shadow:0 3px 10px rgba(196,59,59,0.3);">
+      <div style="font-weight:800;font-size:11.5px;color:#fff;">📄 DOCUMENTS EXPIRING SOON (&lt;1 month)</div>
+      ${state.financialDocsSoon.map(d => `
+        <div style="display:flex;justify-content:space-between;font-size:10.5px;color:#fff;padding:4px 0;border-top:1px solid rgba(255,255,255,0.25);">
+          <span>${d.label}</span>
+          <span style="font-weight:800;">${d.days < 0 ? `EXPIRED ${Math.abs(d.days)}d ago` : `${d.days}d left`}</span>
+        </div>`).join("")}
+    </div>
+    ` : ""}
+
     ${sectionHead("🏦 LOANS", "#1B5A96", "addLoanBtn")}
     ${finTable("#1B5A96", "#EAF1FC", loanHeaders, loanRows, loanWidths)}
     <div style="text-align:right;font-weight:800;font-size:10px;color:#1B5A96;padding:4px 4px 0;">Total: SAR ${fmt(totalLoans)}</div>
@@ -4594,7 +4649,11 @@ function renderRenewalsScreen(){
       if(days !== null && days <= 30) vehicleAlerts.push({ plate: v.plate_no, label, days });
     });
   });
-  const totalAlerts = iqamaAlerts.length + medicalAlert.length + passportAlerts.length + vehicleAlerts.length;
+  const crDays = daysUntil(state.companyDocuments?.cr_expiry);
+  const crAlert = (crDays !== null && crDays <= 30) ? [{ days: crDays }] : [];
+  const rentDays = daysUntil(state.companyDocuments?.room_rent_expiry);
+  const rentAlert = (rentDays !== null && rentDays <= 30) ? [{ days: rentDays }] : [];
+  const totalAlerts = iqamaAlerts.length + medicalAlert.length + passportAlerts.length + vehicleAlerts.length + crAlert.length + rentAlert.length;
 
   const alertLine = (label, days) => {
     const text = days < 0 ? `EXPIRED ${Math.abs(days)}d ago` : (days === 0 ? "expires today" : `${days}d left`);
@@ -4609,6 +4668,8 @@ function renderRenewalsScreen(){
       ${medicalAlert.map(m => alertLine(`🩺 Medical Insurance (all staff)`, m.days)).join("")}
       ${passportAlerts.map(e => alertLine(`📔 ${e.short_name || e.name} — Passport`, e.days)).join("")}
       ${vehicleAlerts.map(v => alertLine(`🚗 ${v.plate} — ${v.label}`, v.days)).join("")}
+      ${crAlert.map(m => alertLine(`🏢 CR Expiry`, m.days)).join("")}
+      ${rentAlert.map(m => alertLine(`🏠 Room Rent / Accommodation`, m.days)).join("")}
     </div>` : `<div class="empty-state" style="margin-bottom:16px;"><div class="ic">🎉</div>Nothing expiring soon.</div>`;
 
   const iqamaRows = state.employeesForRenewals.map(e => `
@@ -4660,6 +4721,16 @@ function renderRenewalsScreen(){
         <button class="link-btn" id="addVehicleBtn" style="color:var(--blue) !important;">+ Add vehicle</button>
       </div>
       <div style="margin-top:6px;">${vehicleRows}</div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <h3 style="font-size:14px;">🏢 Company Documents</h3>
+      <div class="meta">CR (Commercial Registration) and Room Rent / Accommodation expiry.</div>
+      <label style="margin-top:10px;">CR Expiry</label>
+      <input type="date" id="companyCrExpiryInput" value="${state.companyDocuments?.cr_expiry || ""}">
+      <label style="margin-top:10px;">Room Rent / Accommodation Expiry</label>
+      <input type="date" id="companyRoomRentExpiryInput" value="${state.companyDocuments?.room_rent_expiry || ""}">
+      <button class="btn btn-submit btn-sm" id="saveCompanyDocumentsBtn" style="width:100%;margin-top:10px;">💾 Save</button>
     </div>
   `;
 }
@@ -6180,6 +6251,7 @@ function handleDelegatedClick(e){
   const saveIqamaEl = e.target.closest("[data-save-iqama]");
   if(saveIqamaEl){ saveIqamaExpiry(saveIqamaEl.getAttribute("data-save-iqama")); return; }
   if(el("saveCompanyMedicalBtn")){ saveCompanyMedicalExpiry(); return; }
+  if(el("saveCompanyDocumentsBtn")){ saveCompanyDocuments(); return; }
   const saveVehicleEl = e.target.closest("[data-save-vehicle]");
   if(saveVehicleEl){ saveVehicleDates(saveVehicleEl.getAttribute("data-save-vehicle")); return; }
   if(el("openEmployeeDirectoryBtn")){
