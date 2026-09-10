@@ -5522,43 +5522,49 @@ function renderCeoHome(){
   const pendingCount = state.ceoLeaveRequests.filter(r=>r.status==="sent_to_ceo").length;
   const unreadCount = state.ceoInboxMessages.filter(m=>!m.is_read).length;
   return `
-    <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:18px;position:relative;overflow:hidden;margin-bottom:14px;">
-      <div style="position:absolute;top:-10px;right:-8px;font-size:64px;opacity:0.12;">👔</div>
-      <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#BFDCF5;font-weight:700;position:relative;">Professional Installation Co.</div>
-      <div style="font-size:19px;font-weight:800;color:#fff;margin-top:4px;position:relative;">مرحباً، ${state.user.name}</div>
-      <div style="font-size:12.5px;color:#BFDCF5;margin-top:2px;position:relative;">Executive overview and approvals</div>
+    <div class="ceo-hero">
+      <div class="eyebrow">Professional Installation Co.</div>
+      <h2>مرحباً، ${state.user.name}</h2>
+      <div class="sub">Executive overview and approvals</div>
     </div>
-
-    <div class="hr-section-label" style="color:var(--navy);">💰 Finance</div>
-    <div class="hr-tile-grid">
-      <div class="hr-tile" id="openFinancialReportBtn" style="border-color:#C7D9EA;"><span class="icon">💰</span><span class="label">Financial<br>Report</span></div>
-    </div>
-
-    <div class="hr-section-label" style="color:var(--present);">📋 Daily Reports</div>
-    <div class="hr-tile-grid">
-      <div class="hr-tile" id="openCombinedReportsBtn" style="border-color:var(--ksa-gold-light);position:relative;"><span class="icon">👁</span><span class="label">View Daily<br>Reports</span></div>
-    </div>
-
-    <div class="hr-section-label" style="color:#966109;">✅ Approvals</div>
-    <div class="hr-tile-grid">
-      <div class="hr-tile" id="openCeoLeaveBtn" style="border-color:#F0DBA8;position:relative;">
-        <span class="icon">🌴</span><span class="label">Leave<br>Requests</span>
-        ${pendingCount ? `<div class="count" style="position:absolute;top:6px;right:6px;">${pendingCount}</div>` : ""}
+    <div class="ceo-tile" id="openFinancialReportBtn">
+      <div class="icon">💰</div>
+      <div class="body">
+        <div class="title">Financial Report</div>
+        <div class="desc">Balance, loans, invoices, and PO tracker</div>
       </div>
     </div>
-
-    <div class="hr-section-label" style="color:var(--blue);">📨 Employee Requests</div>
-    <div class="hr-tile-grid">
-      <div class="hr-tile" id="openCeoInboxBtn" style="border-color:#C7D9EA;position:relative;">
-        <span class="icon">📨</span><span class="label">Messages to<br>CEO</span>
-        ${unreadCount ? `<div class="count" style="position:absolute;top:6px;right:6px;">${unreadCount}</div>` : ""}
+    <div class="ceo-tile" id="openCombinedReportsBtn">
+      <div class="icon">📋</div>
+      <div class="body">
+        <div class="title">Daily Progress Reports</div>
+        <div class="desc">Today's site activity from every supervisor</div>
       </div>
     </div>
-
-    <div class="hr-section-label" style="color:#6B4FC4;">👤 Directory</div>
-    <div class="hr-tile-grid">
-      <div class="hr-tile" id="openEmployeeDirectoryBtn" style="border-color:#DCD0F5;"><span class="icon">👤</span><span class="label">Employee<br>Directory</span></div>
+    <div class="ceo-tile" id="openCeoLeaveBtn">
+      <div class="icon">🌴</div>
+      <div class="body">
+        <div class="title">Leave Requests</div>
+        <div class="desc">Review and approve applications sent by HR</div>
+      </div>
+      ${pendingCount ? `<div class="count">${pendingCount}</div>` : ""}
     </div>
+    <div class="ceo-tile" id="openCeoInboxBtn">
+      <div class="icon">📨</div>
+      <div class="body">
+        <div class="title">View Employee Requests</div>
+        <div class="desc">Messages sent to you directly by employees</div>
+      </div>
+      ${unreadCount ? `<div class="count">${unreadCount}</div>` : ""}
+    </div>
+    <div class="ceo-tile" id="openEmployeeDirectoryBtn">
+      <div class="icon">👤</div>
+      <div class="body">
+        <div class="title">Employee Directory</div>
+        <div class="desc">View any employee's full profile</div>
+      </div>
+    </div>
+    <div class="ceo-soon">More sections will appear here soon.</div>
   `;
 }
 
