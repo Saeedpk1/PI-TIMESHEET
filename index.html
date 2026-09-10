@@ -456,6 +456,7 @@ let state = {
   financialPo: [],
   financialIqamaSoon: [],
   financialViewOnly: false,
+  financialReportDate: todayLocalISO(),
   employeeDirectory: [],
   selectedDirectoryEmployeeId: null,
   myProfile: null,
@@ -1992,15 +1993,17 @@ async function exportVehicleDocumentsPdf(vehicleId){
 }
 
 /* ---------------- Financial Report ---------------- */
-async function loadFinancialReport(){
+async function loadFinancialReport(date){
+  const reportDate = date || state.financialReportDate || todayLocalISO();
+  state.financialReportDate = reportDate;
   state.loading = true; render();
   const [{ data: bal }, { data: loans }, { data: inv }, { data: pay }, { data: pend }, { data: po }, { data: iqama }] = await Promise.all([
-    sb.from("ts_financial_balance").select("*").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
-    sb.from("ts_financial_loans").select("*").order("created_at", { ascending: false }),
-    sb.from("ts_financial_invoices").select("*").order("created_at", { ascending: false }),
-    sb.from("ts_financial_payments").select("*").order("created_at", { ascending: false }),
-    sb.from("ts_financial_pending").select("*").order("due_date", { ascending: true }),
-    sb.from("ts_financial_po").select("*").order("created_at", { ascending: false }),
+    sb.from("ts_financial_balance").select("*").eq("report_date", reportDate).maybeSingle(),
+    sb.from("ts_financial_loans").select("*").eq("report_date", reportDate).order("created_at", { ascending: false }),
+    sb.from("ts_financial_invoices").select("*").eq("report_date", reportDate).order("created_at", { ascending: false }),
+    sb.from("ts_financial_payments").select("*").eq("report_date", reportDate).order("created_at", { ascending: false }),
+    sb.from("ts_financial_pending").select("*").eq("report_date", reportDate).order("due_date", { ascending: true }),
+    sb.from("ts_financial_po").select("*").eq("report_date", reportDate).order("created_at", { ascending: false }),
     sb.from("ts_employees").select("id, name, short_name, iqama_expiry_date").eq("active", true).not("iqama_expiry_date", "is", null).order("iqama_expiry_date")
   ]);
   state.financialBalance = bal || null;
@@ -2017,15 +2020,18 @@ async function loadFinancialReport(){
 }
 
 async function saveFinancialBalance(){
-  const val = prompt("Enter current account balance:", state.financialBalance?.balance ?? "0");
+  const val = prompt("Enter account balance for this date:", state.financialBalance?.balance ?? "0");
   if(val === null) return;
   const num = Number(val);
   if(isNaN(num)){ toast("Enter a valid number."); return; }
   state.loading = true; render();
-  const { error } = await sb.from("ts_financial_balance").insert({ balance: num });
+  const { error } = await sb.from("ts_financial_balance").upsert(
+    { report_date: state.financialReportDate, balance: num },
+    { onConflict: "report_date" }
+  );
   state.loading = false;
   toast(error ? "Could not save." : "Balance updated.");
-  await loadFinancialReport();
+  await loadFinancialReport(state.financialReportDate);
 }
 
 async function addFinancialLoan(){
@@ -2034,17 +2040,17 @@ async function addFinancialLoan(){
   const amt = Number(prompt("Amount (SAR):", "0"));
   if(isNaN(amt)){ toast("Enter a valid amount."); return; }
   state.loading = true; render();
-  const { error } = await sb.from("ts_financial_loans").insert({ name, amount: amt });
+  const { error } = await sb.from("ts_financial_loans").insert({ name, amount: amt, report_date: state.financialReportDate });
   state.loading = false;
   toast(error ? "Could not add." : "Loan added.");
-  await loadFinancialReport();
+  await loadFinancialReport(state.financialReportDate);
 }
 async function deleteFinancialLoan(id){
   if(!confirm("Remove this loan entry?")) return;
   state.loading = true; render();
   await sb.from("ts_financial_loans").delete().eq("id", id);
   state.loading = false;
-  await loadFinancialReport();
+  await loadFinancialReport(state.financialReportDate);
 }
 
 async function addFinancialInvoice(){
@@ -2056,18 +2062,18 @@ async function addFinancialInvoice(){
   const month = (prompt("Month (e.g. Sep 2026):") || "").trim();
   state.loading = true; render();
   const { error } = await sb.from("ts_financial_invoices").insert({
-    description, invoice_no: invoiceNo, amount_no_vat: noVat || null, amount_with_vat: withVat || null, invoice_month: month
+    description, invoice_no: invoiceNo, amount_no_vat: noVat || null, amount_with_vat: withVat || null, invoice_month: month, report_date: state.financialReportDate
   });
   state.loading = false;
   toast(error ? "Could not add." : "Invoice added.");
-  await loadFinancialReport();
+  await loadFinancialReport(state.financialReportDate);
 }
 async function deleteFinancialInvoice(id){
   if(!confirm("Remove this invoice entry?")) return;
   state.loading = true; render();
   await sb.from("ts_financial_invoices").delete().eq("id", id);
   state.loading = false;
-  await loadFinancialReport();
+  await loadFinancialReport(state.financialReportDate);
 }
 
 async function addFinancialPayment(){
@@ -2076,21 +2082,21 @@ async function addFinancialPayment(){
   const invoiceNo = (prompt("Invoice No:") || "").trim();
   const amt = Number(prompt("Amount (SAR):", "0"));
   if(isNaN(amt)){ toast("Enter a valid amount."); return; }
-  const date = (prompt("Payment date (YYYY-MM-DD):", todayLocalISO()) || "").trim();
+  const date = (prompt("Payment date (YYYY-MM-DD):", state.financialReportDate) || "").trim();
   state.loading = true; render();
   const { error } = await sb.from("ts_financial_payments").insert({
-    project, company, invoice_no: invoiceNo, amount: amt, payment_date: date || null
+    project, company, invoice_no: invoiceNo, amount: amt, payment_date: date || null, report_date: state.financialReportDate
   });
   state.loading = false;
   toast(error ? "Could not add." : "Payment added.");
-  await loadFinancialReport();
+  await loadFinancialReport(state.financialReportDate);
 }
 async function deleteFinancialPayment(id){
   if(!confirm("Remove this payment entry?")) return;
   state.loading = true; render();
   await sb.from("ts_financial_payments").delete().eq("id", id);
   state.loading = false;
-  await loadFinancialReport();
+  await loadFinancialReport(state.financialReportDate);
 }
 
 async function addFinancialPending(){
@@ -2103,18 +2109,18 @@ async function addFinancialPending(){
   const dueDate = (prompt("Due date (YYYY-MM-DD):") || "").trim();
   state.loading = true; render();
   const { error } = await sb.from("ts_financial_pending").insert({
-    client, invoice_no: invoiceNo, amount: amt, issue_date: issueDate || null, due_date: dueDate || null
+    client, invoice_no: invoiceNo, amount: amt, issue_date: issueDate || null, due_date: dueDate || null, report_date: state.financialReportDate
   });
   state.loading = false;
   toast(error ? "Could not add." : "Pending collection added.");
-  await loadFinancialReport();
+  await loadFinancialReport(state.financialReportDate);
 }
 async function deleteFinancialPending(id){
   if(!confirm("Remove this entry? (e.g. once it's been paid)")) return;
   state.loading = true; render();
   await sb.from("ts_financial_pending").delete().eq("id", id);
   state.loading = false;
-  await loadFinancialReport();
+  await loadFinancialReport(state.financialReportDate);
 }
 
 async function addFinancialPo(){
@@ -2124,10 +2130,10 @@ async function addFinancialPo(){
   const amt = Number(prompt("Amount (SAR):", "0"));
   if(isNaN(amt)){ toast("Enter a valid amount."); return; }
   state.loading = true; render();
-  const { error } = await sb.from("ts_financial_po").insert({ project, po_month: month, amount: amt, received: false });
+  const { error } = await sb.from("ts_financial_po").insert({ project, po_month: month, amount: amt, received: false, report_date: state.financialReportDate });
   state.loading = false;
   toast(error ? "Could not add." : "PO added.");
-  await loadFinancialReport();
+  await loadFinancialReport(state.financialReportDate);
 }
 async function togglePoReceived(id){
   const po = state.financialPo.find(p=>p.id===id);
@@ -4323,10 +4329,13 @@ function renderFinancialReport(){
     <button class="link-btn" id="${backBtnId}" style="margin-bottom:12px;">‹ Back</button>
     <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:18px;margin-bottom:14px;">
       <h3 style="color:#fff;">💰 Financial Report</h3>
-      <div class="meta" style="color:#BFDCF5;">${canEdit ? "Add and update entries directly below" : "View only"}</div>
+      <div class="meta" style="color:#BFDCF5;">${new Date(state.financialReportDate + "T00:00:00").toDateString()}${canEdit ? " — add and update entries directly below" : " — view only"}</div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+    <label style="margin-bottom:10px;">Report date</label>
+    <input type="date" id="financialReportDateInput" value="${state.financialReportDate}" max="${todayLocalISO()}">
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0;">
       <div class="card" style="padding:12px;background:linear-gradient(135deg,#1B5A96,#3E86C4);border-radius:12px;${canEdit?"cursor:pointer;":""}" ${canEdit?'id="editBalanceBtn"':""}>
         <div style="font-size:10.5px;color:#fff;opacity:0.85;">Account balance</div>
         <div style="font-size:16px;font-weight:800;margin-top:2px;color:#fff;">SAR ${fmt(state.financialBalance?.balance)}</div>
@@ -6069,13 +6078,13 @@ function handleDelegatedClick(e){
   if(el("openFinancialReportBtn")){
     state.view = "financial-report";
     state.financialViewOnly = false;
-    loadFinancialReport();
+    loadFinancialReport(todayLocalISO());
     return;
   }
   if(el("viewFinancialReportOnlyBtn")){
     state.view = "financial-report";
     state.financialViewOnly = true;
-    loadFinancialReport();
+    loadFinancialReport(todayLocalISO());
     return;
   }
   if(el("editBalanceBtn")){ saveFinancialBalance(); return; }
@@ -6300,6 +6309,12 @@ function handleDelegatedChange(e){
     resetDailyReportDraft();
     state.dailyReportDate = newDate;
     Promise.all([loadDailyReportsForDate(newDate), loadAbsencesForDate(newDate), loadVacationsForDate(newDate)]).then(render);
+    return;
+  }
+  if(e.target.id === "financialReportDateInput"){
+    const newDate = e.target.value;
+    if(!newDate) return;
+    loadFinancialReport(newDate);
     return;
   }
   if(e.target.id === "dailyReportProject"){
