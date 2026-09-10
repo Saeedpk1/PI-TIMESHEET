@@ -444,7 +444,7 @@ let state = {
   employeeDirectory: [],
   selectedDirectoryEmployeeId: null,
   myProfile: null,
-  myProfileDraft: { mobile_number: "", passport_no: "", passport_expiry: "", iqama_expiry_date: "", medical_insurance_expiry: "", photo_data: "" },
+  myProfileDraft: { mobile_number: "", passport_no: "", passport_expiry: "", iqama_expiry_date: "", medical_insurance_expiry: "", bank_name: "", iban_number: "", photo_data: "" },
   myDailyReportsToday: [],
   editingDailyReportId: null,
   combinedReportsDate: todayLocalISO(),
@@ -1892,7 +1892,8 @@ async function generateEmployeeProfilePdf(){
       ["Joining Date", emp.joining_date], ["Mobile Number", emp.mobile_number],
       ["Iqama No", emp.iqama_number], ["Iqama Expiry", emp.iqama_expiry_date],
       ["Passport No", emp.passport_no], ["Passport Expiry", emp.passport_expiry],
-      ["Medical Insurance Expiry", emp.medical_insurance_expiry]
+      ["Medical Insurance Expiry", emp.medical_insurance_expiry],
+      ["Bank Name", emp.bank_name], ["IBAN", emp.iban_number]
     ];
     doc.setDrawColor(220,229,238); doc.setLineWidth(0.7);
     doc.setFontSize(10);
@@ -1928,6 +1929,8 @@ async function loadMyProfile(){
     passport_expiry: data?.passport_expiry || "",
     iqama_expiry_date: data?.iqama_expiry_date || "",
     medical_insurance_expiry: data?.medical_insurance_expiry || "",
+    bank_name: data?.bank_name || "",
+    iban_number: data?.iban_number || "",
     photo_data: data?.photo_data || ""
   };
   state.loading = false;
@@ -1943,6 +1946,8 @@ async function saveMyProfile(){
     passport_expiry: d.passport_expiry || null,
     iqama_expiry_date: d.iqama_expiry_date || null,
     medical_insurance_expiry: d.medical_insurance_expiry || null,
+    bank_name: d.bank_name || null,
+    iban_number: d.iban_number || null,
     photo_data: d.photo_data || null
   }).eq("id", state.user.id);
   state.loading = false;
@@ -3734,6 +3739,11 @@ function renderEmployeeDirectory(){
       row("🩺", "Medical insurance expiry", emp.medical_insurance_expiry, emp.medical_insurance_expiry)
     )}
 
+    ${section("🏦 BANK DETAILS", "#125C4F", "#EAF6F3",
+      row("🏦", "Bank name", emp.bank_name) +
+      row("🔢", "IBAN", emp.iban_number)
+    )}
+
     <button class="btn btn-sm" id="exportProfilePdfBtn" style="width:100%;margin-top:16px;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff;border:none;font-weight:800;">⬇ Export as PDF</button>
     ${isHrUser ? `<div class="field-note" style="text-align:center;">To update dates, use "Renewals & Expiry" instead.</div>` : ""}
   ` : "";
@@ -3790,6 +3800,10 @@ function renderMyProfile(){
       <input type="date" id="myProfilePassportExpiry" value="${d.passport_expiry}">
       <label style="margin-top:10px;">Iqama expiry</label>
       <input type="date" id="myProfileIqamaExpiry" value="${d.iqama_expiry_date}">
+      <label style="margin-top:10px;">Bank name</label>
+      <input type="text" id="myProfileBankName" value="${d.bank_name}">
+      <label style="margin-top:10px;">IBAN</label>
+      <input type="text" id="myProfileIban" value="${d.iban_number}">
       <button class="btn btn-submit btn-sm" id="saveMyProfileBtn" style="width:100%;margin-top:10px;">💾 Save</button>
     </div>
   `;
@@ -5605,6 +5619,8 @@ function handleDelegatedInput(e){
   if(e.target.id === "ceoMessageInput"){ state.ceoMessageDraft = e.target.value; }
   if(e.target.id === "myProfileMobile"){ state.myProfileDraft.mobile_number = e.target.value; }
   if(e.target.id === "myProfilePassportNo"){ state.myProfileDraft.passport_no = e.target.value; }
+  if(e.target.id === "myProfileBankName"){ state.myProfileDraft.bank_name = e.target.value; }
+  if(e.target.id === "myProfileIban"){ state.myProfileDraft.iban_number = e.target.value; }
   if(e.target.id === "dailyReportPolished"){ state.dailyReportDraft.polishedText = e.target.value; }
 
 }
