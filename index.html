@@ -452,6 +452,7 @@ let state = {
   financialPending: [],
   financialPo: [],
   financialIqamaSoon: [],
+  financialViewOnly: false,
   employeeDirectory: [],
   selectedDirectoryEmployeeId: null,
   myProfile: null,
@@ -4242,40 +4243,58 @@ function renderFinancialReport(){
   const isHrUser = state.user.role === "hr";
   const isCeoUser = state.user.role === "ceo";
   const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (isHrUser ? "backToHrBtn" : "backToSupervisorHomeBtn");
-  const canEdit = isHrUser;
+  const canEdit = isHrUser && !state.financialViewOnly;
   const fmt = n => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
 
   const totalLoans = state.financialLoans.reduce((s,l)=>s+Number(l.amount||0),0);
   const totalPo = state.financialPo.reduce((s,p)=>s+Number(p.amount||0),0);
 
-  const table = (headColor, tintColor, headers, rows, totalRow) => `
-    <table class="grid report-table" style="font-size:11px;width:100%;margin-bottom:4px;">
-      <thead><tr>${headers.map(h=>`<th style="background:${headColor};color:#fff;padding:6px 4px;">${h}</th>`).join("")}</tr></thead>
+  // Compact 2-3 column table: main label (with a sub-line), amount, optional trailing cell (status/delete)
+  const compactTable = (headColor, tintColor, headers, rows) => `
+    <table class="grid report-table" style="font-size:11px;width:100%;margin-bottom:4px;table-layout:fixed;">
+      <colgroup>${headers.map((h,i)=>i===0?'<col style="width:56%;">':(i===headers.length-1 && canEdit?'<col style="width:11%;">':'<col>')).join("")}</colgroup>
+      <thead><tr>${headers.map((h,i)=>`<th style="background:${headColor};color:#fff;padding:6px 4px;text-align:${i===0?"left":"right"};">${h}</th>`).join("")}</tr></thead>
       <tbody>
-        ${rows.map((r,ri) => `<tr style="background:${ri%2===0?tintColor:"#fff"};">${r.map((c,i)=>`<td style="padding:5px 4px;text-align:${i===0?"center":(typeof c==="number"?"right":"left")};">${typeof c==="number"?fmt(c):c}</td>`).join("")}</tr>`).join("")}
-        ${totalRow ? `<tr style="background:var(--ksa-cream);font-weight:800;">${totalRow.map((c,i)=>`<td style="padding:6px 4px;text-align:${i===0?"center":(typeof c==="number"?"right":"left")};">${typeof c==="number"?fmt(c):c}</td>`).join("")}</tr>` : ""}
+        ${rows.map((r,ri) => `<tr style="background:${ri%2===0?tintColor:"#fff"};">${r.map((c,i)=>`<td style="padding:5px 4px;text-align:${i===0?"left":"right"};vertical-align:top;">${c}</td>`).join("")}</tr>`).join("")}
       </tbody>
     </table>`;
 
+  const mainCell = (title, sub) => `<div style="font-weight:700;">${title||"-"}</div>${sub ? `<div class="meta" style="margin-top:1px;font-size:10px;">${sub}</div>` : ""}`;
+  const delBtn = (id) => canEdit ? `<button class="link-btn" data-fin-delete="${id}" style="color:var(--absent) !important;padding:0;font-size:13px;">🗑</button>` : "";
+
   const sectionHead = (title, color, addId) => `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 6px;">
-      <h3 style="font-size:13px;color:${color};margin:0;">${title}</h3>
-      ${canEdit ? `<button class="link-btn" id="${addId}" style="color:${color} !important;font-size:18px;padding:0 4px;font-weight:800;">+ Add</button>` : ""}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 6px;">
+      <h3 style="font-size:12.5px;color:${color};margin:0;">${title}</h3>
+      ${canEdit ? `<button class="link-btn" id="${addId}" style="color:${color} !important;font-size:12px;font-weight:800;padding:0;">+ Add</button>` : ""}
     </div>`;
 
   // Iqama expiring soon (<15 days)
-  const iqamaRows = state.financialIqamaSoon.map((e,i) => [i+1, e.short_name || e.name, e.days < 0 ? `EXPIRED ${Math.abs(e.days)}d ago` : `${e.days}d left`]);
+  const iqamaHeaders = ["Name","Days Left"];
+  const iqamaRows = state.financialIqamaSoon.map(e => [
+    mainCell(e.short_name || e.name),
+    e.days < 0 ? `<span style="color:var(--absent);font-weight:800;">EXPIRED ${Math.abs(e.days)}d</span>` : `<span style="font-weight:800;">${e.days}d</span>`
+  ]);
 
   // Loans
-  const loanRows = state.financialLoans.map((l,i) => [i+1, l.name, Number(l.amount)||0, canEdit ? `<button class="link-btn" data-fin-delete="loan:${l.id}" style="color:var(--absent) !important;padding:0;">🗑</button>` : ""]);
+  const loanHeaders = ["Loan","Amount", ...(canEdit?[""]:[])];
+  const loanRows = state.financialLoans.map(l => [mainCell(l.name), fmt(l.amount), delBtn(`loan:${l.id}`)].filter((_,i)=>i<loanHeaders.length));
 
   // Invoices
-  const invRows = state.financialInvoices.map((v,i) => [i+1, v.description, v.invoice_no||"-", Number(v.amount_no_vat)||0, Number(v.amount_with_vat)||0, v.invoice_month||"-", canEdit ? `<button class="link-btn" data-fin-delete="invoice:${v.id}" style="color:var(--absent) !important;padding:0;">🗑</button>` : ""]);
-  const invTotalNoVat = state.financialInvoices.reduce((s,v)=>s+Number(v.amount_no_vat||0),0);
-  const invTotalWithVat = state.financialInvoices.reduce((s,v)=>s+Number(v.amount_with_vat||0),0);
+  const invHeaders = ["Invoice","With VAT", ...(canEdit?[""]:[])];
+  const invRows = state.financialInvoices.map(v => [
+    mainCell(v.description, `${v.invoice_no?"Inv "+v.invoice_no:""}${v.invoice_month?" · "+v.invoice_month:""}`),
+    fmt(v.amount_with_vat || v.amount_no_vat),
+    delBtn(`invoice:${v.id}`)
+  ].filter((_,i)=>i<invHeaders.length));
+  const invTotalWithVat = state.financialInvoices.reduce((s,v)=>s+Number(v.amount_with_vat||v.amount_no_vat||0),0);
 
   // Payments
-  const payRows = state.financialPayments.map((v,i) => [i+1, v.project, v.company, v.invoice_no||"-", Number(v.amount)||0, v.payment_date||"-", canEdit ? `<button class="link-btn" data-fin-delete="payment:${v.id}" style="color:var(--absent) !important;padding:0;">🗑</button>` : ""]);
+  const payHeaders = ["Payment","Amount", ...(canEdit?[""]:[])];
+  const payRows = state.financialPayments.map(v => [
+    mainCell(`${v.project||""}${v.company?" · "+v.company:""}`, `${v.invoice_no?"Inv "+v.invoice_no+" · ":""}${v.payment_date||""}`),
+    fmt(v.amount),
+    delBtn(`payment:${v.id}`)
+  ].filter((_,i)=>i<payHeaders.length));
   const payTotal = state.financialPayments.reduce((s,v)=>s+Number(v.amount||0),0);
 
   // Pending — grouped by client prefix (OTIS / TKE / Schindler / Other)
@@ -4288,13 +4307,16 @@ function renderFinancialReport(){
     groups[groupName].push({ ...p, projectName });
   });
   let grandTotalPending = 0;
+  const pendingHeaders = ["Client / Invoice","Amount", ...(canEdit?[""]:[])];
 
   // PO
-  const poRows = state.financialPo.map((v,i) => [
-    i+1, v.project, v.po_month||"-", Number(v.amount)||0,
-    canEdit ? `<button class="link-btn" data-toggle-po="${v.id}" style="font-size:10px;color:${v.received?"var(--present)":"#C4791F"} !important;padding:0;">${v.received?"✓ Received":"Mark received"}</button>` : (v.received?"Received":"Not received"),
-    canEdit ? `<button class="link-btn" data-fin-delete="po:${v.id}" style="color:var(--absent) !important;padding:0;">🗑</button>` : ""
-  ]);
+  const poHeaders = ["Project","Amount","Status", ...(canEdit?[""]:[])];
+  const poRows = state.financialPo.map(v => [
+    mainCell(v.project, v.po_month),
+    fmt(v.amount),
+    canEdit ? `<button class="link-btn" data-toggle-po="${v.id}" style="font-size:10px;color:${v.received?"var(--present)":"#C4791F"} !important;padding:0;">${v.received?"✓":"Mark rec."}</button>` : `<span style="font-size:10px;color:${v.received?"var(--present)":"#C4791F"};">${v.received?"Received":"Pending"}</span>`,
+    delBtn(`po:${v.id}`)
+  ].filter((_,i)=>i<poHeaders.length));
 
   return `
     <button class="link-btn" id="${backBtnId}" style="margin-bottom:12px;">‹ Back</button>
@@ -4303,47 +4325,57 @@ function renderFinancialReport(){
       <div class="meta" style="color:#BFDCF5;">${canEdit ? "Add and update entries directly below" : "View only"}</div>
     </div>
 
-    ${state.financialIqamaSoon.length ? `
-    <h3 style="font-size:13px;color:var(--absent);margin:0 0 6px;">🪪 IQAMA EXPIRING SOON (&lt;15 days)</h3>
-    ${table("#C43B3B", "#FDECEA", ["No","Name","Days Left"], iqamaRows)}
-    ` : ""}
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0;">
-      <div class="card" style="padding:12px;${canEdit?"cursor:pointer;":""}" ${canEdit?'id="editBalanceBtn"':""}>
-        <div class="meta">Account balance</div>
-        <div style="font-size:17px;font-weight:800;margin-top:2px;">SAR ${fmt(state.financialBalance?.balance)}</div>
-        ${canEdit ? `<div class="meta" style="margin-top:2px;color:var(--blue);">tap to update</div>` : ""}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+      <div class="card" style="padding:12px;background:linear-gradient(135deg,#1B5A96,#3E86C4);${canEdit?"cursor:pointer;":""}" ${canEdit?'id="editBalanceBtn"':""}>
+        <div style="font-size:10.5px;color:#fff;opacity:0.85;">Account balance</div>
+        <div style="font-size:16px;font-weight:800;margin-top:2px;color:#fff;">SAR ${fmt(state.financialBalance?.balance)}</div>
+        ${canEdit ? `<div style="font-size:10px;margin-top:2px;color:#fff;opacity:0.8;">tap to update</div>` : ""}
       </div>
-      <div class="card" style="padding:12px;">
-        <div class="meta">Total loans</div>
-        <div style="font-size:17px;font-weight:800;margin-top:2px;">SAR ${fmt(totalLoans)}</div>
+      <div class="card" style="padding:12px;background:linear-gradient(135deg,#6B4FC4,#8E72E0);">
+        <div style="font-size:10.5px;color:#fff;opacity:0.85;">Total loans</div>
+        <div style="font-size:16px;font-weight:800;margin-top:2px;color:#fff;">SAR ${fmt(totalLoans)}</div>
       </div>
     </div>
 
+    ${state.financialIqamaSoon.length ? `
+    <h3 style="font-size:12.5px;color:var(--absent);margin:0 0 6px;">🪪 IQAMA EXPIRING SOON (&lt;15 days)</h3>
+    ${compactTable("#C43B3B", "#FDECEA", iqamaHeaders, iqamaRows)}
+    ` : ""}
+
     ${sectionHead("🏦 LOANS", "#1B5A96", "addLoanBtn")}
-    ${table("#1B5A96", "#EAF1FC", ["No","Loan","Amount",""], loanRows, ["","TOTAL", totalLoans, ""])}
+    ${compactTable("#1B5A96", "#EAF1FC", loanHeaders, loanRows)}
+    <div style="text-align:right;font-weight:800;font-size:11.5px;color:#1B5A96;padding:4px 4px 0;">Total: SAR ${fmt(totalLoans)}</div>
 
-    ${sectionHead("📄 AMOUNT INVOICED", "#1B5A96", "addInvoiceBtn")}
-    ${table("#1B5A96", "#EAF1FC", ["No","Description","Invoice No","W/O VAT","With VAT","Month",""], invRows, ["","TOTAL","", invTotalNoVat, invTotalWithVat, "", ""])}
+    ${sectionHead("📄 INVOICES", "#1B5A96", "addInvoiceBtn")}
+    ${compactTable("#1B5A96", "#EAF1FC", invHeaders, invRows)}
+    <div style="text-align:right;font-weight:800;font-size:11.5px;color:#1B5A96;padding:4px 4px 0;">Total: SAR ${fmt(invTotalWithVat)}</div>
 
-    ${sectionHead("✅ AMOUNT RECEIVED", "#1C8A4E", "addPaymentBtn")}
-    ${table("#1C8A4E", "#EAF6ED", ["No","Project","Company","Invoice No","Amount","Date",""], payRows, ["","","","TOTAL", payTotal, "", ""])}
+    ${sectionHead("✅ PAYMENTS RECEIVED", "#1C8A4E", "addPaymentBtn")}
+    ${compactTable("#1C8A4E", "#EAF6ED", payHeaders, payRows)}
+    <div style="text-align:right;font-weight:800;font-size:11.5px;color:#1C8A4E;padding:4px 4px 0;">Total: SAR ${fmt(payTotal)}</div>
 
-    <h3 style="font-size:13px;color:#C4791F;margin:16px 0 4px;">⏳ TOTAL PENDING COLLECTION</h3>
-    ${canEdit ? `<button class="link-btn" id="addPendingBtn" style="color:#C4791F !important;font-weight:800;font-size:13px;margin-bottom:6px;display:inline-block;">+ Add</button>` : ""}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 6px;">
+      <h3 style="font-size:12.5px;color:#C4791F;margin:0;">⏳ PENDING COLLECTION</h3>
+      ${canEdit ? `<button class="link-btn" id="addPendingBtn" style="color:#C4791F !important;font-size:12px;font-weight:800;padding:0;">+ Add</button>` : ""}
+    </div>
     ${Object.entries(groups).map(([groupName, items]) => {
-      const rows = items.map((v,i)=>[i+1, v.projectName, v.invoice_no||"-", Number(v.amount)||0, v.issue_date||"-", v.due_date||"-", canEdit ? `<button class="link-btn" data-fin-delete="pending:${v.id}" style="color:var(--absent) !important;padding:0;">🗑</button>` : ""]);
+      const rows = items.map(v => [
+        mainCell(v.projectName, `${v.invoice_no?"Inv "+v.invoice_no+" · ":""}Due ${v.due_date||"-"}`),
+        fmt(v.amount),
+        delBtn(`pending:${v.id}`)
+      ].filter((_,i)=>i<pendingHeaders.length));
       const total = items.reduce((s,v)=>s+Number(v.amount||0),0);
       grandTotalPending += total;
-      return `<h3 style="font-size:12px;color:#C4791F;margin:8px 0 4px;">${groupName.toUpperCase()}</h3>` +
-        table("#C4791F", "#FDF3E6", ["No","Project","Invoice No","Amount","Issue Date","Due Date",""], rows, ["","","TOTAL", total, "", "", ""]);
+      return `<div style="font-size:11px;font-weight:800;color:#C4791F;margin:6px 0 3px;">${groupName.toUpperCase()} — SAR ${fmt(total)}</div>` +
+        compactTable("#C4791F", "#FDF3E6", pendingHeaders, rows);
     }).join("")}
-    <div style="background:var(--navy);color:#fff;padding:10px 14px;border-radius:10px;font-weight:800;font-size:13px;display:flex;justify-content:space-between;margin-bottom:8px;">
+    <div style="background:var(--navy);color:#fff;padding:9px 12px;border-radius:10px;font-weight:800;font-size:12px;display:flex;justify-content:space-between;margin-bottom:8px;">
       <span>NET TOTAL PENDING</span><span>SAR ${fmt(grandTotalPending)}</span>
     </div>
 
-    ${sectionHead("📋 PO DETAILS", "#B8912A", "addPoBtn")}
-    ${table("#B8912A", "#FDF6E3", ["No","Project","Month","Amount","Status",""], poRows, ["","","TOTAL", totalPo, "", ""])}
+    ${sectionHead("📋 PO TRACKER", "#B8912A", "addPoBtn")}
+    ${compactTable("#B8912A", "#FDF6E3", poHeaders, poRows)}
+    <div style="text-align:right;font-weight:800;font-size:11.5px;color:#B8912A;padding:4px 4px 0;">Total: SAR ${fmt(totalPo)}</div>
   `;
 }
 
@@ -4925,6 +4957,7 @@ function renderHrView(){
     <div class="hr-section-label" style="color:var(--navy);">💰 Finance</div>
     <div class="hr-tile-grid">
       <div class="hr-tile" id="openFinancialReportBtn" style="border-color:#C7D9EA;"><span class="icon">💰</span><span class="label">Financial<br>Report</span></div>
+      <div class="hr-tile" id="viewFinancialReportOnlyBtn" style="border-color:#C7D9EA;"><span class="icon">👁</span><span class="label">View<br>Report</span></div>
     </div>
   `;
 }
@@ -6036,6 +6069,13 @@ function handleDelegatedClick(e){
   if(el("exportVehicleDocsBtn")){ exportVehicleDocumentsPdf(state.selectedVehicleForDocs); return; }
   if(el("openFinancialReportBtn")){
     state.view = "financial-report";
+    state.financialViewOnly = false;
+    loadFinancialReport();
+    return;
+  }
+  if(el("viewFinancialReportOnlyBtn")){
+    state.view = "financial-report";
+    state.financialViewOnly = true;
     loadFinancialReport();
     return;
   }
