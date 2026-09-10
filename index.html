@@ -1102,7 +1102,8 @@ async function submitLeaveRequest(){
     ({ error } = await sb.from("ts_leave_requests").update(payload).eq("id", state.editingLeaveRequestId));
   }else{
     payload.employee_id = state.user.id;
-    payload.supervisor_id = state.user.leave_supervisor_id || state.user.supervisor_id || null;
+    const { data: rajesh } = await sb.from("ts_employees").select("id").eq("iqama_number", "2357537808").maybeSingle();
+    payload.supervisor_id = rajesh?.id || state.user.leave_supervisor_id || state.user.supervisor_id || null;
     ({ error } = await sb.from("ts_leave_requests").insert(payload));
   }
 
@@ -3536,6 +3537,7 @@ function renderMonthNav(context){
 
 /* ---- supervisor list ---- */
 function renderSupervisorList(){
+  if(state.user.iqama_number === "2357537808") return renderRajeshDashboard();
   const ar = isSaudiUser();
   const initials = (name)=> (name||"?").trim().split(/\s+/).slice(0,2).map(w=>w[0]?.toUpperCase()||"").join("");
   const rows = state.supervisorEmployees.map(e=>{
@@ -3573,14 +3575,76 @@ function renderSupervisorList(){
       <div style="font-size:13px;color:#fff;font-weight:800;">${ar ? "👥 فريقك — " + monthLabel(state.monthDate) : "👥 Your team — " + monthLabel(state.monthDate)}</div>
       <button class="link-btn install-link" id="sigSettingsBtn" style="color:#FFE7B0 !important;">${ar ? (state.savedSignature ? "✎ تحديث التوقيع" : "✎ إعداد التوقيع") : (state.savedSignature ? "✎ Update signature" : "✎ Set up signature")}</button>
     </div>
-    <button id="openSupervisorLeaveListBtn" style="display:block;width:100%;margin-bottom:10px;padding:10px 16px;border-radius:10px;border:2px solid #E8A33D;background:#FFF3D9;color:#966109;font-weight:800;font-size:13.5px;cursor:pointer;">🌴 ${ar ? "طلبات الإجازة" : "Leave Requests"}</button>
     <button id="openPurchaseFormBtn" style="display:block;width:100%;margin-bottom:14px;padding:10px 16px;border-radius:10px;border:2px solid #1B7A6B;background:#EAF6F3;color:#125C4F;font-weight:800;font-size:13.5px;cursor:pointer;">🧾 ${ar ? "تسجيل مشتريات" : "Record Purchase"}</button>
-    ${state.user.iqama_number === "2357537808" ? `
-    <button id="openDailyReportBtn" style="display:block;width:100%;margin-bottom:10px;padding:10px 16px;border-radius:10px;border:2px solid var(--ksa-gold);background:var(--ksa-cream);color:var(--blue);font-weight:800;font-size:13.5px;cursor:pointer;">📋 Add Daily Progress Report</button>
-    <button id="openCombinedReportsBtn" style="display:block;width:100%;margin-bottom:10px;padding:10px 16px;border-radius:10px;border:2px solid var(--ksa-gold-light);background:#fff;color:var(--blue);font-weight:800;font-size:13.5px;cursor:pointer;">👁 View Daily Progress Reports</button>
-    <button id="openEmployeeDirectoryBtn" style="display:block;width:100%;margin-bottom:14px;padding:10px 16px;border-radius:10px;border:2px solid #C7D9EA;background:#EAF1FC;color:var(--blue);font-weight:800;font-size:13.5px;cursor:pointer;">👤 Employee Directory</button>
-    ` : ""}
     <div>${rows}</div>
+  `;
+}
+
+function renderRajeshDashboard(){
+  const initials = (name)=> (name||"?").trim().split(/\s+/).slice(0,2).map(w=>w[0]?.toUpperCase()||"").join("");
+  const rows = state.supervisorEmployees.map(e=>{
+    const st = e.submission ? e.submission.status : "draft";
+    const badgeClass = { submitted:"badge-submitted", approved:"badge-approved", rejected:"badge-rejected", draft:"badge-draft" }[st];
+    const label = { submitted:"Awaiting review", approved:"Approved", rejected:"Rejected", draft:"Draft" }[st];
+    return `
+    <div class="emp-list-item li-${st}" data-emp="${e.id}">
+      <div class="emp-avatar">${initials(e.name)}</div>
+      <div style="flex:1;min-width:0;">
+        <div class="name">${e.name}</div>
+        <div class="sub">${e.employee_no || ""} ${e.project_site ? "• " + e.project_site : ""}</div>
+      </div>
+      <span class="badge ${badgeClass}">${label}</span>
+    </div>`;
+  }).join("") || `<div class="empty-state"><div class="ic">👷</div>No employees assigned to you yet.</div>`;
+
+  return `
+    <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:18px;position:relative;overflow:hidden;margin-bottom:14px;">
+      <div style="position:absolute;top:-10px;right:-8px;font-size:64px;opacity:0.12;">🗂️</div>
+      <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#BFDCF5;font-weight:700;position:relative;">Professional Installation Co.</div>
+      <div style="font-size:19px;font-weight:800;color:#fff;margin-top:4px;position:relative;">Rajesh's Dashboard</div>
+      <div style="font-size:12.5px;color:#BFDCF5;margin-top:2px;position:relative;">${monthLabel(state.monthDate)}</div>
+    </div>
+
+    ${renderMonthNav("supervisor")}
+
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;cursor:pointer;background:linear-gradient(135deg,#E7F1FC,#F3F8FD);border:2px solid var(--blue-light);" id="mySelfTimesheetBtn">
+      <div class="row-between">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:22px;">🕒</span>
+          <div>
+            <div style="font-weight:800;font-size:14.5px;color:var(--navy);">My timesheet</div>
+            <div class="meta">Fill in your own hours</div>
+          </div>
+        </div>
+        <span style="color:var(--blue);font-size:20px;font-weight:800;">›</span>
+      </div>
+    </div>
+
+    <div class="hr-section-label" style="color:var(--blue);">👥 Your Team</div>
+    <div class="card" style="padding:12px 14px;">
+      <div class="row-between" style="margin-bottom:8px;">
+        <div class="meta">${monthLabel(state.monthDate)}</div>
+        <button class="link-btn" id="sigSettingsBtn" style="color:var(--blue) !important;">${state.savedSignature ? "✎ Update signature" : "✎ Set up signature"}</button>
+      </div>
+      <div>${rows}</div>
+    </div>
+
+    <div class="hr-section-label" style="color:#E8A33D;">✅ Approvals</div>
+    <div class="hr-tile-grid">
+      <div class="hr-tile" id="openSupervisorLeaveListBtn" style="border-color:#F0DBA8;"><span class="icon">🌴</span><span class="label">Leave<br>Requests</span></div>
+      <div class="hr-tile" id="openPurchaseFormBtn" style="border-color:#A9D9CD;"><span class="icon">🧾</span><span class="label">Record<br>Purchase</span></div>
+    </div>
+
+    <div class="hr-section-label" style="color:var(--present);">📋 Daily Reports</div>
+    <div class="hr-tile-grid">
+      <div class="hr-tile" id="openDailyReportBtn" style="border-color:var(--ksa-gold-light);"><span class="icon">📋</span><span class="label">Add Daily<br>Report</span></div>
+      <div class="hr-tile" id="openCombinedReportsBtn" style="border-color:var(--ksa-gold-light);"><span class="icon">👁</span><span class="label">View Daily<br>Reports</span></div>
+    </div>
+
+    <div class="hr-section-label" style="color:#6B4FC4;">👤 Directory</div>
+    <div class="hr-tile-grid">
+      <div class="hr-tile" id="openEmployeeDirectoryBtn" style="border-color:#DCD0F5;"><span class="icon">👤</span><span class="label">Employee<br>Directory</span></div>
+    </div>
   `;
 }
 
