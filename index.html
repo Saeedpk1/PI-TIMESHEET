@@ -2218,9 +2218,16 @@ function deleteFinancialPaymentDraft(id){
   markFinancialDirty(); render();
 }
 
-function addFinancialPendingDraft(){
-  const client = (prompt("Client (e.g. OTIS, TKE, Schindler):") || "").trim();
-  if(!client) return;
+function addFinancialPendingDraft(clientGroup){
+  let client;
+  if(clientGroup){
+    const project = (prompt(`${clientGroup} — Project name:`) || "").trim();
+    if(!project) return;
+    client = `${clientGroup} · ${project}`;
+  }else{
+    client = (prompt("Client (e.g. OTIS, TKE, Schindler):") || "").trim();
+    if(!client) return;
+  }
   const invoiceNo = (prompt("Invoice No:") || "").trim();
   const amt = Number(prompt("Amount (SAR):", "0"));
   if(isNaN(amt)){ toast("Enter a valid amount."); return; }
@@ -4436,7 +4443,7 @@ function renderFinancialReport(){
 
   // Invoices — separate columns
   const invHeaders = ["Description","Invoice No","W/O VAT","With VAT", ...(canEdit?[""]:[])];
-  const invWidths = ["26%","18%","18%","18%", ...(canEdit?["20%"]:[])];
+  const invWidths = ["20%","24%","16%","16%", ...(canEdit?["24%"]:[])];
   const invRows = state.financialInvoices.map(v => [
     v.description || "-", v.invoice_no || "-", fmt(v.amount_no_vat), fmt(v.amount_with_vat), editDelBtns("invoice", v.id)
   ].filter((_,i)=>i<invHeaders.length));
@@ -4463,7 +4470,7 @@ function renderFinancialReport(){
   });
   let grandTotalPending = 0;
   const pendingHeaders = ["Client","Invoice","Amount","Due", ...(canEdit?[""]:[])];
-  const pendingWidths = ["28%","16%","16%","16%", ...(canEdit?["24%"]:[])];
+  const pendingWidths = ["22%","24%","14%","14%", ...(canEdit?["26%"]:[])];
 
   // PO — separate columns
   const poHeaders = ["Project","Month","Amount","✓", ...(canEdit?[""]:[])];
@@ -4480,6 +4487,18 @@ function renderFinancialReport(){
       <h3 style="color:#fff;">💰 Financial Report</h3>
       <div class="meta" style="color:#BFDCF5;">${new Date(state.financialReportDate + "T00:00:00").toDateString()}${canEdit ? " — add and update entries directly below" : " — view only"}</div>
     </div>
+
+    ${state.financialBalance?.updated_at ? `
+    <div style="display:flex;align-items:center;gap:6px;background:#EAF6ED;border:1.5px solid #B7E0C2;border-radius:999px;padding:6px 12px;margin-bottom:12px;">
+      <span style="width:8px;height:8px;border-radius:50%;background:var(--present);flex-shrink:0;"></span>
+      <span style="font-size:11px;font-weight:700;color:#1C8A4E;">Saved — last updated ${new Date(state.financialBalance.updated_at).toLocaleDateString(undefined,{day:"2-digit",month:"short"})}, ${new Date(state.financialBalance.updated_at).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span>
+    </div>
+    ` : `
+    <div style="display:flex;align-items:center;gap:6px;background:#FDF3E6;border:1.5px solid #F0C766;border-radius:999px;padding:6px 12px;margin-bottom:12px;">
+      <span style="width:8px;height:8px;border-radius:50%;background:#C4791F;flex-shrink:0;"></span>
+      <span style="font-size:11px;font-weight:700;color:#966109;">Not saved yet for this date</span>
+    </div>
+    `}
 
     <label style="margin-bottom:10px;">Report date</label>
     <input type="date" id="financialReportDateInput" value="${state.financialReportDate}" max="${todayLocalISO()}">
@@ -4535,11 +4554,17 @@ function renderFinancialReport(){
     ${finTable("#1C8A4E", "#EAF6ED", payHeaders, payRows, payWidths)}
     <div style="text-align:right;font-weight:800;font-size:10px;color:#1C8A4E;padding:4px 4px 0;">Total: SAR ${fmt(payTotal)}</div>
 
-    <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 5px;">
-      <h3 style="font-size:12px;color:#C4791F;margin:0;font-weight:800;">⏳ PENDING COLLECTION</h3>
-      ${canEdit ? `<button class="link-btn" id="addPendingBtn" style="color:#C4791F !important;font-size:11.5px;font-weight:800;padding:0;">+ Add</button>` : ""}
+    <div style="margin:14px 0 5px;">
+      <h3 style="font-size:12px;color:#C4791F;margin:0 0 6px;font-weight:800;">⏳ PENDING COLLECTION</h3>
+      ${canEdit ? `
+      <div style="display:flex;gap:6px;">
+        <button class="link-btn" data-add-pending-group="OTIS" style="flex:1;background:#D8583A;color:#fff !important;font-size:10.5px;font-weight:800;padding:6px 4px;border-radius:8px;text-align:center;">+ OTIS</button>
+        <button class="link-btn" data-add-pending-group="TKE" style="flex:1;background:#6B4FC4;color:#fff !important;font-size:10.5px;font-weight:800;padding:6px 4px;border-radius:8px;text-align:center;">+ TKE</button>
+        <button class="link-btn" data-add-pending-group="Schindler" style="flex:1;background:#1B7A6B;color:#fff !important;font-size:10.5px;font-weight:800;padding:6px 4px;border-radius:8px;text-align:center;">+ Schindler</button>
+      </div>
+      ` : ""}
     </div>
-    ${canEdit ? `<div class="field-note" style="margin-top:-2px;">Adding here also creates a matching invoice automatically.</div>` : ""}
+    ${canEdit ? `<div class="field-note" style="margin-top:2px;">Adding here also creates a matching invoice automatically.</div>` : ""}
     ${(() => {
       const groupColors = {
         "OTIS": { c: "#D8583A", t: "#FCEDE8" },
@@ -6290,7 +6315,8 @@ function handleDelegatedClick(e){
   if(el("addLoanBtn")){ addFinancialLoanDraft(); return; }
   if(el("addInvoiceBtn")){ addFinancialInvoiceDraft(); return; }
   if(el("addPaymentBtn")){ addFinancialPaymentDraft(); return; }
-  if(el("addPendingBtn")){ addFinancialPendingDraft(); return; }
+  const addPendingGroupEl = e.target.closest("[data-add-pending-group]");
+  if(addPendingGroupEl){ addFinancialPendingDraft(addPendingGroupEl.getAttribute("data-add-pending-group")); return; }
   if(el("addPoBtn")){ addFinancialPoDraft(); return; }
   if(el("copyPreviousDayBtn")){ copyPreviousDayFinancialReport(); return; }
   if(el("saveFinancialReportBtn")){ saveFinancialReportForDay(); return; }
