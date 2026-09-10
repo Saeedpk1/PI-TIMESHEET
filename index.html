@@ -462,6 +462,8 @@ let state = {
   companyDocuments: null,
   financialViewOnly: false,
   financialSummaryMode: false,
+  financialMonthInvoiced: 0,
+  financialMonthReceived: 0,
   financialReportDate: todayLocalISO(),
   financialDirty: false,
   employeeDirectory: [],
@@ -2030,7 +2032,10 @@ async function loadFinancialReport(date){
   const reportDate = date || state.financialReportDate || todayLocalISO();
   state.financialReportDate = reportDate;
   state.loading = true; render();
-  const [{ data: bal }, { data: loans }, { data: inv }, { data: pay }, { data: pend }, { data: po }, { data: iqama }, { data: vehicles }, { data: companyDocs }] = await Promise.all([
+  const monthStart = reportDate.slice(0,7) + "-01";
+  const monthEndDate = new Date(reportDate.slice(0,4), Number(reportDate.slice(5,7)), 0); // last day of month
+  const monthEnd = monthEndDate.toISOString().slice(0,10);
+  const [{ data: bal }, { data: loans }, { data: inv }, { data: pay }, { data: pend }, { data: po }, { data: iqama }, { data: vehicles }, { data: companyDocs }, { data: monthInv }, { data: monthPay }] = await Promise.all([
     sb.from("ts_financial_balance").select("*").eq("report_date", reportDate).maybeSingle(),
     sb.from("ts_financial_loans").select("*").eq("report_date", reportDate).order("created_at", { ascending: false }),
     sb.from("ts_financial_invoices").select("*").eq("report_date", reportDate).order("created_at", { ascending: false }),
@@ -2039,7 +2044,9 @@ async function loadFinancialReport(date){
     sb.from("ts_financial_po").select("*").eq("report_date", reportDate).order("created_at", { ascending: false }),
     sb.from("ts_employees").select("id, name, short_name, iqama_expiry_date").eq("active", true).not("iqama_expiry_date", "is", null).order("iqama_expiry_date"),
     sb.from("ts_vehicles").select("*").eq("active", true),
-    sb.from("ts_company_documents").select("*").limit(1).maybeSingle()
+    sb.from("ts_company_documents").select("*").limit(1).maybeSingle(),
+    sb.from("ts_financial_invoices").select("amount_with_vat, amount_no_vat").gte("report_date", monthStart).lte("report_date", monthEnd),
+    sb.from("ts_financial_payments").select("amount").gte("report_date", monthStart).lte("report_date", monthEnd)
   ]);
   state.financialBalance = bal || null;
   state.financialLoans = loans || [];
@@ -2051,6 +2058,8 @@ async function loadFinancialReport(date){
     .map(e => ({ ...e, days: daysUntil(e.iqama_expiry_date) }))
     .filter(e => e.days !== null && e.days < 15);
   state.companyDocuments = companyDocs || null;
+  state.financialMonthInvoiced = (monthInv || []).reduce((s,v)=>s+Number(v.amount_no_vat||0),0);
+  state.financialMonthReceived = (monthPay || []).reduce((s,v)=>s+Number(v.amount||0),0);
 
   // Combined "documents expiring soon" (<1 month): vehicle docs + CR + Room Rent
   const docsSoon = [];
@@ -4543,9 +4552,13 @@ function renderFinancialReport(){
         <div style="font-size:11px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">🏦 Total Loans</div>
         <div style="font-size:22px;font-weight:800;color:#fff;margin-top:4px;">SAR ${fmt(totalLoans)}</div>
       </div>
-      <div style="background:linear-gradient(135deg,#3E86C4,#6FAEDD);border-radius:14px;padding:16px;box-shadow:0 3px 10px rgba(62,134,196,0.3);">
-        <div style="font-size:11px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">📄 Invoices in ${monthLabelStr}</div>
-        <div style="font-size:22px;font-weight:800;color:#fff;margin-top:4px;">SAR ${fmt(invTotalWithVat)}</div>
+      <div style="background:linear-gradient(135deg,#0F3556,#1B5A96);border-radius:14px;padding:16px;box-shadow:0 3px 10px rgba(15,53,86,0.35);">
+        <div style="font-size:11px;color:#fff;opacity:0.9;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">📄 Invoiced in ${monthLabelStr} (W/O VAT)</div>
+        <div style="font-size:22px;font-weight:800;color:#fff;margin-top:4px;">SAR ${fmt(state.financialMonthInvoiced)}</div>
+      </div>
+      <div style="background:linear-gradient(135deg,#1C8A4E,#2FAE68);border-radius:14px;padding:16px;box-shadow:0 3px 10px rgba(28,138,78,0.3);">
+        <div style="font-size:11px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">✅ Received in ${monthLabelStr}</div>
+        <div style="font-size:22px;font-weight:800;color:#fff;margin-top:4px;">SAR ${fmt(state.financialMonthReceived)}</div>
       </div>
       <div style="background:linear-gradient(135deg,#6B4FC4,#8E72E0);border-radius:14px;padding:16px;box-shadow:0 3px 10px rgba(107,79,196,0.3);">
         <div style="font-size:11px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">⏳ TKE Pending</div>
@@ -4602,9 +4615,9 @@ function renderFinancialReport(){
     ${finTable("#C43B3B", "#FDECEA", iqamaHeaders, iqamaRows)}
     ` : ""}
 
-    ${sectionHead(`📄 INVOICES IN ${monthLabelStr.toUpperCase()}`, "#3E86C4", "addInvoiceBtn")}
-    ${finTable("#3E86C4", "#EAF1FC", invHeaders, invRows, invWidths)}
-    <div style="display:flex;justify-content:space-between;font-weight:800;font-size:10px;color:#3E86C4;padding:4px 4px 0;">
+    ${sectionHead(`📄 INVOICES IN ${monthLabelStr.toUpperCase()}`, "#1B5A96", "addInvoiceBtn")}
+    ${finTable("#1B5A96", "#EAF1FC", invHeaders, invRows, invWidths)}
+    <div style="display:flex;justify-content:space-between;font-weight:800;font-size:10px;color:#1B5A96;padding:4px 4px 0;">
       <span>Total W/O VAT: SAR ${fmt(invTotalNoVat)}</span>
       <span>Total With VAT: SAR ${fmt(invTotalWithVat)}</span>
     </div>
