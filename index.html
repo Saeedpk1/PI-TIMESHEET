@@ -4403,9 +4403,9 @@ function renderFinancialReport(){
   const finTable = (color, tint, headers, rows, colWidths) => `
     <table class="fin-table" style="font-size:9px;width:100%;margin-bottom:4px;table-layout:fixed;border:2px solid ${color};">
       <colgroup>${headers.map((h,i)=>colWidths&&colWidths[i]?`<col style="width:${colWidths[i]};">`:'<col>').join("")}</colgroup>
-      <thead><tr>${headers.map((h,i)=>`<th style="background:${color};color:#fff;padding:3px 3px;text-align:${i===0?"left":"center"};font-size:8px;letter-spacing:0.2px;">${h}</th>`).join("")}</tr></thead>
+      <thead><tr>${headers.map((h,i)=>`<th style="background:${color};color:#fff;padding:3px 3px;text-align:${i===0?"left":"right"};font-size:8px;letter-spacing:0.2px;">${h}</th>`).join("")}</tr></thead>
       <tbody>
-        ${rows.map((r,ri) => `<tr style="background:${ri%2===0?tint:"#fff"};">${r.map((c,i)=>`<td style="padding:3px 3px;text-align:${i===0?"left":"center"};vertical-align:middle;line-height:1.15;word-break:break-word;">${c}</td>`).join("")}</tr>`).join("")}
+        ${rows.map((r,ri) => `<tr style="background:${ri%2===0?tint:"#fff"};">${r.map((c,i)=>`<td style="padding:3px 3px;text-align:${i===0?"left":"right"};vertical-align:middle;line-height:1.15;word-break:break-word;">${c}</td>`).join("")}</tr>`).join("")}
       </tbody>
     </table>`;
 
@@ -4421,12 +4421,11 @@ function renderFinancialReport(){
   const iqamaHeaders = ["Name","Days"];
   const iqamaRows = state.financialIqamaSoon.map(e => {
     const urgent = e.days < 3;
-    const blinkClass = urgent ? "fin-blink" : "";
     const text = e.days < 0 ? `EXP ${Math.abs(e.days)}d` : `${e.days}d`;
     const color = urgent ? "#E01414" : "var(--ink)";
     return [
       e.short_name || e.name,
-      `<span class="${blinkClass}" style="color:${color};font-weight:800;">${text}</span>`
+      `<span style="color:${color};font-weight:900;">${text}</span>`
     ];
   });
 
@@ -4661,11 +4660,11 @@ function renderRenewalsScreen(){
   const rentAlert = (rentDays !== null && rentDays <= 30) ? [{ days: rentDays }] : [];
   const totalAlerts = iqamaAlerts.length + medicalAlert.length + passportAlerts.length + vehicleAlerts.length + crAlert.length + rentAlert.length;
 
-  const alertLine = (label, days, blinkUrgent) => {
+  const alertLine = (label, days, boldUrgent) => {
     const text = days < 0 ? `EXPIRED ${Math.abs(days)}d ago` : (days === 0 ? "expires today" : `${days}d left`);
-    const urgent = blinkUrgent && days < 3;
+    const urgent = boldUrgent && days < 3;
     const color = urgent ? "#E01414" : (days < 0 ? "var(--absent)" : (days <= 7 ? "var(--absent)" : "#C4791F"));
-    return `<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:5px 0;border-top:1px solid rgba(0,0,0,0.06);"><span>${label}</span><span class="${urgent?"fin-blink":""}" style="font-weight:800;color:${color};">${text}</span></div>`;
+    return `<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:5px 0;border-top:1px solid rgba(0,0,0,0.06);"><span>${label}</span><span style="font-weight:${urgent?"900":"800"};color:${color};">${text}</span></div>`;
   };
 
   const alertsCard = totalAlerts ? `
