@@ -4419,10 +4419,16 @@ function renderFinancialReport(){
 
   // Iqama expiring soon (<15 days)
   const iqamaHeaders = ["Name","Days"];
-  const iqamaRows = state.financialIqamaSoon.map(e => [
-    e.short_name || e.name,
-    e.days < 0 ? `<span style="color:var(--absent);font-weight:800;">EXP ${Math.abs(e.days)}d</span>` : `<span style="font-weight:800;">${e.days}d</span>`
-  ]);
+  const iqamaRows = state.financialIqamaSoon.map(e => {
+    const urgent = e.days < 3;
+    const blinkClass = urgent ? "fin-blink" : "";
+    const text = e.days < 0 ? `EXP ${Math.abs(e.days)}d` : `${e.days}d`;
+    const color = urgent ? "#E01414" : "var(--ink)";
+    return [
+      e.short_name || e.name,
+      `<span class="${blinkClass}" style="color:${color};font-weight:800;">${text}</span>`
+    ];
+  });
 
   // Loans
   const loanHeaders = ["Loan","Amount", ...(canEdit?[""]:[])];
@@ -4655,16 +4661,17 @@ function renderRenewalsScreen(){
   const rentAlert = (rentDays !== null && rentDays <= 30) ? [{ days: rentDays }] : [];
   const totalAlerts = iqamaAlerts.length + medicalAlert.length + passportAlerts.length + vehicleAlerts.length + crAlert.length + rentAlert.length;
 
-  const alertLine = (label, days) => {
+  const alertLine = (label, days, blinkUrgent) => {
     const text = days < 0 ? `EXPIRED ${Math.abs(days)}d ago` : (days === 0 ? "expires today" : `${days}d left`);
-    const color = days < 0 ? "var(--absent)" : (days <= 7 ? "var(--absent)" : "#C4791F");
-    return `<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:5px 0;border-top:1px solid rgba(0,0,0,0.06);"><span>${label}</span><span style="font-weight:800;color:${color};">${text}</span></div>`;
+    const urgent = blinkUrgent && days < 3;
+    const color = urgent ? "#E01414" : (days < 0 ? "var(--absent)" : (days <= 7 ? "var(--absent)" : "#C4791F"));
+    return `<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:5px 0;border-top:1px solid rgba(0,0,0,0.06);"><span>${label}</span><span class="${urgent?"fin-blink":""}" style="font-weight:800;color:${color};">${text}</span></div>`;
   };
 
   const alertsCard = totalAlerts ? `
     <div style="background:#FDF3E6;border:2px solid #F0C766;border-radius:12px;padding:14px;margin-bottom:16px;">
       <div style="font-weight:800;font-size:13px;color:#966109;">🔔 Expiring soon (${totalAlerts})</div>
-      ${iqamaAlerts.map(e => alertLine(`🪪 ${e.short_name || e.name} — Iqama`, e.days)).join("")}
+      ${iqamaAlerts.map(e => alertLine(`🪪 ${e.short_name || e.name} — Iqama`, e.days, true)).join("")}
       ${medicalAlert.map(m => alertLine(`🩺 Medical Insurance (all staff)`, m.days)).join("")}
       ${passportAlerts.map(e => alertLine(`📔 ${e.short_name || e.name} — Passport`, e.days)).join("")}
       ${vehicleAlerts.map(v => alertLine(`🚗 ${v.plate} — ${v.label}`, v.days)).join("")}
