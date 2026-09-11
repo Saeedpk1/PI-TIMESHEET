@@ -4502,7 +4502,7 @@ function renderFinancialReport(){
   });
   let grandTotalPending = 0;
   const pendingHeaders = ["Client","Invoice","Amount","Issue","Due", ...(canEdit?[""]:[])];
-  const pendingWidths = ["24%","16%","16%","15%","15%", ...(canEdit?["14%"]:[])];
+  const pendingWidths = ["22%","22%","14%","14%","14%", ...(canEdit?["14%"]:[])];
   const otisTotal = (groups["OTIS"]||[]).reduce((s,v)=>s+Number(v.amount||0),0);
   const tkeTotal = (groups["TKE"]||[]).reduce((s,v)=>s+Number(v.amount||0),0);
   const schindlerTotal = (groups["Schindler"]||[]).reduce((s,v)=>s+Number(v.amount||0),0);
