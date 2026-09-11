@@ -4501,8 +4501,8 @@ function renderFinancialReport(){
     groups[groupName].push({ ...p, projectName });
   });
   let grandTotalPending = 0;
-  const pendingHeaders = ["Client","Invoice","Amount","Due", ...(canEdit?[""]:[])];
-  const pendingWidths = ["24%","22%","22%","18%", ...(canEdit?["14%"]:[])];
+  const pendingHeaders = ["Client","Invoice","Amount","Issue","Due", ...(canEdit?[""]:[])];
+  const pendingWidths = ["24%","16%","16%","15%","15%", ...(canEdit?["14%"]:[])];
   const otisTotal = (groups["OTIS"]||[]).reduce((s,v)=>s+Number(v.amount||0),0);
   const tkeTotal = (groups["TKE"]||[]).reduce((s,v)=>s+Number(v.amount||0),0);
   const schindlerTotal = (groups["Schindler"]||[]).reduce((s,v)=>s+Number(v.amount||0),0);
@@ -4661,7 +4661,7 @@ function renderFinancialReport(){
       const fallback = { c: "#C4791F", t: "#FDF3E6" };
       return Object.entries(groups).map(([groupName, items]) => {
         const rows = items.map(v => [
-          v.projectName || "-", v.invoice_no || "-", fmt(v.amount), fmtD(v.due_date), editDelBtns("pending", v.id)
+          v.projectName || "-", v.invoice_no || "-", fmt(v.amount), fmtD(v.issue_date), fmtD(v.due_date), editDelBtns("pending", v.id)
         ].filter((_,i)=>i<pendingHeaders.length));
         const total = items.reduce((s,v)=>s+Number(v.amount||0),0);
         grandTotalPending += total;
