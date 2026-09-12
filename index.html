@@ -3465,7 +3465,7 @@ async function loadProjectSummary(){
     sb.from("ts_projects").select("*").eq("active", true).order("name"),
     sb.from("ts_project_units").select("*").eq("active", true),
     sb.from("ts_daily_reports").select("project_id, team_member_ids"),
-    sb.from("ts_financial_invoices").select("project_id, amount_no_vat").not("project_id", "is", null)
+    sb.from("ts_financial_invoices").select("*").not("project_id", "is", null).order("created_at", { ascending: true })
   ]);
 
   const allEmpIds = [...new Set((reports || []).flatMap(r => r.team_member_ids || []))];
@@ -3475,11 +3475,13 @@ async function loadProjectSummary(){
     (emps || []).forEach(e => { rateById[e.id] = Number(e.expenses_per_day) || 0; });
   }
 
+  // PO Value only comes from fixed-price units -- manpower units (billed
+  // by claim rate, no fixed PO) are excluded even if they have a leftover
+  // po_value from before they were switched to manpower billing.
   const poByProject = {};
-  const unitsCountByProject = {};
   (units || []).forEach(u => {
+    if(u.is_manpower) return;
     poByProject[u.project_id] = (poByProject[u.project_id] || 0) + Number(u.po_value || 0);
-    unitsCountByProject[u.project_id] = (unitsCountByProject[u.project_id] || 0) + 1;
   });
 
   const expensesByProject = {};
@@ -3490,18 +3492,21 @@ async function loadProjectSummary(){
 
   const invoicesByProject = {};
   (invoices || []).forEach(v => {
-    invoicesByProject[v.project_id] = (invoicesByProject[v.project_id] || 0) + Number(v.amount_no_vat || 0);
+    if(!invoicesByProject[v.project_id]) invoicesByProject[v.project_id] = [];
+    invoicesByProject[v.project_id].push(v);
   });
 
   state.projectSummaryRows = (projects || []).map(p => {
+    const projectInvoices = invoicesByProject[p.id] || [];
+    const invoicesSum = projectInvoices.reduce((s,v)=>s+Number(v.amount_no_vat||0),0);
     const poValue = Number(p.opening_po_value || 0) + (poByProject[p.id] || 0);
     const expenses = Number(p.opening_expenses || 0) + (expensesByProject[p.id] || 0);
-    const invoicesTotal = Number(p.opening_invoices || 0) + (invoicesByProject[p.id] || 0);
+    const invoicesTotal = Number(p.opening_invoices || 0) + invoicesSum;
     const balance = poValue - invoicesTotal;
     const margin = invoicesTotal > 0 ? (invoicesTotal - expenses) / invoicesTotal : null;
     return {
-      id: p.id, name: p.name, unitsCount: unitsCountByProject[p.id] || 0, startingDate: p.starting_date,
-      poValue, expenses, invoicesTotal, balance, margin,
+      id: p.id, name: p.name, startingDate: p.starting_date,
+      poValue, expenses, invoicesTotal, balance, margin, invoices: projectInvoices,
       openingPo: p.opening_po_value, openingExpenses: p.opening_expenses, openingInvoices: p.opening_invoices
     };
   });
@@ -4708,38 +4713,65 @@ function renderProjectSummary(){
   const canEdit = isHrUser;
   const fmt = n => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
 
-  const table = (headColor, tint, headers, rows, colWidths) => `
-    <table class="fin-table" style="font-size:9.5px;width:100%;margin-bottom:4px;table-layout:fixed;border:2px solid ${headColor};">
-      <colgroup>${headers.map((h,i)=>colWidths&&colWidths[i]?`<col style="width:${colWidths[i]};">`:'<col>').join("")}</colgroup>
-      <thead><tr>${headers.map((h,i)=>`<th style="background:${headColor};color:#fff;padding:4px 3px;text-align:${i===0?"left":"right"};font-size:8.5px;">${h}</th>`).join("")}</tr></thead>
-      <tbody>
-        ${rows.map((r,ri) => `<tr style="background:${ri%2===0?tint:"#fff"};">${r.map((c,i)=>`<td style="padding:4px 3px;text-align:${i===0?"left":"right"};vertical-align:middle;line-height:1.2;word-break:break-word;">${c}</td>`).join("")}</tr>`).join("")}
-      </tbody>
-    </table>`;
-
-  const headers = ["Project","Units","Start","PO Value","Expenses","Invoices","Balance","Margin", ...(canEdit?[""]:[])];
-  const widths = ["20%","8%","10%","14%","14%","14%","12%","10%", ...(canEdit?["10%"]:[])];
-  const rows = state.projectSummaryRows.map(p => {
+  const cards = state.projectSummaryRows.map(p => {
     const marginText = p.margin === null ? "-" : `${(p.margin*100).toFixed(1)}%`;
-    const marginColor = p.margin === null ? "var(--muted)" : (p.margin >= 0 ? "var(--present)" : "var(--absent)");
-    return [
-      p.name, p.unitsCount || "-", p.startingDate ? toDDMMYYYY(p.startingDate) : "-",
-      fmt(p.poValue), fmt(p.expenses), fmt(p.invoicesTotal),
-      `<span style="color:${p.balance<0?"var(--absent)":"var(--ink)"};font-weight:800;">${fmt(p.balance)}</span>`,
-      `<span style="color:${marginColor};font-weight:800;">${marginText}</span>`,
-      canEdit ? `<button data-edit-project-opening="${p.id}" style="border:none;background:none;padding:0;font-size:11px;cursor:pointer;color:var(--blue);">✎</button>` : ""
-    ].filter((_,i)=>i<headers.length);
-  });
+    const marginOk = p.margin !== null && p.margin >= 0;
+    const balanceOk = p.balance >= 0;
+
+    const invoiceRows = p.invoices.map((v,i) => `
+      <div style="display:flex;justify-content:space-between;font-size:11px;padding:5px 0;border-top:1px dashed var(--line);">
+        <span>${i+1}. ${v.description || "-"}${v.invoice_no ? " · " + v.invoice_no : ""}</span>
+        <span style="font-weight:700;">${fmt(v.amount_no_vat)}</span>
+      </div>`).join("");
+
+    return `
+    <div class="card" style="margin-bottom:14px;border:2px solid #C7D9EA;">
+      <div class="row-between">
+        <h3 style="font-size:15px;margin:0;">${p.name}</h3>
+        ${canEdit ? `<button data-edit-project-opening="${p.id}" style="border:none;background:none;padding:0;font-size:14px;cursor:pointer;color:var(--blue);">✎</button>` : ""}
+      </div>
+      ${p.startingDate ? `<div class="meta">Started ${toDDMMYYYY(p.startingDate)}</div>` : ""}
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+        <div style="background:linear-gradient(135deg,#1B5A96,#3E86C4);border-radius:10px;padding:10px;color:#fff;">
+          <div style="font-size:9.5px;opacity:0.9;text-transform:uppercase;font-weight:700;">PO Value (w/o VAT)</div>
+          <div style="font-size:15px;font-weight:800;margin-top:2px;">SAR ${fmt(p.poValue)}</div>
+        </div>
+        <div style="background:linear-gradient(135deg,#C43B3B,#E0645F);border-radius:10px;padding:10px;color:#fff;">
+          <div style="font-size:9.5px;opacity:0.9;text-transform:uppercase;font-weight:700;">Expenses</div>
+          <div style="font-size:15px;font-weight:800;margin-top:2px;">SAR ${fmt(p.expenses)}</div>
+        </div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <div style="font-weight:800;font-size:12px;color:#1C8A4E;">✅ Invoices Raised</div>
+        ${invoiceRows || `<div class="meta" style="padding:4px 0;">None raised yet.</div>`}
+        <div style="display:flex;justify-content:space-between;font-weight:800;font-size:12px;padding-top:6px;margin-top:2px;border-top:2px solid var(--line);">
+          <span>Total Invoices</span><span>SAR ${fmt(p.invoicesTotal)}</span>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+        <div style="background:${balanceOk?"#EAF6ED":"#FDECEA"};border-radius:10px;padding:10px;text-align:center;">
+          <div class="meta">Balance</div>
+          <div style="font-size:15px;font-weight:800;color:${balanceOk?"var(--present)":"var(--absent)"};">SAR ${fmt(p.balance)}</div>
+        </div>
+        <div style="background:${marginOk?"#EAF6ED":"#FDECEA"};border-radius:10px;padding:10px;text-align:center;">
+          <div class="meta">Profit Margin</div>
+          <div style="font-size:15px;font-weight:800;color:${marginOk?"var(--present)":"var(--absent)"};">${marginText}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
 
   return `
     <button class="link-btn" id="${backBtnId}" style="margin-bottom:12px;">‹ Back</button>
     <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:14px;padding:14px 16px;margin-bottom:14px;">
       <h3 style="color:#fff;font-size:15px;margin:0;">📊 Project Summary</h3>
-      <div class="meta" style="color:#BFDCF5;">Overall per project — not per unit</div>
+      <div class="meta" style="color:#BFDCF5;">Overall per project</div>
     </div>
     ${canEdit ? `<div class="field-note" style="margin-bottom:10px;">Tap ✎ on a project to set its starting date and opening balance (for history from before the app).</div>` : ""}
-    ${table("#0F3556", "#EAF1FC", headers, rows, widths)}
-    ${!state.projectSummaryRows.length ? `<div class="empty-state"><div class="ic">📊</div>No active projects found.</div>` : ""}
+    ${cards || `<div class="empty-state"><div class="ic">📊</div>No active projects found.</div>`}
   `;
 }
 
