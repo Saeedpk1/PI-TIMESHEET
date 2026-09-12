@@ -481,6 +481,7 @@ let state = {
   expandedProjectId: null,
   unitFinancials: null,
   viewingUnitId: null,
+  unitForecastDays: "",
   ceoMessageDraft: "",
   myCeoMessages: [],
   ceoInboxMessages: [],
@@ -599,7 +600,7 @@ async function savePoValue(unitId, projectId){
 }
 
 async function loadUnitFinancials(unitId){
-  state.loading = true; state.viewingUnitId = unitId; render();
+  state.loading = true; state.viewingUnitId = unitId; state.unitForecastDays = ""; render();
   const { data: unit } = await sb.from("ts_project_units").select("*, ts_projects:project_id(name)").eq("id", unitId).maybeSingle();
   const { data: reports } = await sb.from("ts_daily_reports").select("report_date, team_member_ids").eq("unit_id", unitId).order("report_date", { ascending: true });
 
@@ -6044,6 +6045,48 @@ function renderUnitFinancialReport(){
       <svg viewBox="0 0 ${chartW} ${chartH}" style="width:100%;height:auto;">${svgBars}</svg>
     </div>
 
+    <div class="card" style="margin-top:14px;border:2px solid #DCD0F5;">
+      <div style="font-weight:800;font-size:13px;color:#6B4FC4;">🔮 Forecast — if it takes longer</div>
+      <div class="meta" style="margin-bottom:8px;">Not saved — just a quick "what if" based on the average daily cost so far.</div>
+      <label style="margin-top:0;">Additional days to completion</label>
+      <input type="number" min="0" step="1" id="unitForecastDaysInput" placeholder="e.g. 6, 8, 11" value="${state.unitForecastDays}">
+      ${(() => {
+        const extraDays = Number(state.unitForecastDays);
+        if(!state.unitForecastDays || isNaN(extraDays) || extraDays <= 0) return "";
+        if(f.daysWorked <= 0) return `<div class="field-note" style="margin-top:8px;">Need at least one day already worked to project an average daily cost.</div>`;
+        const avgDailyCost = f.totalCost / f.daysWorked;
+        const extraCost = avgDailyCost * extraDays;
+        const projectedTotalCost = f.totalCost + extraCost;
+        const projectedProfit = f.poValue - projectedTotalCost;
+        const projectedMargin = f.poValue > 0 ? (projectedProfit / f.poValue) * 100 : null;
+        const projectedOk = projectedProfit >= 0;
+        return `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+          <div style="background:linear-gradient(135deg,#6B4FC4,#8E72E0);border-radius:12px;padding:12px;color:#fff;">
+            <div style="font-size:9.5px;opacity:0.9;text-transform:uppercase;font-weight:700;">Avg Cost / Day</div>
+            <div style="font-size:16px;font-weight:800;margin-top:2px;">${fmtSAR(avgDailyCost)}</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#C43B3B,#E0645F);border-radius:12px;padding:12px;color:#fff;">
+            <div style="font-size:9.5px;opacity:0.9;text-transform:uppercase;font-weight:700;">Extra Cost (+${extraDays}d)</div>
+            <div style="font-size:16px;font-weight:800;margin-top:2px;">${fmtSAR(extraCost)}</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#1B5A96,#3E86C4);border-radius:12px;padding:12px;color:#fff;">
+            <div style="font-size:9.5px;opacity:0.9;text-transform:uppercase;font-weight:700;">Projected Total Cost</div>
+            <div style="font-size:16px;font-weight:800;margin-top:2px;">${fmtSAR(projectedTotalCost)}</div>
+          </div>
+          <div style="background:linear-gradient(135deg,${projectedOk?"#1C8A4E,#2FAE68":"#C43B3B,#E0645F"});border-radius:12px;padding:12px;color:#fff;">
+            <div style="font-size:9.5px;opacity:0.9;text-transform:uppercase;font-weight:700;">Projected Profit</div>
+            <div style="font-size:16px;font-weight:800;margin-top:2px;">${fmtSAR(projectedProfit)}</div>
+          </div>
+        </div>
+        <div style="background:linear-gradient(135deg,${projectedOk?"var(--ksa-gold),#B8912A":"#C43B3B,#E0645F"});border-radius:12px;padding:14px;margin-top:8px;text-align:center;color:#fff;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:0.9;">Projected Margin (+${extraDays} days)</div>
+          <div style="font-size:26px;font-weight:800;margin-top:2px;">${projectedMargin === null ? "-" : projectedMargin.toFixed(1) + "%"}</div>
+        </div>
+        `;
+      })()}
+    </div>
+
     <div class="meta" style="margin-top:14px;text-align:center;">Cost is calculated from each employee's daily rate × days they were recorded working on this unit.</div>
   `;
 }
@@ -7052,6 +7095,13 @@ function handleDelegatedInput(e){
     const cursorPos = e.target.selectionStart;
     render();
     const freshInput = document.getElementById("vehicleDocsSearchInput");
+    if(freshInput){ freshInput.focus(); freshInput.setSelectionRange(cursorPos, cursorPos); }
+  }
+  if(e.target.id === "unitForecastDaysInput"){
+    state.unitForecastDays = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    render();
+    const freshInput = document.getElementById("unitForecastDaysInput");
     if(freshInput){ freshInput.focus(); freshInput.setSelectionRange(cursorPos, cursorPos); }
   }
   if(e.target.id === "myProfileMobile"){ state.myProfileDraft.mobile_number = e.target.value; }
