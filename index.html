@@ -464,6 +464,7 @@ let state = {
   financialSummaryMode: false,
   financialMonthInvoiced: 0,
   financialMonthReceived: 0,
+  projectSummaryRows: [],
   financialReportDate: todayLocalISO(),
   financialDirty: false,
   employeeDirectory: [],
@@ -2170,7 +2171,7 @@ async function saveFinancialReportForDay(){
     const inserts = [];
     if(state.financialBalance) inserts.push(sb.from("ts_financial_balance").insert({ report_date: date, balance: state.financialBalance.balance }));
     if(state.financialLoans.length) inserts.push(sb.from("ts_financial_loans").insert(state.financialLoans.map(l => ({ name: l.name, amount: l.amount, report_date: date }))));
-    if(state.financialInvoices.length) inserts.push(sb.from("ts_financial_invoices").insert(state.financialInvoices.map(v => ({ description: v.description, invoice_no: v.invoice_no, amount_no_vat: v.amount_no_vat, amount_with_vat: v.amount_with_vat, invoice_month: v.invoice_month, report_date: date }))));
+    if(state.financialInvoices.length) inserts.push(sb.from("ts_financial_invoices").insert(state.financialInvoices.map(v => ({ description: v.description, invoice_no: v.invoice_no, amount_no_vat: v.amount_no_vat, amount_with_vat: v.amount_with_vat, invoice_month: v.invoice_month, project_id: v.project_id || null, report_date: date }))));
     if(state.financialPayments.length) inserts.push(sb.from("ts_financial_payments").insert(state.financialPayments.map(v => ({ project: v.project, company: v.company, invoice_no: v.invoice_no, amount: v.amount, payment_date: v.payment_date, report_date: date }))));
     if(state.financialPending.length) inserts.push(sb.from("ts_financial_pending").insert(state.financialPending.map(v => ({ client: v.client, invoice_no: v.invoice_no, amount: v.amount, issue_date: v.issue_date, due_date: v.due_date, report_date: date }))));
     if(state.financialPo.length) inserts.push(sb.from("ts_financial_po").insert(state.financialPo.map(v => ({ project: v.project, po_month: v.po_month, amount: v.amount, received: v.received, report_date: date }))));
@@ -2219,6 +2220,17 @@ function deleteFinancialLoanDraft(id){
 
 const VAT_RATE = 0.15; // Saudi VAT rate, used to auto-fill whichever VAT amount is left blank
 
+function promptProjectPicker(currentProjectId){
+  const projects = state.projects.filter(p=>p.active);
+  if(!projects.length) return currentProjectId || null;
+  const list = projects.map((p,i) => `${i+1} = ${p.name}`).join("\n");
+  const currentIdx = projects.findIndex(p=>p.id===currentProjectId);
+  const choice = (prompt(`Which project is this for? (for Project Summary tracking)\n${list}\n0 = None`, currentIdx>=0 ? String(currentIdx+1) : "0") || "").trim();
+  const idx = Number(choice);
+  if(!idx || idx < 1 || idx > projects.length) return null;
+  return projects[idx-1].id;
+}
+
 function addFinancialInvoiceDraft(){
   const description = (prompt("Description:") || "").trim();
   if(!description) return;
@@ -2228,7 +2240,8 @@ function addFinancialInvoiceDraft(){
   if(withVat && !noVat) noVat = Math.round((withVat / (1 + VAT_RATE)) * 100) / 100;
   else if(noVat && !withVat) withVat = Math.round((noVat * (1 + VAT_RATE)) * 100) / 100;
   const month = (prompt("Month (e.g. Sep 2026):") || "").trim();
-  state.financialInvoices.push({ id: financialTempId(), description, invoice_no: invoiceNo, amount_no_vat: noVat || null, amount_with_vat: withVat || null, invoice_month: month });
+  const projectId = promptProjectPicker(null);
+  state.financialInvoices.push({ id: financialTempId(), description, invoice_no: invoiceNo, amount_no_vat: noVat || null, amount_with_vat: withVat || null, invoice_month: month, project_id: projectId });
   markFinancialDirty(); render();
 }
 function editFinancialInvoiceDraft(id){
@@ -2242,7 +2255,8 @@ function editFinancialInvoiceDraft(id){
   if(withVat && !noVat) noVat = Math.round((withVat / (1 + VAT_RATE)) * 100) / 100;
   else if(noVat && !withVat) withVat = Math.round((noVat * (1 + VAT_RATE)) * 100) / 100;
   const month = (prompt("Month (e.g. Sep 2026):", v.invoice_month) || "").trim();
-  v.description = description; v.invoice_no = invoiceNo; v.amount_no_vat = noVat || null; v.amount_with_vat = withVat || null; v.invoice_month = month;
+  const projectId = promptProjectPicker(v.project_id);
+  v.description = description; v.invoice_no = invoiceNo; v.amount_no_vat = noVat || null; v.amount_with_vat = withVat || null; v.invoice_month = month; v.project_id = projectId;
   markFinancialDirty(); render();
 }
 function deleteFinancialInvoiceDraft(id){
@@ -3418,6 +3432,80 @@ async function exportAttendanceByProjectExcel(){
   render();
 }
 
+/* ---------------- Project Summary (overall, not per-unit) ---------------- */
+async function loadProjectSummary(){
+  state.loading = true; render();
+  const [{ data: projects }, { data: units }, { data: reports }, { data: invoices }] = await Promise.all([
+    sb.from("ts_projects").select("*").eq("active", true).order("name"),
+    sb.from("ts_project_units").select("*").eq("active", true),
+    sb.from("ts_daily_reports").select("project_id, team_member_ids"),
+    sb.from("ts_financial_invoices").select("project_id, amount_no_vat").not("project_id", "is", null)
+  ]);
+
+  const allEmpIds = [...new Set((reports || []).flatMap(r => r.team_member_ids || []))];
+  let rateById = {};
+  if(allEmpIds.length){
+    const { data: emps } = await sb.from("ts_employees").select("id, expenses_per_day").in("id", allEmpIds);
+    (emps || []).forEach(e => { rateById[e.id] = Number(e.expenses_per_day) || 0; });
+  }
+
+  const poByProject = {};
+  const unitsCountByProject = {};
+  (units || []).forEach(u => {
+    poByProject[u.project_id] = (poByProject[u.project_id] || 0) + Number(u.po_value || 0);
+    unitsCountByProject[u.project_id] = (unitsCountByProject[u.project_id] || 0) + 1;
+  });
+
+  const expensesByProject = {};
+  (reports || []).forEach(r => {
+    const cost = (r.team_member_ids || []).reduce((s,id) => s + (rateById[id] || 0), 0);
+    expensesByProject[r.project_id] = (expensesByProject[r.project_id] || 0) + cost;
+  });
+
+  const invoicesByProject = {};
+  (invoices || []).forEach(v => {
+    invoicesByProject[v.project_id] = (invoicesByProject[v.project_id] || 0) + Number(v.amount_no_vat || 0);
+  });
+
+  state.projectSummaryRows = (projects || []).map(p => {
+    const poValue = Number(p.opening_po_value || 0) + (poByProject[p.id] || 0);
+    const expenses = Number(p.opening_expenses || 0) + (expensesByProject[p.id] || 0);
+    const invoicesTotal = Number(p.opening_invoices || 0) + (invoicesByProject[p.id] || 0);
+    const balance = poValue - invoicesTotal;
+    const margin = invoicesTotal > 0 ? (invoicesTotal - expenses) / invoicesTotal : null;
+    return {
+      id: p.id, name: p.name, unitsCount: unitsCountByProject[p.id] || 0, startingDate: p.starting_date,
+      poValue, expenses, invoicesTotal, balance, margin,
+      openingPo: p.opening_po_value, openingExpenses: p.opening_expenses, openingInvoices: p.opening_invoices
+    };
+  });
+  state.loading = false;
+  render();
+}
+
+async function editProjectOpeningBalance(projectId){
+  const p = state.projectSummaryRows.find(x=>x.id===projectId);
+  if(!p) return;
+  const startingDate = promptDate("Starting date", p.startingDate);
+  if(startingDate === undefined) return;
+  const openingPoInput = prompt("Opening PO Value — from before the app existed (w/o VAT):", p.openingPo || 0);
+  if(openingPoInput === null) return;
+  const openingExpensesInput = prompt("Opening Expenses — from before the app existed:", p.openingExpenses || 0);
+  if(openingExpensesInput === null) return;
+  const openingInvoicesInput = prompt("Opening Invoices — from before the app existed (w/o VAT):", p.openingInvoices || 0);
+  if(openingInvoicesInput === null) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_projects").update({
+    starting_date: startingDate,
+    opening_po_value: Number(openingPoInput) || 0,
+    opening_expenses: Number(openingExpensesInput) || 0,
+    opening_invoices: Number(openingInvoicesInput) || 0
+  }).eq("id", projectId);
+  state.loading = false;
+  toast(error ? "Could not save." : "Opening balance updated.");
+  await loadProjectSummary();
+}
+
 async function generateWpsPayroll(payrollGroup){
   const fileNumInput = prompt("WPS file number for today (e.g. 1, 2, 3...):", "1");
   if(fileNumInput === null) return;
@@ -4148,6 +4236,7 @@ function render(){
   else if(state.view === "renewals-screen") body = renderRenewalsScreen();
   else if(state.view === "vehicle-documents") body = renderVehicleDocumentsScreen();
   else if(state.view === "financial-report") body = renderFinancialReport();
+  else if(state.view === "project-summary") body = renderProjectSummary();
   else if(state.view === "employee-directory") body = renderEmployeeDirectory();
   else if(state.view === "my-profile") body = renderMyProfile();
   else if(state.view === "combined-reports") body = renderCombinedReports();
@@ -4423,6 +4512,7 @@ function renderRajeshDashboard(){
     <div class="hr-section-label" style="color:var(--navy);">💰 Finance</div>
     <div class="hr-tile-grid">
       <div class="hr-tile" id="openFinancialReportBtn" style="border-color:#C7D9EA;"><span class="icon">💰</span><span class="label">Financial<br>Report</span></div>
+      <div class="hr-tile" id="openProjectSummaryBtn" style="border-color:#C7D9EA;"><span class="icon">📊</span><span class="label">Project<br>Summary</span></div>
     </div>
   `;
 }
@@ -4577,6 +4667,48 @@ function renderMyProfile(){
       <input type="text" id="myProfileBankName" value="${d.bank_name}">
       <button class="btn btn-submit btn-sm" id="saveMyProfileBtn" style="width:100%;margin-top:10px;">💾 Save</button>
     </div>
+  `;
+}
+
+function renderProjectSummary(){
+  const isHrUser = state.user.role === "hr";
+  const isCeoUser = state.user.role === "ceo";
+  const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (isHrUser ? "backToHrBtn" : "backToSupervisorHomeBtn");
+  const canEdit = isHrUser;
+  const fmt = n => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
+
+  const table = (headColor, tint, headers, rows, colWidths) => `
+    <table class="fin-table" style="font-size:9.5px;width:100%;margin-bottom:4px;table-layout:fixed;border:2px solid ${headColor};">
+      <colgroup>${headers.map((h,i)=>colWidths&&colWidths[i]?`<col style="width:${colWidths[i]};">`:'<col>').join("")}</colgroup>
+      <thead><tr>${headers.map((h,i)=>`<th style="background:${headColor};color:#fff;padding:4px 3px;text-align:${i===0?"left":"right"};font-size:8.5px;">${h}</th>`).join("")}</tr></thead>
+      <tbody>
+        ${rows.map((r,ri) => `<tr style="background:${ri%2===0?tint:"#fff"};">${r.map((c,i)=>`<td style="padding:4px 3px;text-align:${i===0?"left":"right"};vertical-align:middle;line-height:1.2;word-break:break-word;">${c}</td>`).join("")}</tr>`).join("")}
+      </tbody>
+    </table>`;
+
+  const headers = ["Project","Units","Start","PO Value","Expenses","Invoices","Balance","Margin", ...(canEdit?[""]:[])];
+  const widths = ["20%","8%","10%","14%","14%","14%","12%","10%", ...(canEdit?["10%"]:[])];
+  const rows = state.projectSummaryRows.map(p => {
+    const marginText = p.margin === null ? "-" : `${(p.margin*100).toFixed(1)}%`;
+    const marginColor = p.margin === null ? "var(--muted)" : (p.margin >= 0 ? "var(--present)" : "var(--absent)");
+    return [
+      p.name, p.unitsCount || "-", p.startingDate ? toDDMMYYYY(p.startingDate) : "-",
+      fmt(p.poValue), fmt(p.expenses), fmt(p.invoicesTotal),
+      `<span style="color:${p.balance<0?"var(--absent)":"var(--ink)"};font-weight:800;">${fmt(p.balance)}</span>`,
+      `<span style="color:${marginColor};font-weight:800;">${marginText}</span>`,
+      canEdit ? `<button data-edit-project-opening="${p.id}" style="border:none;background:none;padding:0;font-size:11px;cursor:pointer;color:var(--blue);">✎</button>` : ""
+    ].filter((_,i)=>i<headers.length);
+  });
+
+  return `
+    <button class="link-btn" id="${backBtnId}" style="margin-bottom:12px;">‹ Back</button>
+    <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:14px;padding:14px 16px;margin-bottom:14px;">
+      <h3 style="color:#fff;font-size:15px;margin:0;">📊 Project Summary</h3>
+      <div class="meta" style="color:#BFDCF5;">Overall per project — not per unit</div>
+    </div>
+    ${canEdit ? `<div class="field-note" style="margin-bottom:10px;">Tap ✎ on a project to set its starting date and opening balance (for history from before the app).</div>` : ""}
+    ${table("#0F3556", "#EAF1FC", headers, rows, widths)}
+    ${!state.projectSummaryRows.length ? `<div class="empty-state"><div class="ic">📊</div>No active projects found.</div>` : ""}
   `;
 }
 
@@ -5437,6 +5569,7 @@ function renderHrView(){
     <div class="hr-tile-grid">
       <div class="hr-tile" id="openFinancialReportBtn" style="border-color:#C7D9EA;"><span class="icon">💰</span><span class="label">Financial<br>Report</span></div>
       <div class="hr-tile" id="viewFinancialReportOnlyBtn" style="border-color:#C7D9EA;"><span class="icon">👁</span><span class="label">View<br>Report</span></div>
+      <div class="hr-tile" id="openProjectSummaryBtn" style="border-color:#C7D9EA;"><span class="icon">📊</span><span class="label">Project<br>Summary</span></div>
     </div>
   `;
 }
@@ -5780,6 +5913,13 @@ function renderCeoHome(){
       <div class="body">
         <div class="title">Financial Report</div>
         <div class="desc">Balance, loans, invoices, and PO tracker</div>
+      </div>
+    </div>
+    <div class="ceo-tile" id="openProjectSummaryBtn">
+      <div class="icon">📊</div>
+      <div class="body">
+        <div class="title">Project Summary</div>
+        <div class="desc">Overall PO Value, expenses, invoices and margin per project</div>
       </div>
     </div>
     <div class="ceo-tile" id="openCombinedReportsBtn">
@@ -6561,6 +6701,13 @@ function handleDelegatedClick(e){
     loadFinancialReport(todayLocalISO());
     return;
   }
+  if(el("openProjectSummaryBtn")){
+    state.view = "project-summary";
+    loadProjectSummary();
+    return;
+  }
+  const editProjectOpeningEl = e.target.closest("[data-edit-project-opening]");
+  if(editProjectOpeningEl){ editProjectOpeningBalance(editProjectOpeningEl.getAttribute("data-edit-project-opening")); return; }
   if(el("editBalanceBtn")){ updateFinancialBalanceDraft(); return; }
   if(el("addLoanBtn")){ addFinancialLoanDraft(); return; }
   if(el("addInvoiceBtn")){ addFinancialInvoiceDraft(); return; }
