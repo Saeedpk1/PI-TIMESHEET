@@ -3310,6 +3310,114 @@ async function downloadWorkbook(wb, filename){
   setTimeout(()=> URL.revokeObjectURL(url), 4000);
 }
 
+async function exportAttendanceByProjectExcel(){
+  const defaultMonth = state.hrMonth || monthKey(new Date());
+  const monthStr = prompt("Month to export (YYYY-MM):", defaultMonth);
+  if(!monthStr) return;
+  const [year, month] = monthStr.split("-").map(Number);
+  if(!year || !month || month < 1 || month > 12){ toast("Enter a valid month like 2026-09."); return; }
+
+  state.loading = true; render();
+  try{
+    const daysInMonthCount = new Date(year, month, 0).getDate();
+    const mm = String(month).padStart(2,"0");
+    const monthStart = `${year}-${mm}-01`;
+    const monthEnd = `${year}-${mm}-${String(daysInMonthCount).padStart(2,"0")}`;
+
+    const [{ data: employees }, { data: reports }, { data: absenceRows }, { data: vacations }, { data: projects }] = await Promise.all([
+      sb.from("ts_employees").select("id, name, short_name, salary_group").eq("active", true).not("short_name", "is", null).order("name"),
+      sb.from("ts_daily_reports").select("report_date, project_id, team_member_ids").gte("report_date", monthStart).lte("report_date", monthEnd),
+      sb.from("ts_daily_absences").select("*").gte("absence_date", monthStart).lte("absence_date", monthEnd),
+      sb.from("ts_vacations").select("*").lte("start_date", monthEnd).gte("end_date", monthStart),
+      sb.from("ts_projects").select("id, name")
+    ]);
+
+    const projectNameById = {};
+    (projects || []).forEach(p => { projectNameById[p.id] = p.name; });
+
+    // date|employeeId -> project name (an employee can't be double-booked on the same day)
+    const dayProjectMap = {};
+    (reports || []).forEach(r => {
+      const pname = projectNameById[r.project_id] || "Project";
+      (r.team_member_ids || []).forEach(empId => { dayProjectMap[`${r.report_date}|${empId}`] = pname; });
+    });
+
+    const absentByDate = {};
+    (absenceRows || []).forEach(a => { absentByDate[a.absence_date] = new Set(a.absent_ids || []); });
+
+    const vacationsByEmp = {};
+    (vacations || []).forEach(v => {
+      if(!vacationsByEmp[v.employee_id]) vacationsByEmp[v.employee_id] = [];
+      vacationsByEmp[v.employee_id].push([v.start_date, v.end_date]);
+    });
+    function isOnVacation(empId, dateStr){
+      return (vacationsByEmp[empId] || []).some(([s,e]) => dateStr >= s && dateStr <= e);
+    }
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Attendance", { views: [{ showGridLines: false }] });
+    const fixedCols = ["NO", "NAME", "COMPANY"];
+    const dayHeaders = [];
+    for(let d = 1; d <= daysInMonthCount; d++) dayHeaders.push(`${String(d).padStart(2,"0")}-${mm}`);
+    const allHeaders = [...fixedCols, ...dayHeaders];
+    ws.columns = allHeaders.map((h,i) => ({ width: i===0 ? 5 : (i===1 ? 22 : (i===2 ? 10 : 9)) }));
+
+    ws.mergeCells(1, 1, 1, allHeaders.length);
+    const title = ws.getCell(1,1);
+    title.value = `DAILY ATTENDANCE BY PROJECT — ${monthLabel(new Date(year, month-1, 1)).toUpperCase()}`;
+    title.font = { bold: true, size: 13, color: { argb: "FFFFFFFF" } };
+    title.alignment = { horizontal: "center", vertical: "middle" };
+    title.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F3556" } };
+    ws.getRow(1).height = 24;
+
+    const hr = ws.getRow(2);
+    hr.values = allHeaders;
+    hr.eachCell(cell => {
+      cell.font = { bold: true, size: 9, color: { argb: "FFFFFFFF" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1B5A96" } };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = { top:{style:"thin"}, left:{style:"thin"}, bottom:{style:"thin"}, right:{style:"thin"} };
+    });
+    hr.height = 18;
+
+    (employees || []).forEach((emp, idx) => {
+      const row = ws.getRow(3 + idx);
+      const rowVals = [idx + 1, emp.short_name || emp.name, emp.salary_group || "PI"];
+      for(let d = 1; d <= daysInMonthCount; d++){
+        const dateStr = `${year}-${mm}-${String(d).padStart(2,"0")}`;
+        const dow = new Date(year, month-1, d).getDay(); // 5 = Friday
+        let val = "";
+        if(dow === 5) val = "FRIDAY";
+        else if(isOnVacation(emp.id, dateStr)) val = "VAC";
+        else if(absentByDate[dateStr] && absentByDate[dateStr].has(emp.id)) val = "A";
+        else if(dayProjectMap[`${dateStr}|${emp.id}`]) val = dayProjectMap[`${dateStr}|${emp.id}`];
+        rowVals.push(val);
+      }
+      row.values = rowVals;
+      row.eachCell((cell, colNum) => {
+        cell.font = { size: 9 };
+        cell.alignment = { horizontal: colNum <= 2 ? "left" : "center", vertical: "middle" };
+        cell.border = { top:{style:"thin",color:{argb:"FFD9D9D9"}}, left:{style:"thin",color:{argb:"FFD9D9D9"}}, bottom:{style:"thin",color:{argb:"FFD9D9D9"}}, right:{style:"thin",color:{argb:"FFD9D9D9"}} };
+        if(colNum > 3){
+          const v = cell.value;
+          if(v === "FRIDAY") cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0E0E0" } };
+          else if(v === "A") cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8D7DA" } };
+          else if(v === "VAC") cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD1ECF1" } };
+          else if(v) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD4EDDA" } };
+        }
+      });
+    });
+
+    await downloadWorkbook(wb, `Attendance_By_Project_${year}-${mm}.xlsx`);
+    toast("Attendance sheet downloaded.");
+  }catch(e){
+    console.error("Attendance export error:", e);
+    toast("Export error: " + (e && e.message ? e.message : "unknown"));
+  }
+  state.loading = false;
+  render();
+}
+
 async function generateWpsPayroll(payrollGroup){
   const fileNumInput = prompt("WPS file number for today (e.g. 1, 2, 3...):", "1");
   if(fileNumInput === null) return;
@@ -5310,6 +5418,7 @@ function renderHrView(){
     <div class="hr-tile-grid">
       <div class="hr-tile" id="openDailyReportBtn" style="border-color:var(--ksa-gold-light);"><span class="icon">📋</span><span class="label">Add Daily<br>Report</span></div>
       <div class="hr-tile" id="openCombinedReportsBtn" style="border-color:var(--ksa-gold-light);"><span class="icon">👁</span><span class="label">View Daily<br>Reports</span></div>
+      <div class="hr-tile" id="exportAttendanceByProjectBtn" style="border-color:var(--ksa-gold-light);"><span class="icon">📊</span><span class="label">Export Attendance<br>by Project</span></div>
     </div>
 
     <div class="hr-section-label" style="color:#C4791F;">🔔 Renewals</div>
@@ -6589,6 +6698,7 @@ function handleDelegatedClick(e){
     loadCombinedReports();
     return;
   }
+  if(el("exportAttendanceByProjectBtn")){ exportAttendanceByProjectExcel(); return; }
   if(el("prevReportsDayBtn")){ shiftCombinedReportsDate(-1); return; }
   if(el("nextReportsDayBtn")){ shiftCombinedReportsDate(1); return; }
   if(el("todayReportsBtn")){ state.combinedReportsDate = todayLocalISO(); loadCombinedReports(); return; }
