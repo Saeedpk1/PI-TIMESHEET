@@ -1856,6 +1856,44 @@ function daysUntil(dateStr){
   return Math.round((target - today) / 86400000);
 }
 
+// Parses a date typed as DD-MM-YYYY (what the person enters) into
+// YYYY-MM-DD (what gets stored/sorted). Returns null if it doesn't
+// look like a valid date, so callers can warn instead of saving junk.
+function parseDDMMYYYY(input){
+  const s = (input || "").trim();
+  if(!s) return null;
+  const m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if(!m) return null;
+  const dd = m[1].padStart(2,"0"), mm = m[2].padStart(2,"0"), yyyy = m[3];
+  const iso = `${yyyy}-${mm}-${dd}`;
+  const check = new Date(iso + "T00:00:00");
+  if(isNaN(check.getTime())) return null;
+  return iso;
+}
+
+function toDDMMYYYY(iso){
+  if(!iso) return "";
+  const parts = String(iso).split("-");
+  if(parts.length !== 3) return iso;
+  const [y,m,d] = parts;
+  return `${d}-${m}-${y}`;
+}
+
+function promptDate(label, isoDefault){
+  const defaultText = toDDMMYYYY(isoDefault);
+  let attempt = prompt(`${label} (DD-MM-YYYY):`, defaultText);
+  if(attempt === null) return undefined; // cancelled
+  if(attempt.trim() === "") return null; // cleared on purpose
+  let parsed = parseDDMMYYYY(attempt);
+  while(parsed === null){
+    attempt = prompt(`That doesn't look like a valid date. ${label} (DD-MM-YYYY):`, attempt);
+    if(attempt === null) return undefined;
+    if(attempt.trim() === "") return null;
+    parsed = parseDDMMYYYY(attempt);
+  }
+  return parsed;
+}
+
 async function loadRenewalsScreen(){
   state.loading = true; render();
   const [{ data: emps }, { data: vehicles }, { data: companyDocs }] = await Promise.all([
@@ -2179,12 +2217,16 @@ function deleteFinancialLoanDraft(id){
   markFinancialDirty(); render();
 }
 
+const VAT_RATE = 0.15; // Saudi VAT rate, used to auto-fill whichever VAT amount is left blank
+
 function addFinancialInvoiceDraft(){
   const description = (prompt("Description:") || "").trim();
   if(!description) return;
   const invoiceNo = (prompt("Invoice No:") || "").trim();
-  const noVat = Number(prompt("Amount without VAT:", "0"));
-  const withVat = Number(prompt("Amount with VAT:", "0"));
+  let noVat = Number(prompt("Amount without VAT (leave 0 to auto-calculate from With VAT):", "0")) || 0;
+  let withVat = Number(prompt("Amount with VAT (leave 0 to auto-calculate from Without VAT):", "0")) || 0;
+  if(withVat && !noVat) noVat = Math.round((withVat / (1 + VAT_RATE)) * 100) / 100;
+  else if(noVat && !withVat) withVat = Math.round((noVat * (1 + VAT_RATE)) * 100) / 100;
   const month = (prompt("Month (e.g. Sep 2026):") || "").trim();
   state.financialInvoices.push({ id: financialTempId(), description, invoice_no: invoiceNo, amount_no_vat: noVat || null, amount_with_vat: withVat || null, invoice_month: month });
   markFinancialDirty(); render();
@@ -2195,8 +2237,10 @@ function editFinancialInvoiceDraft(id){
   const description = (prompt("Description:", v.description) || "").trim();
   if(!description) return;
   const invoiceNo = (prompt("Invoice No:", v.invoice_no) || "").trim();
-  const noVat = Number(prompt("Amount without VAT:", v.amount_no_vat ?? "0"));
-  const withVat = Number(prompt("Amount with VAT:", v.amount_with_vat ?? "0"));
+  let noVat = Number(prompt("Amount without VAT (leave 0 to auto-calculate from With VAT):", v.amount_no_vat ?? "0")) || 0;
+  let withVat = Number(prompt("Amount with VAT (leave 0 to auto-calculate from Without VAT):", v.amount_with_vat ?? "0")) || 0;
+  if(withVat && !noVat) noVat = Math.round((withVat / (1 + VAT_RATE)) * 100) / 100;
+  else if(noVat && !withVat) withVat = Math.round((noVat * (1 + VAT_RATE)) * 100) / 100;
   const month = (prompt("Month (e.g. Sep 2026):", v.invoice_month) || "").trim();
   v.description = description; v.invoice_no = invoiceNo; v.amount_no_vat = noVat || null; v.amount_with_vat = withVat || null; v.invoice_month = month;
   markFinancialDirty(); render();
@@ -2213,8 +2257,9 @@ function addFinancialPaymentDraft(){
   const invoiceNo = (prompt("Invoice No:") || "").trim();
   const amt = Number(prompt("Amount (SAR):", "0"));
   if(isNaN(amt)){ toast("Enter a valid amount."); return; }
-  const date = (prompt("Payment date (YYYY-MM-DD):", state.financialReportDate) || "").trim();
-  state.financialPayments.push({ id: financialTempId(), project, company, invoice_no: invoiceNo, amount: amt, payment_date: date || null });
+  const date = promptDate("Payment date", state.financialReportDate);
+  if(date === undefined) return;
+  state.financialPayments.push({ id: financialTempId(), project, company, invoice_no: invoiceNo, amount: amt, payment_date: date });
   markFinancialDirty(); render();
 }
 function editFinancialPaymentDraft(id){
@@ -2225,8 +2270,9 @@ function editFinancialPaymentDraft(id){
   const invoiceNo = (prompt("Invoice No:", v.invoice_no) || "").trim();
   const amt = Number(prompt("Amount (SAR):", v.amount));
   if(isNaN(amt)){ toast("Enter a valid amount."); return; }
-  const date = (prompt("Payment date (YYYY-MM-DD):", v.payment_date) || "").trim();
-  v.project = project; v.company = company; v.invoice_no = invoiceNo; v.amount = amt; v.payment_date = date || null;
+  const date = promptDate("Payment date", v.payment_date);
+  if(date === undefined) return;
+  v.project = project; v.company = company; v.invoice_no = invoiceNo; v.amount = amt; v.payment_date = date;
   markFinancialDirty(); render();
 }
 function deleteFinancialPaymentDraft(id){
@@ -2246,15 +2292,18 @@ function addFinancialPendingDraft(clientGroup){
     if(!client) return;
   }
   const invoiceNo = (prompt("Invoice No:") || "").trim();
-  const amt = Number(prompt("Amount (SAR):", "0"));
+  const amt = Number(prompt("Amount (SAR, with VAT):", "0"));
   if(isNaN(amt)){ toast("Enter a valid amount."); return; }
-  const issueDate = (prompt("Issue date (YYYY-MM-DD):") || "").trim();
-  const dueDate = (prompt("Due date (YYYY-MM-DD):") || "").trim();
-  state.financialPending.push({ id: financialTempId(), client, invoice_no: invoiceNo, amount: amt, issue_date: issueDate || null, due_date: dueDate || null });
+  const issueDate = promptDate("Issue date");
+  if(issueDate === undefined) return;
+  const dueDate = promptDate("Due date");
+  if(dueDate === undefined) return;
+  state.financialPending.push({ id: financialTempId(), client, invoice_no: invoiceNo, amount: amt, issue_date: issueDate, due_date: dueDate });
   // Auto-create a matching invoice entry -- one-way link at creation only;
   // deleting this pending entry later will NOT remove the invoice.
   const monthLabel = new Date(state.financialReportDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", year: "numeric" });
-  state.financialInvoices.push({ id: financialTempId(), description: client, invoice_no: invoiceNo, amount_no_vat: null, amount_with_vat: amt, invoice_month: monthLabel });
+  const noVat = Math.round((amt / (1 + VAT_RATE)) * 100) / 100;
+  state.financialInvoices.push({ id: financialTempId(), description: client, invoice_no: invoiceNo, amount_no_vat: noVat, amount_with_vat: amt, invoice_month: monthLabel });
   toast("Pending entry added, and a matching invoice was created too.");
   markFinancialDirty(); render();
 }
@@ -2281,9 +2330,11 @@ function editFinancialPendingDraft(id){
   const invoiceNo = (prompt("Invoice No:", v.invoice_no) || "").trim();
   const amt = Number(prompt("Amount (SAR):", v.amount));
   if(isNaN(amt)){ toast("Enter a valid amount."); return; }
-  const issueDate = (prompt("Issue date (YYYY-MM-DD):", v.issue_date) || "").trim();
-  const dueDate = (prompt("Due date (YYYY-MM-DD):", v.due_date) || "").trim();
-  v.client = client; v.invoice_no = invoiceNo; v.amount = amt; v.issue_date = issueDate || null; v.due_date = dueDate || null;
+  const issueDate = promptDate("Issue date", v.issue_date);
+  if(issueDate === undefined) return;
+  const dueDate = promptDate("Due date", v.due_date);
+  if(dueDate === undefined) return;
+  v.client = client; v.invoice_no = invoiceNo; v.amount = amt; v.issue_date = issueDate; v.due_date = dueDate;
   markFinancialDirty(); render();
 }
 function deleteFinancialPendingDraft(id){
