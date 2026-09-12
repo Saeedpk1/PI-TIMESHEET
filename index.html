@@ -2344,7 +2344,8 @@ function addFinancialPendingDraft(clientGroup){
   // deleting this pending entry later will NOT remove the invoice.
   const monthLabel = new Date(state.financialReportDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", year: "numeric" });
   const noVat = Math.round((amt / (1 + VAT_RATE)) * 100) / 100;
-  state.financialInvoices.push({ id: financialTempId(), description: client, invoice_no: invoiceNo, amount_no_vat: noVat, amount_with_vat: amt, invoice_month: monthLabel });
+  const projectId = promptProjectPicker(null);
+  state.financialInvoices.push({ id: financialTempId(), description: client, invoice_no: invoiceNo, amount_no_vat: noVat, amount_with_vat: amt, invoice_month: monthLabel, project_id: projectId });
   toast("Pending entry added, and a matching invoice was created too.");
   markFinancialDirty(); render();
 }
@@ -4732,12 +4733,9 @@ function renderProjectSummary(){
   const rows = state.projectSummaryRows.map(p => {
     const marginText = p.margin === null ? "-" : `${(p.margin*100).toFixed(1)}%`;
     const marginColor = p.margin === null ? "var(--muted)" : (p.margin >= 0 ? "var(--present)" : "var(--absent)");
-    const poCell = canEdit
-      ? `<div style="display:flex;align-items:center;gap:3px;justify-content:flex-end;"><input type="number" id="projectPoValueInput-${p.id}" value="${p.poValue}" style="width:72px;padding:3px 4px;border:1.5px solid var(--line);border-radius:6px;font-size:10px;text-align:right;"><button data-save-project-po="${p.id}" style="border:none;background:none;padding:0;font-size:12px;cursor:pointer;color:var(--present);">💾</button></div>`
-      : fmt(p.poValue);
     return [
       `<span data-toggle-project-invoices="${p.id}" style="cursor:pointer;font-weight:700;">${p.name} ${p.invoices.length ? "▾" : ""}</span>`,
-      poCell,
+      fmt(p.poValue),
       fmt(p.expenses),
       fmt(p.invoicesTotal),
       `<span style="color:${p.balance<0?"var(--absent)":"var(--ink)"};font-weight:800;">${fmt(p.balance)}</span>`,
@@ -4771,7 +4769,7 @@ function renderProjectSummary(){
       <h3 style="color:#fff;font-size:15px;margin:0;">📊 Project Summary</h3>
       <div class="meta" style="color:#BFDCF5;">PO Value (w/o VAT) · Expenses · Invoices · Balance · Margin</div>
     </div>
-    ${canEdit ? `<div class="field-note" style="margin-bottom:10px;">PO Value can be edited directly. Expenses come from Daily Progress Reports; Invoices come from the Financial Report. Tap a project's name to see its invoice list. Tap ✎ to set starting date or adjust opening Expenses/Invoices from before the app.</div>` : `<div class="field-note" style="margin-bottom:10px;">Tap a project's name to see its invoice list.</div>`}
+    ${canEdit ? `<div class="field-note" style="margin-bottom:10px;">PO Value comes from each unit's PO in Manage Projects. Expenses come from Daily Progress Reports; Invoices come from the Financial Report. Tap a project's name to see its invoice list. Tap ✎ to set starting date or adjust opening Expenses/Invoices from before the app.</div>` : `<div class="field-note" style="margin-bottom:10px;">Tap a project's name to see its invoice list.</div>`}
     ${state.projectSummaryRows.length ? table : `<div class="empty-state"><div class="ic">📊</div>No active projects found.</div>`}
   `;
 }
