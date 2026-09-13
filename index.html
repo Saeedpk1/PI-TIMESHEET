@@ -2111,7 +2111,7 @@ async function loadFinancialReport(date){
     sb.from("ts_employees").select("id, name, short_name, iqama_expiry_date").eq("active", true).not("iqama_expiry_date", "is", null).order("iqama_expiry_date"),
     sb.from("ts_vehicles").select("*").eq("active", true),
     sb.from("ts_company_documents").select("*").limit(1).maybeSingle(),
-    sb.from("ts_financial_invoices").select("amount_with_vat, amount_no_vat").gte("report_date", monthStart).lte("report_date", monthEnd),
+    sb.from("ts_financial_invoices").select("invoice_no, amount_with_vat, amount_no_vat, report_date").gte("report_date", monthStart).lte("report_date", monthEnd).order("report_date", { ascending: true }),
     sb.from("ts_financial_payments").select("amount").gte("report_date", monthStart).lte("report_date", monthEnd)
   ]);
   state.financialBalance = bal || null;
@@ -2124,7 +2124,15 @@ async function loadFinancialReport(date){
     .map(e => ({ ...e, days: daysUntil(e.iqama_expiry_date) }))
     .filter(e => e.days !== null && e.days < 15);
   state.companyDocuments = companyDocs || null;
-  state.financialMonthInvoiced = (monthInv || []).reduce((s,v)=>s+Number(v.amount_no_vat||0),0);
+  // De-duplicate by invoice_no: an invoice carried forward via "Copy
+  // Previous Day" and saved on more than one date should only count
+  // once (using its latest saved version), not once per date.
+  const latestByInvoiceNo = {};
+  (monthInv || []).forEach(v => {
+    const key = v.invoice_no || `no-number-${v.report_date}-${v.amount_no_vat}`;
+    if(!latestByInvoiceNo[key] || v.report_date >= latestByInvoiceNo[key].report_date) latestByInvoiceNo[key] = v;
+  });
+  state.financialMonthInvoiced = Object.values(latestByInvoiceNo).reduce((s,v)=>s+Number(v.amount_no_vat||0),0);
   state.financialMonthReceived = (monthPay || []).reduce((s,v)=>s+Number(v.amount||0),0);
 
   // Combined "documents expiring soon" (<1 month): vehicle docs + CR + Room Rent
@@ -2162,23 +2170,25 @@ async function copyPreviousDayFinancialReport(){
     render();
     return;
   }
-  const [{ data: bal }, { data: loans }, { data: inv }, { data: pay }, { data: pend }, { data: po }] = await Promise.all([
+  // Only Balance, Loans, and PO Tracker carry forward -- they're
+  // baseline data that barely changes day to day. Invoices, Payments,
+  // and Pending Collection are day-specific transactions and are
+  // deliberately left empty here, so they never get duplicated across
+  // multiple saved dates.
+  const [{ data: bal }, { data: loans }, { data: po }] = await Promise.all([
     sb.from("ts_financial_balance").select("*").eq("report_date", prevDate).maybeSingle(),
     sb.from("ts_financial_loans").select("*").eq("report_date", prevDate),
-    sb.from("ts_financial_invoices").select("*").eq("report_date", prevDate),
-    sb.from("ts_financial_payments").select("*").eq("report_date", prevDate),
-    sb.from("ts_financial_pending").select("*").eq("report_date", prevDate),
     sb.from("ts_financial_po").select("*").eq("report_date", prevDate)
   ]);
   state.financialBalance = bal ? { balance: bal.balance } : null;
   state.financialLoans = (loans||[]).map(l => ({ ...l, id: financialTempId() }));
-  state.financialInvoices = (inv||[]).map(v => ({ ...v, id: financialTempId() }));
-  state.financialPayments = (pay||[]).map(v => ({ ...v, id: financialTempId() }));
-  state.financialPending = (pend||[]).map(v => ({ ...v, id: financialTempId() }));
   state.financialPo = (po||[]).map(v => ({ ...v, id: financialTempId() }));
+  state.financialInvoices = [];
+  state.financialPayments = [];
+  state.financialPending = [];
   state.financialDirty = true;
   state.loading = false;
-  toast(`Copied from ${prevDate}. Review, then tap "Save Report".`);
+  toast(`Copied Balance/Loans/PO from ${prevDate}. Add today's own Invoices/Payments/Pending, then tap "Save Report".`);
   render();
 }
 
