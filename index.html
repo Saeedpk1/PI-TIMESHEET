@@ -473,6 +473,9 @@ let state = {
   financialMonthReceived: 0,
   projectSummaryRows: [],
   expandedProjectSummaryId: null,
+  whatsappMessageDraft: "",
+  whatsappEmployeeList: [],
+  whatsappMissingNumberCount: 0,
   projectSummaryShowArchived: false,
   financialReportDate: todayLocalISO(),
   financialDirty: false,
@@ -2760,6 +2763,32 @@ async function loadEmployeeDirectory(){
   render();
 }
 
+/* ---------------- WhatsApp broadcast (tap-through links, no API) ---------------- */
+function normalizePhoneForWhatsApp(raw){
+  let digits = (raw || "").replace(/\D/g, "");
+  if(!digits) return null;
+  // Saudi local format starts with 0 (e.g. 05XXXXXXXX) -- swap the
+  // leading 0 for the country code 966. Numbers that already include
+  // a country code (11+ digits, no leading 0) are left as-is.
+  if(digits.startsWith("0")) digits = "966" + digits.slice(1);
+  return digits;
+}
+
+function buildWhatsAppLink(rawNumber, message){
+  const digits = normalizePhoneForWhatsApp(rawNumber);
+  if(!digits) return null;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(message || "")}`;
+}
+
+async function loadWhatsAppBroadcastList(){
+  state.loading = true; render();
+  const { data } = await sb.from("ts_employees").select("id, name, short_name, mobile_number, role").eq("active", true).order("name");
+  state.whatsappEmployeeList = (data || []).filter(e => e.mobile_number);
+  state.whatsappMissingNumberCount = (data || []).length - state.whatsappEmployeeList.length;
+  state.loading = false;
+  render();
+}
+
 async function generateEmployeeProfilePdf(){
   const emp = state.employeeDirectory.find(e=>e.id===state.selectedDirectoryEmployeeId);
   if(!emp){ toast("Select an employee first."); return; }
@@ -4547,6 +4576,7 @@ function render(){
   else if(state.view === "vehicle-documents") body = renderVehicleDocumentsScreen();
   else if(state.view === "financial-report") body = renderFinancialReport();
   else if(state.view === "project-summary") body = renderProjectSummary();
+  else if(state.view === "whatsapp-broadcast") body = renderWhatsAppBroadcast();
   else if(state.view === "employee-directory") body = renderEmployeeDirectory();
   else if(state.view === "my-profile") body = renderMyProfile();
   else if(state.view === "combined-reports") body = renderCombinedReports();
@@ -4995,6 +5025,48 @@ function renderMyProfile(){
       <label style="margin-top:10px;">Bank name</label>
       <input type="text" id="myProfileBankName" value="${d.bank_name}">
       <button class="btn btn-submit btn-sm" id="saveMyProfileBtn" style="width:100%;margin-top:10px;">💾 Save</button>
+    </div>
+  `;
+}
+
+function renderWhatsAppBroadcast(){
+  const isCeoUser = state.user.role === "ceo";
+  const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (state.user.role === "hr" ? "backToHrBtn" : "backToSupervisorHomeBtn");
+  const msg = state.whatsappMessageDraft || "";
+  const hasMsg = msg.trim().length > 0;
+
+  const rows = state.whatsappEmployeeList.map(e => {
+    const link = hasMsg ? buildWhatsAppLink(e.mobile_number, msg) : null;
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 4px;border-top:1px dashed var(--line);">
+        <div>
+          <div style="font-weight:700;font-size:13px;">${e.short_name || e.name}</div>
+          <div class="meta">${e.mobile_number || "-"}</div>
+        </div>
+        ${link
+          ? `<a href="${link}" target="_blank" rel="noopener" style="text-decoration:none;background:linear-gradient(135deg,#1C8A4E,#2FAE68);color:#fff;font-weight:800;font-size:12px;padding:7px 12px;border-radius:999px;">📤 Send</a>`
+          : `<span style="font-size:11px;color:var(--muted);padding:7px 12px;">${hasMsg ? "no number" : "type a message"}</span>`
+        }
+      </div>`;
+  }).join("");
+
+  return `
+    <button class="link-btn" id="${backBtnId}" style="margin-bottom:12px;">‹ Back</button>
+    <div style="background:linear-gradient(135deg,#1C8A4E,#128C4A);border-radius:16px;padding:16px 18px;margin-bottom:14px;box-shadow:0 4px 14px rgba(28,138,78,0.25);position:relative;overflow:hidden;">
+      <div style="position:absolute;top:-10px;right:-8px;font-size:56px;opacity:0.15;">💬</div>
+      <h3 style="color:#fff;font-size:16px;margin:0;position:relative;">💬 Message Employees</h3>
+      <div class="meta" style="color:#DFF3E6;position:relative;">Send a WhatsApp message using numbers on file — no contacts to save</div>
+    </div>
+
+    <label style="margin-top:0;">Your message</label>
+    <textarea id="whatsappMessageInput" rows="4" placeholder="e.g. Eid Mubarak to you and your family! 🌙">${msg}</textarea>
+    <div class="field-note">Type your message, then tap "Send" next to each person — WhatsApp opens with this exact message ready to go, you just tap send there.</div>
+
+    ${state.whatsappMissingNumberCount > 0 ? `<div class="field-note" style="color:#C4791F;margin-top:8px;">⚠️ ${state.whatsappMissingNumberCount} active ${state.whatsappMissingNumberCount === 1 ? "employee has" : "employees have"} no mobile number on file and won't appear below.</div>` : ""}
+
+    <div class="card" style="margin-top:14px;">
+      <div style="font-weight:800;font-size:13px;color:var(--navy);">👥 ${state.whatsappEmployeeList.length} Employees</div>
+      ${rows || `<div class="empty-state"><div class="ic">📵</div>No employees with a mobile number on file.</div>`}
     </div>
   `;
 }
@@ -6292,6 +6364,13 @@ function renderCeoHome(){
         <div class="desc">Overall PO Value, expenses, invoices and margin per project</div>
       </div>
     </div>
+    <div class="ceo-tile" id="openWhatsappBroadcastBtn">
+      <div class="icon">💬</div>
+      <div class="body">
+        <div class="title">Message Employees</div>
+        <div class="desc">Send a WhatsApp message using numbers already on file</div>
+      </div>
+    </div>
     <div class="ceo-tile" id="openCombinedReportsBtn">
       <div class="icon">📋</div>
       <div class="body">
@@ -7141,6 +7220,12 @@ function handleDelegatedClick(e){
     loadProjectSummary(false);
     return;
   }
+  if(el("openWhatsappBroadcastBtn")){
+    state.view = "whatsapp-broadcast";
+    state.whatsappMessageDraft = "";
+    loadWhatsAppBroadcastList();
+    return;
+  }
   if(el("toggleProjectSummaryArchiveBtn")){
     state.expandedProjectSummaryId = null;
     loadProjectSummary(!state.projectSummaryShowArchived);
@@ -7521,6 +7606,13 @@ function handleDelegatedInput(e){
     const cursorPos = e.target.selectionStart;
     render();
     const freshInput = document.getElementById("unitForecastDaysInput");
+    if(freshInput){ freshInput.focus(); freshInput.setSelectionRange(cursorPos, cursorPos); }
+  }
+  if(e.target.id === "whatsappMessageInput"){
+    state.whatsappMessageDraft = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    render();
+    const freshInput = document.getElementById("whatsappMessageInput");
     if(freshInput){ freshInput.focus(); freshInput.setSelectionRange(cursorPos, cursorPos); }
   }
   if(e.target.id === "myProfileMobile"){ state.myProfileDraft.mobile_number = e.target.value; }
