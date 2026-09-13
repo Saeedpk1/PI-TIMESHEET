@@ -613,6 +613,19 @@ async function toggleUnitManpower(unitId, projectId, isManpower){
   render();
 }
 
+async function editUnitOpeningExpenses(){
+  const f = state.unitFinancials;
+  if(!f) return;
+  const input = prompt("Old Expenses for this unit — from before the app existed:", f.openingExpenses || 0);
+  if(input === null) return;
+  const val = Number(input) || 0;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_project_units").update({ opening_expenses: val }).eq("id", f.unitId);
+  state.loading = false;
+  toast(error ? "Could not save." : "Old expenses updated.");
+  await loadUnitFinancials(f.unitId);
+}
+
 async function loadUnitFinancials(unitId){
   state.loading = true; state.viewingUnitId = unitId; state.unitForecastDays = ""; render();
   const { data: unit } = await sb.from("ts_project_units").select("*, ts_projects:project_id(name)").eq("id", unitId).maybeSingle();
@@ -641,7 +654,9 @@ async function loadUnitFinancials(unitId){
   });
 
   const daysWorked = Object.keys(dailyCost).length;
-  const totalCost = Object.values(dailyCost).reduce((s,c)=>s+c,0);
+  const currentCost = Object.values(dailyCost).reduce((s,c)=>s+c,0);
+  const openingExpenses = Number(unit?.opening_expenses) || 0;
+  const totalCost = openingExpenses + currentCost;
   const poValue = isManpower
     ? Object.values(dailyInvoice).reduce((s,c)=>s+c,0)
     : (Number(unit?.po_value) || 0);
@@ -649,10 +664,11 @@ async function loadUnitFinancials(unitId){
   const marginPct = poValue > 0 ? (profit / poValue) * 100 : null;
 
   state.unitFinancials = {
+    unitId,
     unitName: unit?.name || "",
     projectName: unit?.ts_projects?.name || "",
     isManpower,
-    poValue, daysWorked, totalCost, profit, marginPct,
+    poValue, daysWorked, currentCost, openingExpenses, totalCost, profit, marginPct,
     dailyCost // for the chart
   };
   state.loading = false;
@@ -6051,6 +6067,7 @@ function renderUnitFinancialReport(){
   const marginOk = f.marginPct !== null && f.marginPct >= 0;
   const profitOk = f.profit >= 0;
   const poLabel = f.isManpower ? "Invoice Till Today" : "PO Value";
+  const canEditUnit = state.user.role === "hr";
 
   // Simple 3-bar SVG chart: PO value / Invoice, Cost, Profit
   const maxVal = Math.max(f.poValue, f.totalCost, Math.abs(f.profit), 1);
@@ -6104,7 +6121,8 @@ function renderUnitFinancialReport(){
         <div style="position:absolute;top:-6px;right:-4px;font-size:34px;opacity:0.18;">💸</div>
         <div style="font-size:10.5px;opacity:0.9;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Cost So Far</div>
         <div style="font-size:20px;font-weight:800;margin-top:4px;">${fmtSAR(f.totalCost)}</div>
-        <div style="font-size:10px;opacity:0.8;">SAR</div>
+        <div style="font-size:9.5px;opacity:0.85;margin-top:2px;">Old ${fmtSAR(f.openingExpenses)} + Current ${fmtSAR(f.currentCost)}</div>
+        ${canEditUnit ? `<button id="editUnitOpeningExpensesBtn" style="margin-top:4px;border:none;background:rgba(255,255,255,0.25);color:#fff;font-size:9.5px;font-weight:700;padding:3px 8px;border-radius:999px;cursor:pointer;">✎ Set Old Expenses</button>` : ""}
       </div>
       <div style="background:linear-gradient(135deg,${profitOk ? "#1C8A4E,#2FAE68" : "#C43B3B,#E0645F"});border-radius:14px;padding:14px;color:#fff;box-shadow:0 3px 10px ${profitOk ? "rgba(28,138,78,0.3)" : "rgba(196,59,59,0.3)"};position:relative;overflow:hidden;">
         <div style="position:absolute;top:-6px;right:-4px;font-size:34px;opacity:0.18;">${profitOk ? "📈" : "📉"}</div>
@@ -6840,6 +6858,7 @@ function handleDelegatedClick(e){
   }
   const saveProjectPoEl = e.target.closest("[data-save-project-po]");
   if(saveProjectPoEl){ saveProjectPoValueDirect(saveProjectPoEl.getAttribute("data-save-project-po")); return; }
+  if(el("editUnitOpeningExpensesBtn")){ editUnitOpeningExpenses(); return; }
   if(el("editBalanceBtn")){ updateFinancialBalanceDraft(); return; }
   if(el("addLoanBtn")){ addFinancialLoanDraft(); return; }
   if(el("addInvoiceBtn")){ addFinancialInvoiceDraft(); return; }
