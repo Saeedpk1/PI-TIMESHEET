@@ -5735,6 +5735,12 @@ function renderDailyAttendanceForm(){
 }
 
 function renderDailyReportForm(){
+  if(state.loading && !state.allEmployeesForReport.length){
+    return `
+    <button class="back-link-glow" id="${state.user.role === "supervisor" ? "backToSupervisorHomeBtn" : "backToHrBtn"}" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    <div class="empty-state"><div class="ic">📋</div><span class="spinner" style="margin-right:8px;"></span>Loading today's report…</div>
+    `;
+  }
   const d = state.dailyReportDraft;
   const isEditing = !!state.editingDailyReportId;
   const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${d.projectId===p.id?"selected":""}>${p.name}</option>`).join("");
@@ -7424,7 +7430,8 @@ function handleDelegatedClick(e){
     resetDailyReportDraft();
     state.dailyReportDate = todayLocalISO();
     state.view = "daily-report-form";
-    Promise.all([loadAllEmployeesForReport(), loadDailyReportsForDate(state.dailyReportDate), loadAbsencesForDate(state.dailyReportDate), loadVacationsForDate(state.dailyReportDate)]).then(render);
+    state.loading = true; render();
+    Promise.all([loadAllEmployeesForReport(), loadDailyReportsForDate(state.dailyReportDate), loadAbsencesForDate(state.dailyReportDate), loadVacationsForDate(state.dailyReportDate)]).then(() => { state.loading = false; render(); });
     return;
   }
   if(el("openDailyAttendanceBtn")){
