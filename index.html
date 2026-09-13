@@ -478,6 +478,7 @@ let state = {
   whatsappMessageDraft: "",
   whatsappEmployeeList: [],
   whatsappMissingNumberCount: 0,
+  hrTimesheetsSectionOpen: false,
   projectSummaryShowArchived: false,
   financialReportDate: todayLocalISO(),
   financialDirty: false,
@@ -6024,19 +6025,6 @@ function renderHrView(){
 
 
     <input type="text" id="hrDashboardSearchInput" placeholder="🔍 Find a button… (e.g. leave, salary, vehicle)" style="margin-bottom:4px;">
-    <div class="hr-section-label" style="color:var(--blue);">📅 Monthly Timesheets</div>
-    <div class="card" style="padding:12px 14px;">
-      <div class="row-between" style="margin-bottom:10px;">
-        <label style="margin:0;">Month</label>
-        <button class="link-btn" id="manageProjectsBtn" style="color:var(--blue) !important;">📁 Manage projects</button>
-      </div>
-      <input type="month" id="hrMonthInput" value="${state.hrMonth}">
-      <div class="field-note">Uncheck anyone you don't want in this download. Deleting removes their timesheet permanently. Mohammed's HRM team (🇸🇦) goes into its own separate PDF.</div>
-      <div style="margin-top:10px;">${rows}</div>
-      <button class="btn btn-primary btn-compact" id="combinedPdfBtn" style="margin-top:8px;">⬇ Download combined PDF (${mainCount})</button>
-      <button class="btn btn-primary btn-compact" id="saudiPdfBtn" style="margin-top:5px;background:linear-gradient(135deg,#1C8A4E,#25A85F);">⬇ Download SAUDI TIME SHEET (${saudiCount})</button>
-      <button class="btn btn-primary btn-compact" id="saudiArabicPdfBtn" style="margin-top:5px;background:linear-gradient(135deg,#8A5A1C,#B87F2E);">⬇ تحميل كشف الدوام (Arabic) (${saudiCount})</button>
-    </div>
 
     <div class="hr-section-label" style="color:#6B4FC4;">💰 Payroll & Salary</div>
     <div class="hr-tile-grid">
@@ -6076,6 +6064,31 @@ function renderHrView(){
       <div class="hr-tile" id="viewFinancialReportOnlyBtn" style="border-color:#1B5A96;background:linear-gradient(135deg,#EAF1FC,#D6E6F7);"><span class="icon">👁</span><span class="label">View<br>Report</span></div>
       <div class="hr-tile" id="openProjectSummaryBtn" style="border-color:#1B5A96;background:linear-gradient(135deg,#EAF1FC,#D6E6F7);"><span class="icon">📊</span><span class="label">Project<br>Summary</span></div>
     </div>
+
+    <div class="hr-section-label" style="color:var(--blue);">📅 Monthly Timesheets</div>
+    <div class="card" style="padding:12px 14px;cursor:pointer;" id="toggleHrTimesheetsSectionBtn">
+      <div class="row-between">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">📅</span>
+          <div style="font-weight:800;font-size:13.5px;color:var(--navy);">Monthly Timesheets & Downloads</div>
+        </div>
+        <span style="color:var(--blue);font-size:16px;font-weight:800;">${state.hrTimesheetsSectionOpen ? "▲" : "▼"}</span>
+      </div>
+    </div>
+    ${state.hrTimesheetsSectionOpen ? `
+    <div class="card" style="padding:12px 14px;margin-top:8px;">
+      <div class="row-between" style="margin-bottom:10px;">
+        <label style="margin:0;">Month</label>
+        <button class="link-btn" id="manageProjectsBtn" style="color:var(--blue) !important;">📁 Manage projects</button>
+      </div>
+      <input type="month" id="hrMonthInput" value="${state.hrMonth}">
+      <div class="field-note">Uncheck anyone you don't want in this download. Deleting removes their timesheet permanently. Mohammed's HRM team (🇸🇦) goes into its own separate PDF.</div>
+      <div style="margin-top:10px;">${rows}</div>
+      <button class="btn btn-primary btn-compact" id="combinedPdfBtn" style="margin-top:8px;">⬇ Download combined PDF (${mainCount})</button>
+      <button class="btn btn-primary btn-compact" id="saudiPdfBtn" style="margin-top:5px;background:linear-gradient(135deg,#1C8A4E,#25A85F);">⬇ Download SAUDI TIME SHEET (${saudiCount})</button>
+      <button class="btn btn-primary btn-compact" id="saudiArabicPdfBtn" style="margin-top:5px;background:linear-gradient(135deg,#8A5A1C,#B87F2E);">⬇ تحميل كشف الدوام (Arabic) (${saudiCount})</button>
+    </div>
+    ` : ""}
   `;
 }
 
@@ -7297,6 +7310,11 @@ function handleDelegatedClick(e){
     state.view = "whatsapp-broadcast";
     state.whatsappMessageDraft = "";
     loadWhatsAppBroadcastList();
+    return;
+  }
+  if(el("toggleHrTimesheetsSectionBtn")){
+    state.hrTimesheetsSectionOpen = !state.hrTimesheetsSectionOpen;
+    render();
     return;
   }
   if(el("toggleProjectSummaryArchiveBtn")){
