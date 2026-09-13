@@ -302,13 +302,13 @@
   .hr-tile-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
   .hr-tile{
     background:#fff;border-radius:10px;padding:7px 3px;text-align:center;cursor:pointer;
-    border:2px solid var(--line);transition:border-color .15s,transform .1s,opacity .15s;
+    border:none;box-shadow:0 2px 6px rgba(0,0,0,0.18);transition:transform .1s,box-shadow .15s;
     display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:52px;
   }
-  .hr-tile:active{transform:scale(0.97);}
+  .hr-tile:active{transform:scale(0.96);box-shadow:0 1px 3px rgba(0,0,0,0.18);}
   .hr-tile.hr-tile-hidden{display:none;}
-  .hr-tile .icon{font-size:15px;display:block;margin-bottom:2px;}
-  .hr-tile .label{font-size:8.5px;font-weight:700;color:var(--ink);line-height:1.15;}
+  .hr-tile .icon{font-size:16px;display:block;margin-bottom:2px;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.25));}
+  .hr-tile .label{font-size:9px;font-weight:800;color:#fff;line-height:1.2;text-shadow:0 1px 2px rgba(0,0,0,0.35);}
 
   .status-banner{padding:12px 14px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px;border:2px solid transparent;}
   .status-draft{background:#F1F3F5;color:var(--muted);}
@@ -6024,45 +6024,43 @@ function renderHrView(){
     </div>
 
 
-    <input type="text" id="hrDashboardSearchInput" placeholder="🔍 Find a button… (e.g. leave, salary, vehicle)" style="margin-bottom:4px;">
-
     <div class="hr-section-label" style="color:#6B4FC4;">💰 Payroll & Salary</div>
     <div class="hr-tile-grid">
-      <div class="hr-tile" id="salarySheetBtn" style="border-color:#DCD0F5;background:#F3EAFB;"><span class="icon">📊</span><span class="label">Salary Sheet<br>(Excel)</span></div>
-      <div class="hr-tile" id="wpsPiSaudiBtn" style="border-color:#C7D9EA;background:#EAF1FC;"><span class="icon">🏦</span><span class="label">WPS Payroll<br>PI + Saudi</span></div>
-      <div class="hr-tile" id="wpsAlFalakBtn" style="border-color:#E2CFB3;background:#FDF3E6;"><span class="icon">🏦</span><span class="label">WPS Payroll<br>Al Falak</span></div>
+      <div class="hr-tile" id="salarySheetBtn" style="background:linear-gradient(135deg,#8E72E0,#6B4FC4);"><span class="icon">📊</span><span class="label">Salary Sheet<br>(Excel)</span></div>
+      <div class="hr-tile" id="wpsPiSaudiBtn" style="background:linear-gradient(135deg,#3E86C4,#1B5A96);"><span class="icon">🏦</span><span class="label">WPS Payroll<br>PI + Saudi</span></div>
+      <div class="hr-tile" id="wpsAlFalakBtn" style="background:linear-gradient(135deg,#C4915E,#8A5A1C);"><span class="icon">🏦</span><span class="label">WPS Payroll<br>Al Falak</span></div>
     </div>
 
     <div class="hr-section-label" style="color:#E8A33D;">✅ Approvals</div>
     <div class="hr-tile-grid">
-      <div class="hr-tile" id="openHrLeaveListBtn" style="border-color:#F0DBA8;background:#FDF6E3;"><span class="icon">🌴</span><span class="label">Leave<br>Approvals</span></div>
-      <div class="hr-tile" id="openHrPurchasesBtn" style="border-color:#A9D9CD;background:#E9F7F5;"><span class="icon">🧾</span><span class="label">Purchase /<br>Expenses</span></div>
+      <div class="hr-tile" id="openHrLeaveListBtn" style="background:linear-gradient(135deg,#E8A33D,#C4791F);"><span class="icon">🌴</span><span class="label">Leave<br>Approvals</span></div>
+      <div class="hr-tile" id="openHrPurchasesBtn" style="background:linear-gradient(135deg,#2FAE68,#1C8A4E);"><span class="icon">🧾</span><span class="label">Purchase /<br>Expenses</span></div>
     </div>
 
     <div class="hr-section-label" style="color:var(--present);">📋 Daily Reports</div>
     <div class="hr-tile-grid">
-      <div class="hr-tile" id="openDailyReportBtn" style="border-color:var(--ksa-gold-light);background:var(--ksa-cream);"><span class="icon">📋</span><span class="label">Add Daily<br>Report</span></div>
-      <div class="hr-tile" id="openCombinedReportsBtn" style="border-color:var(--ksa-gold-light);background:var(--ksa-cream);"><span class="icon">👁</span><span class="label">View Daily<br>Reports</span></div>
-      <div class="hr-tile" id="exportAttendanceByProjectBtn" style="border-color:var(--ksa-gold-light);background:var(--ksa-cream);"><span class="icon">📊</span><span class="label">Attendance<br>by Project</span></div>
+      <div class="hr-tile" id="openDailyReportBtn" style="background:linear-gradient(135deg,var(--ksa-gold),#B8912A);"><span class="icon">📋</span><span class="label">Add Daily<br>Report</span></div>
+      <div class="hr-tile" id="openCombinedReportsBtn" style="background:linear-gradient(135deg,var(--ksa-gold),#B8912A);"><span class="icon">👁</span><span class="label">View Daily<br>Reports</span></div>
+      <div class="hr-tile" id="exportAttendanceByProjectBtn" style="background:linear-gradient(135deg,var(--ksa-gold),#B8912A);"><span class="icon">📊</span><span class="label">Attendance<br>by Project</span></div>
     </div>
 
     <div class="hr-section-label" style="color:#C4791F;">🔔 Renewals & Directory</div>
     <div class="hr-tile-grid">
-      <div class="hr-tile" id="openRenewalsBtn" style="border-color:#F0C766;background:#FDF6E3;"><span class="icon">🔔</span><span class="label">Renewals &<br>Expiry</span></div>
-      <div class="hr-tile" id="openEmployeeDirectoryBtn" style="border-color:#C7D9EA;background:#EAF1FC;"><span class="icon">👤</span><span class="label">Employee<br>Directory</span></div>
-      <div class="hr-tile" id="openVehicleDocumentsBtn" style="border-color:#A9D9CD;background:#E9F7F5;"><span class="icon">🚗</span><span class="label">Vehicle<br>Documents</span></div>
+      <div class="hr-tile" id="openRenewalsBtn" style="background:linear-gradient(135deg,#E0645F,#C43B3B);"><span class="icon">🔔</span><span class="label">Renewals &<br>Expiry</span></div>
+      <div class="hr-tile" id="openEmployeeDirectoryBtn" style="background:linear-gradient(135deg,#8E72E0,#6B4FC4);"><span class="icon">👤</span><span class="label">Employee<br>Directory</span></div>
+      <div class="hr-tile" id="openVehicleDocumentsBtn" style="background:linear-gradient(135deg,#2FA391,#1B7A6B);"><span class="icon">🚗</span><span class="label">Vehicle<br>Documents</span></div>
     </div>
 
     <div class="hr-section-label" style="color:var(--blue);">📨 Employee Requests</div>
     <div class="hr-tile-grid">
-      <div class="hr-tile" id="openCeoInboxBtn" style="border-color:#C7D9EA;background:#EAF1FC;"><span class="icon">📨</span><span class="label">Messages<br>to Owner</span></div>
+      <div class="hr-tile" id="openCeoInboxBtn" style="background:linear-gradient(135deg,#3E86C4,#1B5A96);"><span class="icon">📨</span><span class="label">Messages<br>to Owner</span></div>
     </div>
 
     <div class="hr-section-label" style="color:var(--navy);">💰 Finance</div>
     <div class="hr-tile-grid">
-      <div class="hr-tile" id="openFinancialReportBtn" style="border-color:#1B5A96;background:linear-gradient(135deg,#EAF1FC,#D6E6F7);"><span class="icon">💰</span><span class="label">Financial<br>Report</span></div>
-      <div class="hr-tile" id="viewFinancialReportOnlyBtn" style="border-color:#1B5A96;background:linear-gradient(135deg,#EAF1FC,#D6E6F7);"><span class="icon">👁</span><span class="label">View<br>Report</span></div>
-      <div class="hr-tile" id="openProjectSummaryBtn" style="border-color:#1B5A96;background:linear-gradient(135deg,#EAF1FC,#D6E6F7);"><span class="icon">📊</span><span class="label">Project<br>Summary</span></div>
+      <div class="hr-tile" id="openFinancialReportBtn" style="background:linear-gradient(135deg,var(--navy),var(--blue));"><span class="icon">💰</span><span class="label">Financial<br>Report</span></div>
+      <div class="hr-tile" id="viewFinancialReportOnlyBtn" style="background:linear-gradient(135deg,var(--navy),var(--blue));"><span class="icon">👁</span><span class="label">View<br>Report</span></div>
+      <div class="hr-tile" id="openProjectSummaryBtn" style="background:linear-gradient(135deg,var(--navy),var(--blue));"><span class="icon">📊</span><span class="label">Project<br>Summary</span></div>
     </div>
 
     <div class="hr-section-label" style="color:var(--blue);">📅 Monthly Timesheets</div>
