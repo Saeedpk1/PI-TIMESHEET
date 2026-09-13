@@ -3708,7 +3708,11 @@ async function loadProjectSummary(showArchived){
     const expenses = Number(p.opening_expenses || 0) + (expensesByProject[p.id] || 0);
     const invoicesTotal = Number(p.opening_invoices || 0) + invoicesSum;
     const balance = poValue - invoicesTotal;
-    const margin = invoicesTotal > 0 ? (invoicesTotal - expenses) / invoicesTotal : null;
+    // For margin, use actual raised invoices where they exist; otherwise,
+    // for manpower projects, fall back to the accrued claim value as the
+    // current best estimate of what's been earned so far.
+    const marginBasis = invoicesTotal > 0 ? invoicesTotal : claimValue;
+    const margin = marginBasis > 0 ? (marginBasis - expenses) / marginBasis : null;
     return {
       id: p.id, name: p.name, startingDate: p.starting_date,
       poValue, unitsPoSum, claimValue, expenses, invoicesTotal, balance, margin, invoices: projectInvoices,
