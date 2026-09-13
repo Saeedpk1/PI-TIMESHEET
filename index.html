@@ -5001,9 +5001,9 @@ function renderProjectSummary(){
     const claimBtn = (!showingArchived && p.claimValue > 0) ? `<button data-raise-invoice-claim="${p.id}" style="border:none;background:none;padding:0;font-size:11px;cursor:pointer;color:#6B4FC4;">📥</button>` : "";
     return [
       `<span data-toggle-project-invoices="${p.id}" style="cursor:pointer;font-weight:700;">${p.name} ${p.invoices.length ? "▾" : ""}</span>`,
-      `${fmt(p.poValue)}${p.claimValue > 0 ? `<div class="meta" style="font-size:9px;">incl. claim ${fmt(p.claimValue)}</div>` : ""}`,
+      fmt(p.poValue),
       fmt(p.expenses),
-      `${fmt(p.invoicesTotal)}${p.claimValue > 0 ? `<div class="meta" style="font-size:9px;color:#6B4FC4;">claim accrued: ${fmt(p.claimValue)}</div>` : ""}`,
+      fmt(p.invoicesTotal),
       `<span style="color:${p.balance<0?"var(--absent)":"var(--ink)"};font-weight:800;">${fmt(p.balance)}</span>`,
       `<span style="color:${marginColor};font-weight:800;">${marginText}</span>`,
       canEdit ? `<div style="display:flex;gap:4px;justify-content:flex-end;">${!showingArchived ? `<button data-edit-project-opening="${p.id}" style="border:none;background:none;padding:0;font-size:11px;cursor:pointer;color:var(--blue);">✎</button>` : ""}${claimBtn}${actionBtn}</div>` : ""
