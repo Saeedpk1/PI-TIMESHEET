@@ -2115,7 +2115,7 @@ function addHijriMonthsToGregorian(gregorianDateStr, monthsToAdd){
     candidate.setDate(candidate.getDate() + offset);
     const h = gregorianToHijriParts(candidate);
     if(h.year === targetYear && h.month === targetMonth && h.day === targetDay){
-      return candidate.toISOString().slice(0,10);
+      return fmtDate(candidate.getFullYear(), candidate.getMonth(), candidate.getDate());
     }
   }
   // Fallback: same Hijri year/month, closest matching day (handles the
@@ -2125,7 +2125,7 @@ function addHijriMonthsToGregorian(gregorianDateStr, monthsToAdd){
     candidate.setDate(candidate.getDate() + offset);
     const h = gregorianToHijriParts(candidate);
     if(h.year === targetYear && h.month === targetMonth){
-      return candidate.toISOString().slice(0,10);
+      return fmtDate(candidate.getFullYear(), candidate.getMonth(), candidate.getDate());
     }
   }
   return null;
