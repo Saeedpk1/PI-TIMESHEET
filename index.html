@@ -3657,20 +3657,25 @@ async function loadProjectSummary(showArchived){
   const [{ data: projects }, { data: units }, { data: reports }, { data: invoices }] = await Promise.all([
     sb.from("ts_projects").select("*").eq("active", !showArchived).order("name"),
     sb.from("ts_project_units").select("*").eq("active", true),
-    sb.from("ts_daily_reports").select("project_id, team_member_ids"),
+    sb.from("ts_daily_reports").select("project_id, unit_id, team_member_ids"),
     sb.from("ts_financial_invoices").select("*").not("project_id", "is", null).order("created_at", { ascending: true })
   ]);
 
   const allEmpIds = [...new Set((reports || []).flatMap(r => r.team_member_ids || []))];
-  let rateById = {};
+  let rateById = {}, claimRateById = {};
   if(allEmpIds.length){
-    const { data: emps } = await sb.from("ts_employees").select("id, expenses_per_day").in("id", allEmpIds);
-    (emps || []).forEach(e => { rateById[e.id] = Number(e.expenses_per_day) || 0; });
+    const { data: emps } = await sb.from("ts_employees").select("id, expenses_per_day, claim_rate_per_hour").in("id", allEmpIds);
+    (emps || []).forEach(e => {
+      rateById[e.id] = Number(e.expenses_per_day) || 0;
+      claimRateById[e.id] = Number(e.claim_rate_per_hour) || 0;
+    });
   }
 
-  // PO Value only comes from fixed-price units -- manpower units (billed
-  // by claim rate, no fixed PO) are excluded even if they have a leftover
-  // po_value from before they were switched to manpower billing.
+  const manpowerUnitIds = new Set((units || []).filter(u => u.is_manpower).map(u => u.id));
+
+  // PO Value combines two things: fixed-price units' PO, plus (for
+  // manpower units, which have no fixed PO) the claim value accrued so
+  // far -- rate x 8 hours x days worked, from Daily Progress Reports.
   const poByProject = {};
   (units || []).forEach(u => {
     if(u.is_manpower) return;
@@ -3678,9 +3683,14 @@ async function loadProjectSummary(showArchived){
   });
 
   const expensesByProject = {};
+  const claimByProject = {};
   (reports || []).forEach(r => {
     const cost = (r.team_member_ids || []).reduce((s,id) => s + (rateById[id] || 0), 0);
     expensesByProject[r.project_id] = (expensesByProject[r.project_id] || 0) + cost;
+    if(manpowerUnitIds.has(r.unit_id)){
+      const claim = (r.team_member_ids || []).reduce((s,id) => s + ((claimRateById[id] || 0) * 8), 0);
+      claimByProject[r.project_id] = (claimByProject[r.project_id] || 0) + claim;
+    }
   });
 
   const invoicesByProject = {};
@@ -3693,14 +3703,15 @@ async function loadProjectSummary(showArchived){
     const projectInvoices = invoicesByProject[p.id] || [];
     const invoicesSum = projectInvoices.reduce((s,v)=>s+Number(v.amount_no_vat||0),0);
     const unitsPoSum = poByProject[p.id] || 0;
-    const poValue = Number(p.opening_po_value || 0) + unitsPoSum;
+    const claimValue = claimByProject[p.id] || 0;
+    const poValue = Number(p.opening_po_value || 0) + unitsPoSum + claimValue;
     const expenses = Number(p.opening_expenses || 0) + (expensesByProject[p.id] || 0);
     const invoicesTotal = Number(p.opening_invoices || 0) + invoicesSum;
     const balance = poValue - invoicesTotal;
     const margin = invoicesTotal > 0 ? (invoicesTotal - expenses) / invoicesTotal : null;
     return {
       id: p.id, name: p.name, startingDate: p.starting_date,
-      poValue, unitsPoSum, expenses, invoicesTotal, balance, margin, invoices: projectInvoices,
+      poValue, unitsPoSum, claimValue, expenses, invoicesTotal, balance, margin, invoices: projectInvoices,
       openingPo: p.opening_po_value, openingExpenses: p.opening_expenses, openingInvoices: p.opening_invoices
     };
   });
@@ -3761,6 +3772,29 @@ async function restoreProjectSummary(projectId){
   const { error } = await sb.from("ts_projects").update({ active: true }).eq("id", projectId);
   state.loading = false;
   toast(error ? "Could not restore." : `"${p.name}" restored to current projects.`);
+  await loadProjectSummary(state.projectSummaryShowArchived);
+}
+
+async function raiseInvoiceFromClaim(projectId){
+  const p = state.projectSummaryRows.find(x=>x.id===projectId);
+  if(!p) return;
+  if(!p.claimValue){ toast("No manpower claim value accrued yet for this project."); return; }
+  const suggested = Math.round(p.claimValue * 100) / 100;
+  const description = (prompt("Description for this invoice:", p.name) || "").trim();
+  if(!description) return;
+  const invoiceNo = (prompt("Invoice No:") || "").trim();
+  const actualInput = prompt(`Claim value so far: SAR ${suggested.toLocaleString()}. Enter the actual invoice amount to save (w/o VAT):`, suggested);
+  if(actualInput === null) return;
+  const actualAmount = Number(actualInput) || 0;
+  const month = new Date().toLocaleDateString(undefined, { month: "short", year: "numeric" });
+  state.loading = true; render();
+  const { error } = await sb.from("ts_financial_invoices").insert({
+    description, invoice_no: invoiceNo, amount_no_vat: actualAmount,
+    amount_with_vat: Math.round(actualAmount * (1 + VAT_RATE) * 100) / 100,
+    invoice_month: month, project_id: projectId, report_date: todayLocalISO()
+  });
+  state.loading = false;
+  toast(error ? "Could not save invoice." : "Invoice saved for this project's claim.");
   await loadProjectSummary(state.projectSummaryShowArchived);
 }
 
@@ -4964,14 +4998,15 @@ function renderProjectSummary(){
     const actionBtn = showingArchived
       ? `<button data-restore-project="${p.id}" style="border:none;background:none;padding:0;font-size:11px;cursor:pointer;color:var(--present);">↩</button>`
       : `<button data-archive-project="${p.id}" style="border:none;background:none;padding:0;font-size:11px;cursor:pointer;color:var(--muted);">🗄</button>`;
+    const claimBtn = (!showingArchived && p.claimValue > 0) ? `<button data-raise-invoice-claim="${p.id}" style="border:none;background:none;padding:0;font-size:11px;cursor:pointer;color:#6B4FC4;">📥</button>` : "";
     return [
       `<span data-toggle-project-invoices="${p.id}" style="cursor:pointer;font-weight:700;">${p.name} ${p.invoices.length ? "▾" : ""}</span>`,
-      fmt(p.poValue),
+      `${fmt(p.poValue)}${p.claimValue > 0 ? `<div class="meta" style="font-size:9px;">incl. claim ${fmt(p.claimValue)}</div>` : ""}`,
       fmt(p.expenses),
-      fmt(p.invoicesTotal),
+      `${fmt(p.invoicesTotal)}${p.claimValue > 0 ? `<div class="meta" style="font-size:9px;color:#6B4FC4;">claim accrued: ${fmt(p.claimValue)}</div>` : ""}`,
       `<span style="color:${p.balance<0?"var(--absent)":"var(--ink)"};font-weight:800;">${fmt(p.balance)}</span>`,
       `<span style="color:${marginColor};font-weight:800;">${marginText}</span>`,
-      canEdit ? `<div style="display:flex;gap:4px;justify-content:flex-end;">${!showingArchived ? `<button data-edit-project-opening="${p.id}" style="border:none;background:none;padding:0;font-size:11px;cursor:pointer;color:var(--blue);">✎</button>` : ""}${actionBtn}</div>` : ""
+      canEdit ? `<div style="display:flex;gap:4px;justify-content:flex-end;">${!showingArchived ? `<button data-edit-project-opening="${p.id}" style="border:none;background:none;padding:0;font-size:11px;cursor:pointer;color:var(--blue);">✎</button>` : ""}${claimBtn}${actionBtn}</div>` : ""
     ].filter((_,i)=>i<headers.length);
   });
 
@@ -5001,7 +5036,7 @@ function renderProjectSummary(){
       <div class="meta" style="color:#BFDCF5;">PO Value (w/o VAT) · Expenses · Invoices · Balance · Margin</div>
     </div>
     <button class="btn btn-outline btn-sm" id="toggleProjectSummaryArchiveBtn" style="width:100%;margin-bottom:12px;">${showingArchived ? "📋 View Current Projects" : "📜 View History (completed/archived)"}</button>
-    ${canEdit ? `<div class="field-note" style="margin-bottom:10px;">${showingArchived ? "Tap ↩ to bring a project back to the current list." : "PO Value comes from each unit's PO in Manage Projects. Expenses come from Daily Progress Reports; Invoices come from the Financial Report. Tap a project's name to see its invoice list. Tap ✎ to set starting date or adjust opening Expenses/Invoices from before the app. Tap 🗄 to move a completed project to History."}</div>` : `<div class="field-note" style="margin-bottom:10px;">Tap a project's name to see its invoice list.</div>`}
+    ${canEdit ? `<div class="field-note" style="margin-bottom:10px;">${showingArchived ? "Tap ↩ to bring a project back to the current list." : "PO Value combines each unit's fixed PO plus any manpower claim value accrued so far. Expenses come from Daily Progress Reports; Invoices come from the Financial Report. Tap a project's name to see its invoice list. Tap ✎ to set starting date or adjust opening Expenses/Invoices. Tap 📥 to save the accrued manpower claim as an actual invoice at month-end. Tap 🗄 to move a completed project to History."}</div>` : `<div class="field-note" style="margin-bottom:10px;">Tap a project's name to see its invoice list.</div>`}
     ${state.projectSummaryRows.length ? table : `<div class="empty-state"><div class="ic">📊</div>${showingArchived ? "No projects in History." : "No active projects found."}</div>`}
   `;
 }
@@ -6294,7 +6329,7 @@ function renderUnitFinancialReport(){
   const bars = [
     { label: poLabel, val: f.poValue, color: "#1B5A96" },
     { label: "Cost", val: f.totalCost, color: "#C43B3B" },
-    { label: "Profit", val: f.profit, color: profitOk ? "#1C8A4E" : "#C43B3B" }
+    { label: "Difference", val: f.profit, color: profitOk ? "#1C8A4E" : "#C43B3B" }
   ];
   const svgBars = bars.map((b, i) => {
     const h = Math.max(2, Math.abs(b.val) / maxVal * 92);
@@ -6345,7 +6380,7 @@ function renderUnitFinancialReport(){
       </div>
       <div style="background:linear-gradient(135deg,${profitOk ? "#1C8A4E,#2FAE68" : "#C43B3B,#E0645F"});border-radius:14px;padding:14px;color:#fff;box-shadow:0 3px 10px ${profitOk ? "rgba(28,138,78,0.3)" : "rgba(196,59,59,0.3)"};position:relative;overflow:hidden;">
         <div style="position:absolute;top:-6px;right:-4px;font-size:34px;opacity:0.18;">${profitOk ? "📈" : "📉"}</div>
-        <div style="font-size:10.5px;opacity:0.9;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Profit</div>
+        <div style="font-size:10.5px;opacity:0.9;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Difference</div>
         <div style="font-size:20px;font-weight:800;margin-top:4px;">${fmtSAR(f.profit)}</div>
         <div style="font-size:10px;opacity:0.8;">SAR</div>
       </div>
@@ -6353,12 +6388,12 @@ function renderUnitFinancialReport(){
 
     <div style="background:linear-gradient(135deg,${marginOk ? "var(--ksa-gold),#B8912A" : "#C43B3B,#E0645F"});border-radius:14px;padding:18px;margin-top:10px;text-align:center;color:#fff;box-shadow:0 3px 10px rgba(201,162,39,0.3);position:relative;overflow:hidden;">
       <div style="position:absolute;top:-10px;right:-6px;font-size:50px;opacity:0.15;">${marginOk ? "🏆" : "⚠️"}</div>
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:0.9;">Profit Margin</div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:0.9;">Difference Margin</div>
       <div style="font-size:34px;font-weight:800;margin-top:4px;">${f.marginPct === null ? "-" : f.marginPct.toFixed(1) + "%"}</div>
     </div>
 
     <div class="card" style="margin-top:14px;border:2px solid var(--ksa-gold-light);background:var(--ksa-cream);">
-      <div style="font-weight:800;font-size:12.5px;color:var(--blue);margin-bottom:6px;">📊 ${poLabel} vs Cost vs Profit</div>
+      <div style="font-weight:800;font-size:12.5px;color:var(--blue);margin-bottom:6px;">📊 ${poLabel} vs Cost vs Difference</div>
       <svg viewBox="0 0 ${chartW} ${chartH}" style="width:100%;height:auto;">${svgBars}</svg>
     </div>
 
@@ -6392,7 +6427,7 @@ function renderUnitFinancialReport(){
             <div style="font-size:16px;font-weight:800;margin-top:2px;">${fmtSAR(projectedTotalCost)}</div>
           </div>
           <div style="background:linear-gradient(135deg,${projectedOk?"#1C8A4E,#2FAE68":"#C43B3B,#E0645F"});border-radius:12px;padding:12px;color:#fff;">
-            <div style="font-size:9.5px;opacity:0.9;text-transform:uppercase;font-weight:700;">Projected Profit</div>
+            <div style="font-size:9.5px;opacity:0.9;text-transform:uppercase;font-weight:700;">Projected Difference</div>
             <div style="font-size:16px;font-weight:800;margin-top:2px;">${fmtSAR(projectedProfit)}</div>
           </div>
         </div>
@@ -7082,6 +7117,8 @@ function handleDelegatedClick(e){
   if(archiveProjectEl){ archiveProjectSummary(archiveProjectEl.getAttribute("data-archive-project")); return; }
   const restoreProjectEl = e.target.closest("[data-restore-project]");
   if(restoreProjectEl){ restoreProjectSummary(restoreProjectEl.getAttribute("data-restore-project")); return; }
+  const raiseInvoiceClaimEl = e.target.closest("[data-raise-invoice-claim]");
+  if(raiseInvoiceClaimEl){ raiseInvoiceFromClaim(raiseInvoiceClaimEl.getAttribute("data-raise-invoice-claim")); return; }
   const editProjectOpeningEl = e.target.closest("[data-edit-project-opening]");
   if(editProjectOpeningEl){ editProjectOpeningBalance(editProjectOpeningEl.getAttribute("data-edit-project-opening")); return; }
   const toggleProjectInvoicesEl = e.target.closest("[data-toggle-project-invoices]");
