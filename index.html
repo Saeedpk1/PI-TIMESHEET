@@ -298,15 +298,17 @@
   }
   .ceo-gold-btn{color:var(--blue) !important;}
 
-  .hr-section-label{font-size:10.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin:16px 2px 6px;display:flex;align-items:center;gap:6px;}
-  .hr-tile-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .hr-section-label{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin:12px 2px 5px;display:flex;align-items:center;gap:6px;}
+  .hr-tile-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
   .hr-tile{
-    background:#fff;border-radius:10px;padding:8px 6px;text-align:center;cursor:pointer;
-    border:2px solid var(--line);transition:border-color .15s,transform .1s;
+    background:#fff;border-radius:10px;padding:7px 3px;text-align:center;cursor:pointer;
+    border:2px solid var(--line);transition:border-color .15s,transform .1s,opacity .15s;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:52px;
   }
   .hr-tile:active{transform:scale(0.97);}
-  .hr-tile .icon{font-size:17px;display:block;margin-bottom:3px;}
-  .hr-tile .label{font-size:10px;font-weight:700;color:var(--ink);line-height:1.2;}
+  .hr-tile.hr-tile-hidden{display:none;}
+  .hr-tile .icon{font-size:15px;display:block;margin-bottom:2px;}
+  .hr-tile .label{font-size:8.5px;font-weight:700;color:var(--ink);line-height:1.15;}
 
   .status-banner{padding:12px 14px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px;border:2px solid transparent;}
   .status-draft{background:#F1F3F5;color:var(--muted);}
@@ -6020,6 +6022,8 @@ function renderHrView(){
       </div>
     </div>
 
+
+    <input type="text" id="hrDashboardSearchInput" placeholder="🔍 Find a button… (e.g. leave, salary, vehicle)" style="margin-bottom:4px;">
     <div class="hr-section-label" style="color:var(--blue);">📅 Monthly Timesheets</div>
     <div class="card" style="padding:12px 14px;">
       <div class="row-between" style="margin-bottom:10px;">
@@ -6051,10 +6055,10 @@ function renderHrView(){
     <div class="hr-tile-grid">
       <div class="hr-tile" id="openDailyReportBtn" style="border-color:var(--ksa-gold-light);"><span class="icon">📋</span><span class="label">Add Daily<br>Report</span></div>
       <div class="hr-tile" id="openCombinedReportsBtn" style="border-color:var(--ksa-gold-light);"><span class="icon">👁</span><span class="label">View Daily<br>Reports</span></div>
-      <div class="hr-tile" id="exportAttendanceByProjectBtn" style="border-color:var(--ksa-gold-light);"><span class="icon">📊</span><span class="label">Export Attendance<br>by Project</span></div>
+      <div class="hr-tile" id="exportAttendanceByProjectBtn" style="border-color:var(--ksa-gold-light);"><span class="icon">📊</span><span class="label">Attendance<br>by Project</span></div>
     </div>
 
-    <div class="hr-section-label" style="color:#C4791F;">🔔 Renewals</div>
+    <div class="hr-section-label" style="color:#C4791F;">🔔 Renewals & Directory</div>
     <div class="hr-tile-grid">
       <div class="hr-tile" id="openRenewalsBtn" style="border-color:#F0C766;"><span class="icon">🔔</span><span class="label">Renewals &<br>Expiry</span></div>
       <div class="hr-tile" id="openEmployeeDirectoryBtn" style="border-color:#C7D9EA;"><span class="icon">👤</span><span class="label">Employee<br>Directory</span></div>
@@ -6063,7 +6067,7 @@ function renderHrView(){
 
     <div class="hr-section-label" style="color:var(--blue);">📨 Employee Requests</div>
     <div class="hr-tile-grid">
-      <div class="hr-tile" id="openCeoInboxBtn" style="border-color:#C7D9EA;"><span class="icon">📨</span><span class="label">Messages to<br>Owner</span></div>
+      <div class="hr-tile" id="openCeoInboxBtn" style="border-color:#C7D9EA;"><span class="icon">📨</span><span class="label">Messages<br>to Owner</span></div>
     </div>
 
     <div class="hr-section-label" style="color:var(--navy);">💰 Finance</div>
@@ -7640,7 +7644,29 @@ async function handleAddProjectFromEmployee(dstr, selectEl){
   toast(`"${name}" added and selected.`);
 }
 
+function filterHrDashboardTiles(searchTerm){
+  const term = (searchTerm || "").trim().toLowerCase().replace(/\s+/g, "");
+  document.querySelectorAll(".hr-tile-grid").forEach(grid => {
+    let anyVisible = false;
+    grid.querySelectorAll(".hr-tile").forEach(tile => {
+      const label = tile.querySelector(".label");
+      const text = (label ? label.textContent : "").toLowerCase().replace(/\s+/g, "");
+      const isMatch = !term || text.includes(term);
+      tile.classList.toggle("hr-tile-hidden", !isMatch);
+      if(isMatch) anyVisible = true;
+    });
+    grid.style.display = (term && !anyVisible) ? "none" : "";
+    const sectionLabel = grid.previousElementSibling;
+    if(sectionLabel && sectionLabel.classList.contains("hr-section-label")){
+      sectionLabel.style.display = (term && !anyVisible) ? "none" : "";
+    }
+  });
+}
+
 function handleDelegatedInput(e){
+  if(e.target.id === "hrDashboardSearchInput"){
+    filterHrDashboardTiles(e.target.value);
+  }
   if(e.target.id === "remarksInput"){
     state.remarksDraft = e.target.value; // no re-render here, so the cursor position isn't lost while typing
   }
