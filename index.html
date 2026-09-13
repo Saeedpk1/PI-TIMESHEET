@@ -5015,7 +5015,7 @@ function renderProjectSummary(){
   };
 
   const headers = ["Project","PO Value","Expenses","Invoices","Balance","Margin", ...(canEdit?[""]:[])];
-  const widths = ["18%","16%","16%","16%","16%","10%", ...(canEdit?["8%"]:[])];
+  const widths = ["120px","95px","95px","95px","95px","75px", ...(canEdit?["100px"]:[])];
 
   const rows = state.projectSummaryRows.map(p => {
     const accent = accentForName(p.name);
@@ -5026,9 +5026,9 @@ function renderProjectSummary(){
     const balanceBg = p.balance < 0 ? "#FBE0E0" : "#EAF1FC";
     const balanceColor = p.balance < 0 ? "#B33232" : "#0F3556";
     const actionBtn = showingArchived
-      ? `<button data-restore-project="${p.id}" style="border:none;background:none;padding:0;font-size:13px;cursor:pointer;color:var(--present);">↩</button>`
-      : `<button data-archive-project="${p.id}" style="border:none;background:none;padding:0;font-size:13px;cursor:pointer;color:var(--muted);">🗄</button>`;
-    const claimBtn = (!showingArchived && p.claimValue > 0) ? `<button data-raise-invoice-claim="${p.id}" style="border:none;background:none;padding:0;font-size:13px;cursor:pointer;color:#6B4FC4;">📥</button>` : "";
+      ? `<button data-restore-project="${p.id}" style="border:none;background:none;padding:2px;font-size:15px;cursor:pointer;color:var(--present);">↩</button>`
+      : `<button data-archive-project="${p.id}" style="border:none;background:none;padding:2px;font-size:15px;cursor:pointer;color:var(--muted);">🗄</button>`;
+    const claimBtn = (!showingArchived && p.claimValue > 0) ? `<button data-raise-invoice-claim="${p.id}" style="border:none;background:none;padding:2px;font-size:15px;cursor:pointer;color:#6B4FC4;">📥</button>` : "";
     return [
       `<span data-toggle-project-invoices="${p.id}" style="cursor:pointer;font-weight:800;color:${accent};">${p.name} ${p.invoices.length ? "▾" : ""}</span>`,
       `<span style="font-weight:700;">${fmt(p.poValue)}</span>`,
@@ -5036,28 +5036,30 @@ function renderProjectSummary(){
       `<span style="color:#146C38;">${fmt(p.invoicesTotal)}</span>`,
       `<span style="display:inline-block;background:${balanceBg};color:${balanceColor};font-weight:800;padding:3px 8px;border-radius:999px;">${fmt(p.balance)}</span>`,
       `<span style="display:inline-block;background:${marginBg};color:${marginColor};font-weight:800;padding:3px 8px;border-radius:999px;">${marginText}</span>`,
-      canEdit ? `<div style="display:flex;gap:5px;justify-content:flex-end;">${!showingArchived ? `<button data-edit-project-opening="${p.id}" style="border:none;background:none;padding:0;font-size:13px;cursor:pointer;color:var(--blue);">✎</button>` : ""}${claimBtn}${actionBtn}</div>` : ""
+      canEdit ? `<div style="display:flex;gap:9px;justify-content:flex-end;">${!showingArchived ? `<button data-edit-project-opening="${p.id}" style="border:none;background:none;padding:2px;font-size:15px;cursor:pointer;color:var(--blue);">✎</button>` : ""}${claimBtn}${actionBtn}</div>` : ""
     ].filter((_,i)=>i<headers.length).map((c,i) => ({ content: c, accent: i===0 ? accent : null, tint }));
   });
 
   const table = `
-    <table class="fin-table" style="font-size:10.5px;width:100%;margin-bottom:4px;table-layout:fixed;border:2px solid #0F3556;box-shadow:0 3px 12px rgba(15,53,86,0.15);">
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:4px;">
+    <table class="fin-table" style="font-size:10.5px;width:auto;min-width:100%;table-layout:auto;border:2px solid #0F3556;box-shadow:0 3px 12px rgba(15,53,86,0.15);">
       <colgroup>${headers.map((h,i)=>widths[i]?`<col style="width:${widths[i]};">`:'<col>').join("")}</colgroup>
-      <thead><tr>${headers.map((h,i)=>`<th style="background:linear-gradient(135deg,#0F3556,#1B5A96);color:#fff;padding:7px 5px;text-align:${i===0?"left":"right"};font-size:9.5px;letter-spacing:0.3px;">${h}</th>`).join("")}</tr></thead>
+      <thead><tr>${headers.map((h,i)=>`<th style="background:linear-gradient(135deg,#0F3556,#1B5A96);color:#fff;padding:7px 8px;text-align:${i===0?"left":"right"};font-size:9.5px;letter-spacing:0.3px;white-space:nowrap;">${h}</th>`).join("")}</tr></thead>
       <tbody>
         ${state.projectSummaryRows.map((p,ri) => `
-          <tr style="background:${rows[ri][0].tint};">${rows[ri].map((c,i)=>`<td style="padding:7px 5px;text-align:${i===0?"left":"right"};vertical-align:middle;${i===0?`border-left:4px solid ${c.accent};`:""}">${c.content}</td>`).join("")}</tr>
+          <tr style="background:${rows[ri][0].tint};">${rows[ri].map((c,i)=>`<td style="padding:7px 8px;text-align:${i===0?"left":"right"};vertical-align:middle;white-space:nowrap;${i===0?`border-left:4px solid ${c.accent};`:""}">${c.content}</td>`).join("")}</tr>
           ${state.expandedProjectSummaryId === p.id ? `
-          <tr><td colspan="${headers.length}" style="padding:8px 12px;background:#fff;border-left:4px solid ${accentForName(p.name)};">
+          <tr><td colspan="${headers.length}" style="padding:8px 12px;background:#fff;border-left:4px solid ${accentForName(p.name)};white-space:normal;">
             ${p.invoices.length ? p.invoices.map((v,i) => `
-              <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:4px 0;border-top:1px dashed var(--line);">
+              <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:4px 0;border-top:1px dashed var(--line);gap:10px;">
                 <span>${i+1}. ${v.description || "-"}${v.invoice_no ? " · " + v.invoice_no : ""}</span>
-                <span style="font-weight:700;color:#146C38;">${fmt(v.amount_no_vat)}</span>
+                <span style="font-weight:700;color:#146C38;white-space:nowrap;">${fmt(v.amount_no_vat)}</span>
               </div>`).join("") : `<div class="meta">No invoices raised yet.</div>`}
           </td></tr>` : ""}
         `).join("")}
       </tbody>
-    </table>`;
+    </table>
+    </div>`;
 
   return `
     <button class="link-btn" id="${backBtnId}" style="margin-bottom:12px;">‹ Back</button>
