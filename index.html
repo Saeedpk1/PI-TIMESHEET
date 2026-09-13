@@ -473,6 +473,7 @@ let state = {
   financialMonthReceived: 0,
   projectSummaryRows: [],
   expandedProjectSummaryId: null,
+  projectSummaryShowArchived: false,
   financialReportDate: todayLocalISO(),
   financialDirty: false,
   employeeDirectory: [],
@@ -3651,10 +3652,10 @@ async function exportAttendanceByProjectExcel(){
 }
 
 /* ---------------- Project Summary (overall, not per-unit) ---------------- */
-async function loadProjectSummary(){
-  state.loading = true; render();
+async function loadProjectSummary(showArchived){
+  state.loading = true; state.projectSummaryShowArchived = !!showArchived; render();
   const [{ data: projects }, { data: units }, { data: reports }, { data: invoices }] = await Promise.all([
-    sb.from("ts_projects").select("*").eq("active", true).order("name"),
+    sb.from("ts_projects").select("*").eq("active", !showArchived).order("name"),
     sb.from("ts_project_units").select("*").eq("active", true),
     sb.from("ts_daily_reports").select("project_id, team_member_ids"),
     sb.from("ts_financial_invoices").select("*").not("project_id", "is", null).order("created_at", { ascending: true })
@@ -3739,6 +3740,28 @@ async function saveProjectPoValueDirect(projectId){
   state.loading = false;
   toast(error ? "Could not save." : "PO Value updated.");
   await loadProjectSummary();
+}
+
+async function archiveProjectSummary(projectId){
+  const p = state.projectSummaryRows.find(x=>x.id===projectId);
+  if(!p) return;
+  if(!confirm(`Move "${p.name}" to History? It'll disappear from the current list, but all its numbers stay saved and viewable in History.`)) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_projects").update({ active: false }).eq("id", projectId);
+  state.loading = false;
+  toast(error ? "Could not move to History." : `"${p.name}" moved to History.`);
+  await loadProjectSummary(state.projectSummaryShowArchived);
+}
+
+async function restoreProjectSummary(projectId){
+  const p = state.projectSummaryRows.find(x=>x.id===projectId);
+  if(!p) return;
+  if(!confirm(`Move "${p.name}" back to current projects?`)) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_projects").update({ active: true }).eq("id", projectId);
+  state.loading = false;
+  toast(error ? "Could not restore." : `"${p.name}" restored to current projects.`);
+  await loadProjectSummary(state.projectSummaryShowArchived);
 }
 
 async function generateWpsPayroll(payrollGroup){
@@ -4929,14 +4952,18 @@ function renderProjectSummary(){
   const isCeoUser = state.user.role === "ceo";
   const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (isHrUser ? "backToHrBtn" : "backToSupervisorHomeBtn");
   const canEdit = isHrUser;
+  const showingArchived = state.projectSummaryShowArchived;
   const fmt = n => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
 
   const headers = ["Project","PO Value","Expenses","Invoices","Balance","Margin", ...(canEdit?[""]:[])];
-  const widths = ["20%","18%","16%","16%","16%","10%", ...(canEdit?["4%"]:[])];
+  const widths = ["18%","16%","16%","16%","16%","10%", ...(canEdit?["8%"]:[])];
 
   const rows = state.projectSummaryRows.map(p => {
     const marginText = p.margin === null ? "-" : `${(p.margin*100).toFixed(1)}%`;
     const marginColor = p.margin === null ? "var(--muted)" : (p.margin >= 0 ? "var(--present)" : "var(--absent)");
+    const actionBtn = showingArchived
+      ? `<button data-restore-project="${p.id}" style="border:none;background:none;padding:0;font-size:11px;cursor:pointer;color:var(--present);">↩</button>`
+      : `<button data-archive-project="${p.id}" style="border:none;background:none;padding:0;font-size:11px;cursor:pointer;color:var(--muted);">🗄</button>`;
     return [
       `<span data-toggle-project-invoices="${p.id}" style="cursor:pointer;font-weight:700;">${p.name} ${p.invoices.length ? "▾" : ""}</span>`,
       fmt(p.poValue),
@@ -4944,7 +4971,7 @@ function renderProjectSummary(){
       fmt(p.invoicesTotal),
       `<span style="color:${p.balance<0?"var(--absent)":"var(--ink)"};font-weight:800;">${fmt(p.balance)}</span>`,
       `<span style="color:${marginColor};font-weight:800;">${marginText}</span>`,
-      canEdit ? `<button data-edit-project-opening="${p.id}" style="border:none;background:none;padding:0;font-size:11px;cursor:pointer;color:var(--blue);">✎</button>` : ""
+      canEdit ? `<div style="display:flex;gap:4px;justify-content:flex-end;">${!showingArchived ? `<button data-edit-project-opening="${p.id}" style="border:none;background:none;padding:0;font-size:11px;cursor:pointer;color:var(--blue);">✎</button>` : ""}${actionBtn}</div>` : ""
     ].filter((_,i)=>i<headers.length);
   });
 
@@ -4970,11 +4997,12 @@ function renderProjectSummary(){
   return `
     <button class="link-btn" id="${backBtnId}" style="margin-bottom:12px;">‹ Back</button>
     <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:14px;padding:14px 16px;margin-bottom:14px;">
-      <h3 style="color:#fff;font-size:15px;margin:0;">📊 Project Summary</h3>
+      <h3 style="color:#fff;font-size:15px;margin:0;">📊 Project Summary${showingArchived ? " — History" : ""}</h3>
       <div class="meta" style="color:#BFDCF5;">PO Value (w/o VAT) · Expenses · Invoices · Balance · Margin</div>
     </div>
-    ${canEdit ? `<div class="field-note" style="margin-bottom:10px;">PO Value comes from each unit's PO in Manage Projects. Expenses come from Daily Progress Reports; Invoices come from the Financial Report. Tap a project's name to see its invoice list. Tap ✎ to set starting date or adjust opening Expenses/Invoices from before the app.</div>` : `<div class="field-note" style="margin-bottom:10px;">Tap a project's name to see its invoice list.</div>`}
-    ${state.projectSummaryRows.length ? table : `<div class="empty-state"><div class="ic">📊</div>No active projects found.</div>`}
+    <button class="btn btn-outline btn-sm" id="toggleProjectSummaryArchiveBtn" style="width:100%;margin-bottom:12px;">${showingArchived ? "📋 View Current Projects" : "📜 View History (completed/archived)"}</button>
+    ${canEdit ? `<div class="field-note" style="margin-bottom:10px;">${showingArchived ? "Tap ↩ to bring a project back to the current list." : "PO Value comes from each unit's PO in Manage Projects. Expenses come from Daily Progress Reports; Invoices come from the Financial Report. Tap a project's name to see its invoice list. Tap ✎ to set starting date or adjust opening Expenses/Invoices from before the app. Tap 🗄 to move a completed project to History."}</div>` : `<div class="field-note" style="margin-bottom:10px;">Tap a project's name to see its invoice list.</div>`}
+    ${state.projectSummaryRows.length ? table : `<div class="empty-state"><div class="ic">📊</div>${showingArchived ? "No projects in History." : "No active projects found."}</div>`}
   `;
 }
 
@@ -7042,9 +7070,18 @@ function handleDelegatedClick(e){
   }
   if(el("openProjectSummaryBtn")){
     state.view = "project-summary";
-    loadProjectSummary();
+    loadProjectSummary(false);
     return;
   }
+  if(el("toggleProjectSummaryArchiveBtn")){
+    state.expandedProjectSummaryId = null;
+    loadProjectSummary(!state.projectSummaryShowArchived);
+    return;
+  }
+  const archiveProjectEl = e.target.closest("[data-archive-project]");
+  if(archiveProjectEl){ archiveProjectSummary(archiveProjectEl.getAttribute("data-archive-project")); return; }
+  const restoreProjectEl = e.target.closest("[data-restore-project]");
+  if(restoreProjectEl){ restoreProjectSummary(restoreProjectEl.getAttribute("data-restore-project")); return; }
   const editProjectOpeningEl = e.target.closest("[data-edit-project-opening]");
   if(editProjectOpeningEl){ editProjectOpeningBalance(editProjectOpeningEl.getAttribute("data-edit-project-opening")); return; }
   const toggleProjectInvoicesEl = e.target.closest("[data-toggle-project-invoices]");
