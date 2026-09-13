@@ -500,7 +500,9 @@ let state = {
   newProjectName: "",
   remarksDraft: "",
   loading: false,
-  error: ""
+  error: "",
+  pendingPasswordUser: null,
+  loginPasswordInput: ""
 };
 
 function projectName(id){
@@ -837,7 +839,18 @@ function checkConfig(){
 }
 
 /* ---------------- login ---------------- */
-async function doLogin(iqama){
+function bytesToHex(bytes){ return Array.from(bytes).map(b=>b.toString(16).padStart(2,"0")).join(""); }
+function hexToBytes(hex){ const arr = new Uint8Array(hex.length/2); for(let i=0;i<arr.length;i++) arr[i]=parseInt(hex.substr(i*2,2),16); return arr; }
+
+async function hashPassword(password, saltHex){
+  const enc = new TextEncoder();
+  const salt = saltHex ? hexToBytes(saltHex) : crypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" }, keyMaterial, 256);
+  return { hash: bytesToHex(new Uint8Array(bits)), salt: bytesToHex(salt) };
+}
+
+async function doLogin(iqama, skipPassword){
   state.error = "";
   if(!iqama){ state.error = "Enter your Iqama / ID number."; render(); return; }
   const normalized = iqama.replace(/\D/g, ""); // keep digits only — ignores spaces/typos in formatting
@@ -857,17 +870,13 @@ async function doLogin(iqama){
       state.error = "No match found. Check your Iqama / ID number, or contact your admin.";
       render(); return;
     }
-    state.user = match;
-    localStorage.setItem("ts_user", JSON.stringify(match));
-    const mohammed = (data || []).find(row => (row.iqama_number || "") === "1091504728");
-    state.hrmSupervisorId = mohammed ? mohammed.id : null;
-    await loadProjects();
-    state.view = match.role === "employee" ? "employee" : (match.role === "supervisor" ? "supervisor" : (match.role === "ceo" ? "ceo-home" : "hr"));
-    if(state.view === "employee") await loadEmployeeMonth();
-    if(state.view === "supervisor") await loadSupervisorList();
-    if(state.view === "hr") await loadHrMonth();
-    if(state.view === "ceo-home") { await loadCeoLeaveRequests(); await loadCeoInboxMessages(); }
-    render();
+    if(match.password_hash && !skipPassword){
+      state.pendingPasswordUser = match;
+      state.loginPasswordInput = "";
+      render();
+      return;
+    }
+    await completeLogin(match);
   }catch(e){
     state.loading = false;
     state.error = "Connection problem — check your internet and try again.";
@@ -875,9 +884,147 @@ async function doLogin(iqama){
   }
 }
 
+async function submitLoginPassword(){
+  const match = state.pendingPasswordUser;
+  if(!match) return;
+  const input = document.getElementById("loginPassword");
+  const pw = input ? input.value : "";
+  if(!pw){ state.error = "Enter your password."; render(); return; }
+  state.loading = true; render();
+  const { hash } = await hashPassword(pw, match.password_salt);
+  state.loading = false;
+  if(hash !== match.password_hash){
+    state.error = "Incorrect password.";
+    render();
+    return;
+  }
+  state.error = "";
+  state.pendingPasswordUser = null;
+  await completeLogin(match);
+}
+
+async function completeLogin(match){
+  state.loading = true; render();
+  state.user = match;
+  localStorage.setItem("ts_user", JSON.stringify(match));
+  const { data } = await sb.from("ts_employees").select("id, iqama_number").eq("iqama_number", "1091504728").maybeSingle();
+  state.hrmSupervisorId = data ? data.id : null;
+  await loadProjects();
+  state.view = match.role === "employee" ? "employee" : (match.role === "supervisor" ? "supervisor" : (match.role === "ceo" ? "ceo-home" : "hr"));
+  if(state.view === "employee") await loadEmployeeMonth();
+  if(state.view === "supervisor") await loadSupervisorList();
+  if(state.view === "hr") await loadHrMonth();
+  if(state.view === "ceo-home") { await loadCeoLeaveRequests(); await loadCeoInboxMessages(); }
+  state.loading = false;
+  render();
+}
+
+function randomChallenge(){ return crypto.getRandomValues(new Uint8Array(32)); }
+
+async function enableBiometricUnlock(){
+  if(!window.PublicKeyCredential){ toast("Biometric unlock isn't supported on this browser."); return; }
+  try{
+    const cred = await navigator.credentials.create({
+      publicKey: {
+        challenge: randomChallenge(),
+        rp: { name: "PI Timesheet" },
+        user: {
+          id: new TextEncoder().encode(state.user.id),
+          name: state.user.iqama_number || state.user.id,
+          displayName: state.user.name || "User"
+        },
+        pubKeyCredParams: [{ alg: -7, type: "public-key" }, { alg: -257, type: "public-key" }],
+        authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+        timeout: 60000
+      }
+    });
+    if(!cred) throw new Error("No credential returned");
+    const credIdB64 = btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
+    localStorage.setItem("ts_biometric_cred_" + state.user.iqama_number, credIdB64);
+    localStorage.setItem("ts_biometric_last_iqama", state.user.iqama_number);
+    toast("Biometric unlock enabled on this device.");
+    render();
+  }catch(e){
+    console.error(e);
+    toast("Could not enable biometric unlock: " + (e.message || "cancelled"));
+  }
+}
+
+function disableBiometricUnlock(){
+  if(!confirm("Turn off biometric unlock on this device?")) return;
+  localStorage.removeItem("ts_biometric_cred_" + state.user.iqama_number);
+  if(localStorage.getItem("ts_biometric_last_iqama") === state.user.iqama_number) localStorage.removeItem("ts_biometric_last_iqama");
+  toast("Biometric unlock turned off for this device.");
+  render();
+}
+
+function hasBiometricUnlockSetUp(){
+  const iqama = localStorage.getItem("ts_biometric_last_iqama");
+  return !!(iqama && localStorage.getItem("ts_biometric_cred_" + iqama));
+}
+
+async function unlockWithBiometric(){
+  const iqama = localStorage.getItem("ts_biometric_last_iqama");
+  const credIdB64 = iqama ? localStorage.getItem("ts_biometric_cred_" + iqama) : null;
+  if(!credIdB64){ toast("No biometric unlock set up on this device."); return; }
+  try{
+    const credId = Uint8Array.from(atob(credIdB64), c=>c.charCodeAt(0));
+    const assertion = await navigator.credentials.get({
+      publicKey: {
+        challenge: randomChallenge(),
+        allowCredentials: [{ id: credId, type: "public-key" }],
+        userVerification: "required",
+        timeout: 60000
+      }
+    });
+    if(!assertion) throw new Error("No assertion returned");
+    // The platform authenticator confirmed the correct biometric --
+    // that's treated as strong enough on its own, so we skip the
+    // password step for this device.
+    await doLogin(iqama, true);
+  }catch(e){
+    console.error(e);
+    toast("Biometric unlock failed or was cancelled.");
+  }
+}
+
+async function setAccountPassword(){
+  const pw1 = prompt("Enter a new password (at least 6 characters):");
+  if(pw1 === null) return;
+  if(pw1.length < 6){ toast("Password must be at least 6 characters."); return; }
+  const pw2 = prompt("Confirm the new password:");
+  if(pw2 === null) return;
+  if(pw1 !== pw2){ toast("Passwords didn't match. Try again."); return; }
+  state.loading = true; render();
+  const { hash, salt } = await hashPassword(pw1);
+  const { error } = await sb.from("ts_employees").update({ password_hash: hash, password_salt: salt }).eq("id", state.user.id);
+  state.loading = false;
+  toast(error ? "Could not save password." : "Password set — you'll need it next time you log in.");
+  if(!error){
+    state.user.password_hash = hash;
+    state.user.password_salt = salt;
+    localStorage.setItem("ts_user", JSON.stringify(state.user));
+  }
+  render();
+}
+
+async function removeAccountPassword(){
+  if(!confirm("Remove your password? You'll be able to log in with just your ID number again.")) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_employees").update({ password_hash: null, password_salt: null }).eq("id", state.user.id);
+  state.loading = false;
+  toast(error ? "Could not remove password." : "Password removed.");
+  if(!error){
+    state.user.password_hash = null;
+    state.user.password_salt = null;
+    localStorage.setItem("ts_user", JSON.stringify(state.user));
+  }
+  render();
+}
+
 function logout(){
   localStorage.removeItem("ts_user");
-  state = { ...state, user:null, view:"login", entries:{}, submission:null, error:"" };
+  state = { ...state, user:null, view:"login", entries:{}, submission:null, error:"", pendingPasswordUser:null, loginPasswordInput:"" };
   render();
 }
 
@@ -4353,6 +4500,19 @@ function renderHeader(){
 }
 
 function renderLogin(){
+  if(state.pendingPasswordUser){
+    return `
+    <div class="login-wrap">
+      <img class="login-logo" src="${LOGO_DATA_URI}" alt="Professional Installation Co">
+      <h1>Online Timesheets</h1>
+      <p class="hint">Welcome back, ${state.pendingPasswordUser.name}</p>
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="Enter your password">
+      ${state.error ? `<div class="error-box">${state.error}</div>` : ""}
+      <button class="btn btn-primary" id="submitLoginPasswordBtn" ${state.loading?"disabled":""}>${state.loading?'<span class="spinner"></span>Signing in…':'Sign in'}</button>
+      <button class="link-btn" id="backToIqamaBtn" style="margin-top:10px;">‹ Not you? Go back</button>
+    </div>`;
+  }
   return `
   <div class="login-wrap">
     <img class="login-logo" src="${LOGO_DATA_URI}" alt="Professional Installation Co">
@@ -4363,6 +4523,7 @@ function renderLogin(){
     <input type="text" inputmode="numeric" id="loginIqama" placeholder="Enter your Iqama or ID number">
     ${state.error ? `<div class="error-box">${state.error}</div>` : ""}
     <button class="btn btn-primary" id="loginBtn" ${state.loading?"disabled":""}>${state.loading?'<span class="spinner"></span>Signing in…':'Sign in'}</button>
+    ${hasBiometricUnlockSetUp() ? `<button class="btn btn-outline" id="biometricUnlockBtn" style="margin-top:10px;">🔓 Unlock with Face ID / Fingerprint</button>` : ""}
   </div>`;
 }
 
@@ -6048,6 +6209,19 @@ function renderCeoHome(){
         <div class="desc">View any employee's full profile</div>
       </div>
     </div>
+
+    <div class="card" style="margin-top:16px;">
+      <h3 style="font-size:14px;">🔒 Account Security</h3>
+      <div class="meta">${state.user.password_hash ? "A password is set for your account." : "No password set — you sign in with just your ID number."}</div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn btn-outline btn-sm" id="setAccountPasswordBtn" style="flex:1;">${state.user.password_hash ? "🔑 Change Password" : "🔑 Set Password"}</button>
+        ${state.user.password_hash ? `<button class="btn btn-outline btn-sm" id="removeAccountPasswordBtn" style="flex:1;color:var(--absent);">🗑 Remove</button>` : ""}
+      </div>
+      <div class="meta" style="margin-top:10px;">${hasBiometricUnlockSetUp() ? "Face ID / Fingerprint unlock is enabled on this device." : "Face ID / Fingerprint unlock is not set up on this device."}</div>
+      <button class="btn btn-outline btn-sm" id="${hasBiometricUnlockSetUp() ? "disableBiometricUnlockBtn" : "enableBiometricUnlockBtn"}" style="width:100%;margin-top:8px;">${hasBiometricUnlockSetUp() ? "🔓 Turn Off Biometric Unlock" : "🔓 Enable Face ID / Fingerprint Unlock"}</button>
+      <div class="field-note" style="margin-top:6px;">Biometric unlock is set up per device — you'll need to enable it again on any new phone or browser.</div>
+    </div>
+
     <div class="ceo-soon">More sections will appear here soon.</div>
   `;
 }
@@ -6624,6 +6798,13 @@ function handleDelegatedClick(e){
 
   if(el("logoutBtn")){ logout(); return; }
   if(el("loginBtn")){ doLogin(document.getElementById("loginIqama").value); return; }
+  if(el("submitLoginPasswordBtn")){ submitLoginPassword(); return; }
+  if(el("backToIqamaBtn")){ state.pendingPasswordUser = null; state.error = ""; render(); return; }
+  if(el("biometricUnlockBtn")){ unlockWithBiometric(); return; }
+  if(el("enableBiometricUnlockBtn")){ enableBiometricUnlock(); return; }
+  if(el("disableBiometricUnlockBtn")){ disableBiometricUnlock(); return; }
+  if(el("setAccountPasswordBtn")){ setAccountPassword(); return; }
+  if(el("removeAccountPasswordBtn")){ removeAccountPassword(); return; }
   if(el("installAppBtn")){ handleInstallClick(); return; }
 
   const navBtn = e.target.closest("[data-nav]");
