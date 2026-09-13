@@ -2082,6 +2082,55 @@ function daysUntil(dateStr){
   return Math.round((target - today) / 86400000);
 }
 
+// Converts a Gregorian date to its Umm al-Qura Hijri year/month/day --
+// the calendar Saudi Arabia officially uses for Iqama dates. Uses the
+// browser's built-in Intl support, so no separate calendar library
+// is needed.
+function gregorianToHijriParts(date){
+  const fmt = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura", { year: "numeric", month: "numeric", day: "numeric" });
+  const parts = fmt.formatToParts(date);
+  const get = (type) => Number(parts.find(p => p.type === type).value);
+  return { year: get("year"), month: get("month"), day: get("day") };
+}
+
+// Adds a number of HIJRI months to a Gregorian date (given as
+// YYYY-MM-DD) and returns the resulting Gregorian date as YYYY-MM-DD.
+// Since JS has no direct Hijri-to-Gregorian constructor, this starts
+// from a close estimate (Hijri months average ~29.53 days) and then
+// searches day-by-day until the actual Hijri year/month/day matches
+// the target -- giving an exact result rather than an approximation.
+function addHijriMonthsToGregorian(gregorianDateStr, monthsToAdd){
+  const startDate = new Date(gregorianDateStr + "T00:00:00");
+  const startHijri = gregorianToHijriParts(startDate);
+  let targetMonth = startHijri.month + monthsToAdd;
+  let targetYear = startHijri.year;
+  while(targetMonth > 12){ targetMonth -= 12; targetYear += 1; }
+  const targetDay = startHijri.day;
+
+  const estimate = new Date(startDate);
+  estimate.setDate(estimate.getDate() + Math.round(monthsToAdd * 29.53));
+
+  for(let offset = -12; offset <= 12; offset++){
+    const candidate = new Date(estimate);
+    candidate.setDate(candidate.getDate() + offset);
+    const h = gregorianToHijriParts(candidate);
+    if(h.year === targetYear && h.month === targetMonth && h.day === targetDay){
+      return candidate.toISOString().slice(0,10);
+    }
+  }
+  // Fallback: same Hijri year/month, closest matching day (handles the
+  // rare case where the target day doesn't exist in the target month).
+  for(let offset = -18; offset <= 18; offset++){
+    const candidate = new Date(estimate);
+    candidate.setDate(candidate.getDate() + offset);
+    const h = gregorianToHijriParts(candidate);
+    if(h.year === targetYear && h.month === targetMonth){
+      return candidate.toISOString().slice(0,10);
+    }
+  }
+  return null;
+}
+
 // Parses a date typed as DD-MM-YYYY (what the person enters) into
 // YYYY-MM-DD (what gets stored/sorted). Returns null if it doesn't
 // look like a valid date, so callers can warn instead of saving junk.
@@ -2172,6 +2221,21 @@ async function saveIqamaExpiry(employeeId){
   const { error } = await sb.from("ts_employees").update({ iqama_expiry_date: val || null }).eq("id", employeeId);
   state.loading = false;
   toast(error ? "Could not save. Try again." : "Iqama expiry updated.");
+  await loadRenewalsScreen();
+}
+
+async function autoRenewIqama(employeeId){
+  const emp = state.employeesForRenewals.find(e => e.id === employeeId);
+  if(!emp) return;
+  if(!emp.iqama_expiry_date){ toast("No current expiry date on file to renew from."); return; }
+  const newDate = addHijriMonthsToGregorian(emp.iqama_expiry_date, 3);
+  if(!newDate){ toast("Could not calculate the new date. Try entering it manually."); return; }
+  const confirmed = confirm(`Renew Iqama for ${emp.short_name || emp.name}?\n\nCurrent expiry: ${toDDMMYYYY(emp.iqama_expiry_date)}\nNew expiry (+3 Hijri months): ${toDDMMYYYY(newDate)}\n\nSave this new date?`);
+  if(!confirmed) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_employees").update({ iqama_expiry_date: newDate }).eq("id", employeeId);
+  state.loading = false;
+  toast(error ? "Could not save. Try again." : "Iqama renewed for 3 more Hijri months.");
   await loadRenewalsScreen();
 }
 
@@ -5517,10 +5581,13 @@ function renderRenewalsScreen(){
     </div>` : `<div class="empty-state" style="margin-bottom:16px;"><div class="ic">🎉</div>Nothing expiring soon.</div>`;
 
   const iqamaRows = state.employeesForRenewals.map(e => `
-    <div style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-top:1px dashed var(--line);">
-      <div style="flex:1;font-weight:700;font-size:13px;">${e.short_name || e.name}</div>
-      <input type="date" id="iqamaExpiryInput-${e.id}" value="${e.iqama_expiry_date || ""}" style="width:140px;padding:6px 8px;border:2px solid var(--line);border-radius:8px;font-size:12.5px;">
-      <button class="link-btn" data-save-iqama="${e.id}" style="color:var(--present) !important;">💾</button>
+    <div style="padding:8px 4px;border-top:1px dashed var(--line);">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="flex:1;font-weight:700;font-size:13px;">${e.short_name || e.name}</div>
+        <input type="date" id="iqamaExpiryInput-${e.id}" value="${e.iqama_expiry_date || ""}" style="width:140px;padding:6px 8px;border:2px solid var(--line);border-radius:8px;font-size:12.5px;">
+        <button class="link-btn" data-save-iqama="${e.id}" style="color:var(--present) !important;">💾</button>
+      </div>
+      ${e.iqama_expiry_date ? `<button class="link-btn" data-auto-renew-iqama="${e.id}" style="color:#6B4FC4 !important;font-size:11.5px;font-weight:700;margin-top:4px;">🔄 Auto-renew +3 months (Hijri)</button>` : ""}
     </div>`).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">🪪</div>No iqama expiry dates on file yet.</div>`;
 
   const vehicleRows = state.vehicles.map(v => `
@@ -7183,6 +7250,8 @@ function handleDelegatedClick(e){
   if(el("addVehicleBtn")){ addVehicle(); return; }
   const saveIqamaEl = e.target.closest("[data-save-iqama]");
   if(saveIqamaEl){ saveIqamaExpiry(saveIqamaEl.getAttribute("data-save-iqama")); return; }
+  const autoRenewIqamaEl = e.target.closest("[data-auto-renew-iqama]");
+  if(autoRenewIqamaEl){ autoRenewIqama(autoRenewIqamaEl.getAttribute("data-auto-renew-iqama")); return; }
   if(el("saveCompanyMedicalBtn")){ saveCompanyMedicalExpiry(); return; }
   if(el("saveCompanyDocumentsBtn")){ saveCompanyDocuments(); return; }
   const saveVehicleEl = e.target.closest("[data-save-vehicle]");
