@@ -530,9 +530,23 @@ async function loadProjects(){
   const { data } = await sb.from("ts_projects").select("*").order("name");
   state.projects = data || [];  // includes inactive, so historical entries still resolve names
 }
+function normalizeProjectName(name){
+  // Strips spaces, dashes, and punctuation, and lowercases -- so
+  // "AL FANAR-ESC", "Al Fanar ESC", and "ALFANAR-ESC" all normalize to
+  // the same thing, catching near-duplicate names before they fragment
+  // your data across two separate project records.
+  return (name || "").toLowerCase().replace(/[\s\-_.]/g, "");
+}
+
 async function addProject(){
   const name = (state.newProjectName || "").trim();
   if(!name){ toast("Enter a project name."); return; }
+  const normalized = normalizeProjectName(name);
+  const similar = state.projects.find(p => normalizeProjectName(p.name) === normalized && p.name !== name);
+  if(similar){
+    const proceed = confirm(`This looks very similar to the existing project "${similar.name}". Adding it anyway will create a SEPARATE project, and any data you enter under "${name}" won't count toward "${similar.name}".\n\nTap OK to add it anyway, or Cancel to go back and pick "${similar.name}" instead.`);
+    if(!proceed) return;
+  }
   state.loading = true; render();
   const { error } = await sb.from("ts_projects").insert({ name });
   state.loading = false;
