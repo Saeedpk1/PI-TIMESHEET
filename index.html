@@ -409,8 +409,15 @@ function setupSupabaseClient(){
 }
 
 /* ---------------- state ---------------- */
+// A cached session for a password-protected account is NOT auto-restored --
+// otherwise the password would only ever be checked once, and anyone who
+// picks up an already-logged-in device would bypass it entirely. Instead,
+// such accounts are re-prompted for their password on every fresh app open.
+const cachedUser = JSON.parse(localStorage.getItem("ts_user") || "null");
+const cachedNeedsPassword = !!(cachedUser && cachedUser.password_hash);
+
 let state = {
-  user: JSON.parse(localStorage.getItem("ts_user") || "null"),
+  user: cachedNeedsPassword ? null : cachedUser,
   loginRole: "employee",
   view: "login",
   monthDate: new Date(),
@@ -501,7 +508,7 @@ let state = {
   remarksDraft: "",
   loading: false,
   error: "",
-  pendingPasswordUser: null,
+  pendingPasswordUser: cachedNeedsPassword ? cachedUser : null,
   loginPasswordInput: ""
 };
 
@@ -885,12 +892,22 @@ async function doLogin(iqama, skipPassword){
 }
 
 async function submitLoginPassword(){
-  const match = state.pendingPasswordUser;
-  if(!match) return;
+  const cached = state.pendingPasswordUser;
+  if(!cached) return;
   const input = document.getElementById("loginPassword");
   const pw = input ? input.value : "";
   if(!pw){ state.error = "Enter your password."; render(); return; }
   state.loading = true; render();
+  // Re-fetch fresh, in case the password was changed on another device
+  // since this session was cached.
+  const { data: fresh, error: fetchError } = await sb.from("ts_employees").select("*").eq("id", cached.id).maybeSingle();
+  if(fetchError || !fresh){
+    state.loading = false;
+    state.error = "Connection problem — check your internet and try again.";
+    render();
+    return;
+  }
+  const match = fresh;
   const { hash } = await hashPassword(pw, match.password_salt);
   state.loading = false;
   if(hash !== match.password_hash){
