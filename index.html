@@ -487,6 +487,7 @@ let state = {
   announcementTranslating: false,
   latestAnnouncement: null,
   announcementIsNew: false,
+  announcementHistory: [],
   projectSummaryShowArchived: false,
   financialReportDate: todayLocalISO(),
   financialDirty: false,
@@ -2948,6 +2949,7 @@ async function sendAnnouncement(){
     state.announcementDraft = "";
     state.announcementTranslatedDraft = "";
     state.announcementTargetLanguage = "";
+    await loadAnnouncementHistory();
   }
   render();
 }
@@ -2996,6 +2998,30 @@ function dismissAnnouncement(){
     localStorage.setItem("ts_seen_announcement_" + state.latestAnnouncement.id, "true");
   }
   state.announcementIsNew = false;
+  render();
+}
+
+async function loadAnnouncementHistory(){
+  state.loading = true; render();
+  const { data } = await sb.from("ts_announcements").select("*").order("created_at", { ascending: false });
+  state.announcementHistory = data || [];
+  state.loading = false;
+  render();
+}
+
+async function deleteAnnouncementFromHistory(id){
+  if(!confirm("Delete this announcement? It'll stop showing on anyone's page who hasn't already seen it (once they next open the app), but it can't be recalled from a screen someone is already looking at right now.")) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_announcements").delete().eq("id", id);
+  state.loading = false;
+  toast(error ? "Could not delete. Try again." : "Announcement deleted.");
+  if(!error){
+    if(state.latestAnnouncement && state.latestAnnouncement.id === id){
+      state.latestAnnouncement = null;
+      state.announcementIsNew = false;
+    }
+    await loadAnnouncementHistory();
+  }
   render();
 }
 
@@ -4813,11 +4839,12 @@ function render(){
 
 function renderAnnouncementBanner(){
   if(!state.announcementIsNew || !state.latestAnnouncement) return "";
+  const sender = state.latestAnnouncement.created_by;
   return `
     <div style="margin:10px 12px 0;background:linear-gradient(135deg,#6B4FC4,#8E72E0);border-radius:12px;padding:12px 14px;box-shadow:0 4px 14px rgba(107,79,196,0.35);position:relative;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
         <div>
-          <div style="font-size:10px;color:#F0EDFA;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;">📢 Announcement</div>
+          <div style="font-size:10px;color:#F0EDFA;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;">📢 ${sender ? `Message from ${sender}` : "Announcement"}</div>
           <div style="font-size:13.5px;color:#fff;font-weight:700;margin-top:3px;">${state.latestAnnouncement.message}</div>
         </div>
         <button id="announcementDismissBtn" style="border:none;background:rgba(255,255,255,0.25);color:#fff;border-radius:50%;width:24px;height:24px;font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0;">✕</button>
@@ -5279,31 +5306,37 @@ function renderSendAnnouncement(){
       <div class="meta" style="color:#F0EDFA;position:relative;">Appears on every employee's page instantly, with a notification sound</div>
     </div>
 
-    <label style="margin-top:0;">Your message</label>
-    <textarea id="announcementMessageInput" rows="4" placeholder="e.g. Eid Mubarak to you and your family! 🌙">${msg}</textarea>
+    <label style="margin-top:0;color:#6B4FC4;font-weight:800;">💬 Your message</label>
+    <textarea id="announcementMessageInput" rows="4" placeholder="e.g. Eid Mubarak to you and your family! 🌙" style="border:2.5px solid #8E72E0;background:#F8F5FD;border-radius:12px;font-size:14px;padding:12px;">${msg}</textarea>
 
-    <div class="card" style="margin-top:12px;border:2px solid #DCD0F5;">
-      <div style="font-weight:800;font-size:12.5px;color:#6B4FC4;">🌐 AI Translate (optional)</div>
-      <label style="margin-top:8px;">Translate into</label>
-      <select id="announcementLanguageSelect">
+    <div class="card" style="margin-top:12px;border:2px solid #F0C766;background:linear-gradient(135deg,#FDF9EF,#FDF6E3);">
+      <div style="font-weight:800;font-size:12.5px;color:#B8912A;">🌐 AI Translate (optional)</div>
+      <label style="margin-top:8px;color:#966109;font-weight:700;">Translate into</label>
+      <select id="announcementLanguageSelect" style="border:2.5px solid var(--ksa-gold);background:#fff;border-radius:10px;font-weight:700;color:#8A5A1C;">
         <option value="">Choose a language…</option>
         ${langOptions}
       </select>
-      <button class="btn btn-outline btn-sm" id="translateAnnouncementBtn" style="width:100%;margin-top:8px;" ${state.announcementTranslating?"disabled":""}>${state.announcementTranslating ? '<span class="spinner"></span>Translating…' : "🌐 Translate"}</button>
+      <button class="btn btn-sm" id="translateAnnouncementBtn" style="width:100%;margin-top:8px;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff;border:none;font-weight:800;" ${state.announcementTranslating?"disabled":""}>${state.announcementTranslating ? '<span class="spinner"></span>Translating…' : "🌐 Translate"}</button>
       ${state.announcementTranslatedDraft ? `
-      <label style="margin-top:10px;">Translated message (edit if needed)</label>
-      <textarea id="announcementTranslatedInput" rows="4">${state.announcementTranslatedDraft}</textarea>
+      <label style="margin-top:10px;color:#1C8A4E;font-weight:700;">✅ Translated message (edit if needed)</label>
+      <textarea id="announcementTranslatedInput" rows="4" style="border:2.5px solid #2FAE68;background:#F0FAF4;border-radius:12px;font-size:14px;padding:12px;">${state.announcementTranslatedDraft}</textarea>
       <div class="field-note">This translated version will be sent instead of the original, since it's filled in below.</div>
       ` : ""}
     </div>
 
     <button class="btn btn-primary" id="sendAnnouncementBtn" style="width:100%;margin-top:14px;background:linear-gradient(135deg,#1C8A4E,#2FAE68);border:none;font-weight:800;">📤 Send to All Employees</button>
 
-    ${state.latestAnnouncement ? `
-    <div class="card" style="margin-top:16px;">
-      <div class="meta">Last sent ${new Date(state.latestAnnouncement.created_at).toLocaleString()}</div>
-      <div style="font-weight:700;font-size:13.5px;margin-top:4px;">${state.latestAnnouncement.message}</div>
-    </div>` : ""}
+    <h3 style="font-size:13px;color:var(--navy);margin:18px 0 6px;">📜 History (${state.announcementHistory.length})</h3>
+    <div class="card">
+      ${state.announcementHistory.length ? state.announcementHistory.map(a => `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:8px 4px;border-top:1px dashed var(--line);">
+          <div style="flex:1;min-width:0;">
+            <div class="meta">${a.created_by || "-"} — ${new Date(a.created_at).toLocaleString()}</div>
+            <div style="font-weight:700;font-size:13px;margin-top:2px;">${a.message}</div>
+          </div>
+          <button data-delete-announcement="${a.id}" style="border:none;background:none;padding:2px;font-size:15px;cursor:pointer;color:var(--absent);flex-shrink:0;">🗑</button>
+        </div>`).join("") : `<div class="empty-state" style="padding:10px;"><div class="ic">📢</div>No announcements sent yet.</div>`}
+    </div>
   `;
 }
 
@@ -7530,7 +7563,7 @@ function handleDelegatedClick(e){
     state.announcementDraft = "";
     state.announcementTranslatedDraft = "";
     state.announcementTargetLanguage = "";
-    render();
+    loadAnnouncementHistory();
     return;
   }
   if(el("translateAnnouncementBtn")){
@@ -7541,6 +7574,8 @@ function handleDelegatedClick(e){
   }
   if(el("sendAnnouncementBtn")){ sendAnnouncement(); return; }
   if(el("announcementDismissBtn")){ dismissAnnouncement(); return; }
+  const deleteAnnouncementEl = e.target.closest("[data-delete-announcement]");
+  if(deleteAnnouncementEl){ deleteAnnouncementFromHistory(deleteAnnouncementEl.getAttribute("data-delete-announcement")); return; }
   if(el("openCeoTimesheetSummaryBtn")){
     state.view = "ceo-timesheet-summary";
     loadCeoTimesheetSummary();
@@ -8000,6 +8035,7 @@ async function init(){
     const { data: mohammed } = await sb.from("ts_employees").select("id").eq("iqama_number", "1091504728").maybeSingle();
     state.hrmSupervisorId = mohammed ? mohammed.id : null;
     await loadProjects();
+    await loadLatestAnnouncementForUser();
     state.view = state.user.role === "employee" ? "employee" : (state.user.role === "supervisor" ? "supervisor" : (state.user.role === "ceo" ? "ceo-home" : "hr"));
     if(state.view === "employee") await loadEmployeeMonth();
     else if(state.view === "supervisor") await loadSupervisorList();
