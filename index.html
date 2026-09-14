@@ -5365,42 +5365,42 @@ function renderFinancialReport(){
     ` : ""}
     `}
     ${state.financialSummaryMode ? `
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div style="background:linear-gradient(135deg,#1B5A96,#3E86C4);border-radius:14px;padding:16px;box-shadow:0 3px 10px rgba(27,90,150,0.3);">
-        <div style="font-size:11px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">💵 Account Balance</div>
-        <div style="font-size:22px;font-weight:800;color:#fff;margin-top:4px;">SAR ${fmt(state.financialBalance?.balance)}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div style="background:linear-gradient(135deg,#1B5A96,#3E86C4);border-radius:10px;padding:9px 10px;">
+        <div style="font-size:8.5px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;">💵 Balance</div>
+        <div style="font-size:14px;font-weight:800;color:#fff;margin-top:2px;">SAR ${fmt(state.financialBalance?.balance)}</div>
       </div>
-      <div style="background:linear-gradient(135deg,#6B4FC4,#8E72E0);border-radius:14px;padding:16px;box-shadow:0 3px 10px rgba(107,79,196,0.3);">
-        <div style="font-size:11px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">🏦 Total Loans</div>
-        <div style="font-size:22px;font-weight:800;color:#fff;margin-top:4px;">SAR ${fmt(totalLoans)}</div>
+      <div style="background:linear-gradient(135deg,#6B4FC4,#8E72E0);border-radius:10px;padding:9px 10px;">
+        <div style="font-size:8.5px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;">🏦 Loans</div>
+        <div style="font-size:14px;font-weight:800;color:#fff;margin-top:2px;">SAR ${fmt(totalLoans)}</div>
       </div>
-      <div style="background:linear-gradient(135deg,#0F3556,#1B5A96);border-radius:14px;padding:16px;box-shadow:0 3px 10px rgba(15,53,86,0.35);">
-        <div style="font-size:11px;color:#fff;opacity:0.9;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">📄 Invoiced in ${monthLabelStr} (W/O VAT)</div>
-        <div style="font-size:22px;font-weight:800;color:#fff;margin-top:4px;">SAR ${fmt(state.financialMonthInvoiced)}</div>
+      <div style="background:linear-gradient(135deg,#0F3556,#1B5A96);border-radius:10px;padding:9px 10px;">
+        <div style="font-size:8.5px;color:#fff;opacity:0.9;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;">📄 Invoiced (${monthLabelStr}, w/o VAT)</div>
+        <div style="font-size:14px;font-weight:800;color:#fff;margin-top:2px;">SAR ${fmt(state.financialMonthInvoiced)}</div>
       </div>
-      <div style="background:linear-gradient(135deg,#1C8A4E,#2FAE68);border-radius:14px;padding:16px;box-shadow:0 3px 10px rgba(28,138,78,0.3);">
-        <div style="font-size:11px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">✅ Received in ${monthLabelStr}</div>
-        <div style="font-size:22px;font-weight:800;color:#fff;margin-top:4px;">SAR ${fmt(state.financialMonthReceived)}</div>
+      <div style="background:linear-gradient(135deg,#1C8A4E,#2FAE68);border-radius:10px;padding:9px 10px;">
+        <div style="font-size:8.5px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;">✅ Received (${monthLabelStr})</div>
+        <div style="font-size:14px;font-weight:800;color:#fff;margin-top:2px;">SAR ${fmt(state.financialMonthReceived)}</div>
       </div>
-      <div style="background:linear-gradient(135deg,#6B4FC4,#8E72E0);border-radius:14px;padding:16px;box-shadow:0 3px 10px rgba(107,79,196,0.3);">
-        <div style="font-size:11px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">⏳ TKE Pending</div>
-        <div style="font-size:22px;font-weight:800;color:#fff;margin-top:4px;">SAR ${fmt(tkeTotal)}</div>
+      <div style="background:linear-gradient(135deg,#6B4FC4,#8E72E0);border-radius:10px;padding:9px 10px;">
+        <div style="font-size:8.5px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;">⏳ TKE Pending</div>
+        <div style="font-size:14px;font-weight:800;color:#fff;margin-top:2px;">SAR ${fmt(tkeTotal)}</div>
       </div>
-      <div style="background:linear-gradient(135deg,#D8583A,#E68465);border-radius:14px;padding:16px;box-shadow:0 3px 10px rgba(216,88,58,0.3);">
-        <div style="font-size:11px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">⏳ OTIS Pending</div>
-        <div style="font-size:22px;font-weight:800;color:#fff;margin-top:4px;">SAR ${fmt(otisTotal)}</div>
+      <div style="background:linear-gradient(135deg,#D8583A,#E68465);border-radius:10px;padding:9px 10px;">
+        <div style="font-size:8.5px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;">⏳ OTIS Pending</div>
+        <div style="font-size:14px;font-weight:800;color:#fff;margin-top:2px;">SAR ${fmt(otisTotal)}</div>
       </div>
-      <div style="background:linear-gradient(135deg,#1B7A6B,#2FA391);border-radius:14px;padding:16px;box-shadow:0 3px 10px rgba(27,122,107,0.3);">
-        <div style="font-size:11px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">⏳ Schindler Pending</div>
-        <div style="font-size:22px;font-weight:800;color:#fff;margin-top:4px;">SAR ${fmt(schindlerTotal)}</div>
+      <div style="background:linear-gradient(135deg,#1B7A6B,#2FA391);border-radius:10px;padding:9px 10px;">
+        <div style="font-size:8.5px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;">⏳ Schindler Pending</div>
+        <div style="font-size:14px;font-weight:800;color:#fff;margin-top:2px;">SAR ${fmt(schindlerTotal)}</div>
       </div>
-      <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:14px;padding:16px;box-shadow:0 3px 10px rgba(15,53,86,0.3);">
-        <div style="font-size:11px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">📊 Total (TKE + OTIS + Schindler)</div>
-        <div style="font-size:22px;font-weight:800;color:#fff;margin-top:4px;">SAR ${fmt(tkeTotal + otisTotal + schindlerTotal)}</div>
+      <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:10px;padding:9px 10px;">
+        <div style="font-size:8.5px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;">📊 Total Pending</div>
+        <div style="font-size:14px;font-weight:800;color:#fff;margin-top:2px;">SAR ${fmt(tkeTotal + otisTotal + schindlerTotal)}</div>
       </div>
-      <div style="background:linear-gradient(135deg,#C43B3B,#E0645F);border-radius:14px;padding:16px;box-shadow:0 3px 10px rgba(196,59,59,0.3);">
-        <div style="font-size:11px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">⚠️ Due Invoices (TKE + OTIS + Schindler)</div>
-        <div style="font-size:22px;font-weight:800;color:#fff;margin-top:4px;">SAR ${fmt(dueTotal)}</div>
+      <div style="background:linear-gradient(135deg,#C43B3B,#E0645F);border-radius:10px;padding:9px 10px;grid-column:span 2;">
+        <div style="font-size:8.5px;color:#fff;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;">⚠️ Due Invoices (TKE + OTIS + Schindler)</div>
+        <div style="font-size:16px;font-weight:800;color:#fff;margin-top:2px;">SAR ${fmt(dueTotal)}</div>
       </div>
     </div>
     ` : `
