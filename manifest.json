@@ -1,6 +1,6 @@
 {
   "name": "PI Timesheets",
-  "short_name": "PI Timesheets",
+  "short_name": "PI",
   "description": "Online monthly timesheets for Professional Installation Co",
   "start_url": "./",
   "scope": "./",
