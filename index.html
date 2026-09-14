@@ -2956,17 +2956,27 @@ function playNotificationChime(){
   try{
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const now = ctx.currentTime;
-    [880, 1108].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.0001, now + i*0.18);
-      gain.gain.exponentialRampToValueAtTime(0.3, now + i*0.18 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + i*0.18 + 0.35);
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(now + i*0.18); osc.stop(now + i*0.18 + 0.4);
-    });
+    // A brighter, louder "ding-ding" pattern closer to a real chat
+    // notification: two quick ascending notes, each layered with an
+    // octave-up harmonic for a fuller bell-like tone, played twice.
+    const playNote = (freq, startAt, peakGain) => {
+      [freq, freq*2].forEach((f, h) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.value = f;
+        const g = h === 0 ? peakGain : peakGain * 0.35;
+        gain.gain.setValueAtTime(0.0001, startAt);
+        gain.gain.exponentialRampToValueAtTime(g, startAt + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.32);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(startAt); osc.stop(startAt + 0.35);
+      });
+    };
+    playNote(988, now, 0.55);
+    playNote(1319, now + 0.15, 0.6);
+    playNote(988, now + 0.55, 0.5);
+    playNote(1319, now + 0.70, 0.55);
   }catch(e){ console.error("Chime error:", e); }
 }
 
