@@ -3968,7 +3968,7 @@ async function exportAttendanceByProjectExcel(){
 async function loadProjectSummary(showArchived){
   state.loading = true; state.projectSummaryShowArchived = !!showArchived; render();
   const [{ data: projects }, { data: units }, { data: reports }, { data: invoices }] = await Promise.all([
-    sb.from("ts_projects").select("*").eq("active", !showArchived).order("name"),
+    sb.from("ts_projects").select("*").eq("active", true).eq("hide_from_summary", !!showArchived).order("name"),
     sb.from("ts_project_units").select("*").eq("active", true),
     sb.from("ts_daily_reports").select("project_id, unit_id, team_member_ids"),
     sb.from("ts_financial_invoices").select("*").not("project_id", "is", null).order("created_at", { ascending: true })
@@ -4083,9 +4083,9 @@ async function saveProjectPoValueDirect(projectId){
 async function archiveProjectSummary(projectId){
   const p = state.projectSummaryRows.find(x=>x.id===projectId);
   if(!p) return;
-  if(!confirm(`Move "${p.name}" to History? It'll disappear from the current list, but all its numbers stay saved and viewable in History.`)) return;
+  if(!confirm(`Move "${p.name}" to History? It'll disappear from Project Summary only — it stays fully available in Daily Reports, Timesheets, and Manage Projects. All its numbers stay saved and viewable in History.`)) return;
   state.loading = true; render();
-  const { error } = await sb.from("ts_projects").update({ active: false }).eq("id", projectId);
+  const { error } = await sb.from("ts_projects").update({ hide_from_summary: true }).eq("id", projectId);
   state.loading = false;
   toast(error ? "Could not move to History." : `"${p.name}" moved to History.`);
   await loadProjectSummary(state.projectSummaryShowArchived);
@@ -4094,9 +4094,9 @@ async function archiveProjectSummary(projectId){
 async function restoreProjectSummary(projectId){
   const p = state.projectSummaryRows.find(x=>x.id===projectId);
   if(!p) return;
-  if(!confirm(`Move "${p.name}" back to current projects?`)) return;
+  if(!confirm(`Move "${p.name}" back to current projects in Project Summary?`)) return;
   state.loading = true; render();
-  const { error } = await sb.from("ts_projects").update({ active: true }).eq("id", projectId);
+  const { error } = await sb.from("ts_projects").update({ hide_from_summary: false }).eq("id", projectId);
   state.loading = false;
   toast(error ? "Could not restore." : `"${p.name}" restored to current projects.`);
   await loadProjectSummary(state.projectSummaryShowArchived);
@@ -5446,7 +5446,7 @@ function renderProjectSummary(){
       <div class="meta" style="color:#BFDCF5;position:relative;">PO Value (w/o VAT) · Expenses · Invoices · Balance · Margin</div>
     </div>
     <button class="btn btn-sm" id="toggleProjectSummaryArchiveBtn" style="width:100%;margin-bottom:12px;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff;border:none;font-weight:800;">${showingArchived ? "📋 View Current Projects" : "📜 View History (completed/archived)"}</button>
-    ${canEdit ? `<div class="field-note" style="margin-bottom:10px;">${showingArchived ? "Tap ↩ to bring a project back to the current list." : "PO Value combines each unit's fixed PO plus any manpower claim value accrued so far. Expenses come from Daily Progress Reports; Invoices come from the Financial Report. Tap a project's name to see its invoice list. Tap ✎ to set starting date or adjust opening Expenses/Invoices. Tap 📥 to save the accrued manpower claim as an actual invoice at month-end. Tap 🗄 to move a completed project to History."}</div>` : `<div class="field-note" style="margin-bottom:10px;">Tap a project's name to see its invoice list.</div>`}
+    ${canEdit ? `<div class="field-note" style="margin-bottom:10px;">${showingArchived ? "Tap ↩ to bring a project back to the current list." : "PO Value combines each unit's fixed PO plus any manpower claim value accrued so far. Expenses come from Daily Progress Reports; Invoices come from the Financial Report. Tap a project's name to see its invoice list. Tap ✎ to set starting date or adjust opening Expenses/Invoices. Tap 📥 to save the accrued manpower claim as an actual invoice at month-end. Tap 🗄 to hide a project from Project Summary — it stays fully available in Daily Reports and Timesheets."}</div>` : `<div class="field-note" style="margin-bottom:10px;">Tap a project's name to see its invoice list.</div>`}
     ${state.projectSummaryRows.length ? table : `<div class="empty-state"><div class="ic">📊</div>${showingArchived ? "No projects in History." : "No active projects found."}</div>`}
   `;
 }
