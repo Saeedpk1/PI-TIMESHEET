@@ -3588,7 +3588,7 @@ async function generateMyPurchaseBatchPdf(batchId){
 async function loadHrMonth(){
   state.loading = true; render();
   const { data } = await sb.from("ts_timesheet_submissions")
-    .select("*, ts_employees:employee_id(name, name_ar, employee_no, project_site, hourly_rate, supervisor_id)")
+    .select("*, ts_employees:employee_id(name, name_ar, employee_no, project_site, hourly_rate, supervisor_id, role)")
     .eq("month", state.hrMonth).eq("status", "approved");
   state.hrApproved = data || [];
   state.hrExcluded = new Set();
@@ -3667,14 +3667,19 @@ async function saveHrTimesheetEdit(){
     updated_at: new Date().toISOString()
   }));
   const { error: e1 } = await sb.from("ts_timesheet_entries").upsert(rows, { onConflict: "employee_id,entry_date" });
-  // Editing sends it back to the supervisor for re-approval, since the underlying data changed.
-  const { error: e2 } = await sb.from("ts_timesheet_submissions").upsert({
-    employee_id: emp.id, month: state.hrMonth, status: "submitted",
-    submitted_at: new Date().toISOString(), approved_at: null, signature_data: null, rejection_reason: null,
-    updated_at: new Date().toISOString()
-  }, { onConflict: "employee_id,month" });
+  // Editing normally sends it back to the supervisor for re-approval, since
+  // the underlying data changed -- except for supervisors/HR/CEO editing
+  // their own record, who never need approval in the first place.
+  const selfExempt = emp.role !== "employee";
+  const submissionPayload = selfExempt
+    ? { employee_id: emp.id, month: state.hrMonth, status: "approved",
+        submitted_at: new Date().toISOString(), approved_at: new Date().toISOString(),
+        approved_by: emp.id, signature_data: null, rejection_reason: null, updated_at: new Date().toISOString() }
+    : { employee_id: emp.id, month: state.hrMonth, status: "submitted",
+        submitted_at: new Date().toISOString(), approved_at: null, signature_data: null, rejection_reason: null, updated_at: new Date().toISOString() };
+  const { error: e2 } = await sb.from("ts_timesheet_submissions").upsert(submissionPayload, { onConflict: "employee_id,month" });
   state.loading = false;
-  toast((e1 || e2) ? "Could not save. Try again." : "Saved — sent back to the supervisor for re-approval.");
+  toast((e1 || e2) ? "Could not save. Try again." : (selfExempt ? "Saved and recorded — no approval needed for this record." : "Saved — sent back to the supervisor for re-approval."));
   if(!e1 && !e2){
     state.view = "hr";
     await loadHrMonth();
