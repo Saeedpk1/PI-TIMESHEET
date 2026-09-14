@@ -284,6 +284,15 @@
   .ceo-tile .body{flex:1;min-width:0;}
   .ceo-tile .title{font-weight:800;font-size:14.5px;color:var(--blue);}
   .ceo-tile .desc{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .ceo-tile.ceo-tile-more{
+    background:#EAF1FC;
+    border-color:#8FB4DD;
+  }
+  .ceo-tile.ceo-tile-more:active{border-color:var(--blue);}
+  .ceo-tile.ceo-tile-more .icon{
+    background:linear-gradient(135deg,#1B5A96,#3E86C4);
+  }
+  .ceo-tile.ceo-tile-more .title{color:#0F3556;}
   .ceo-tile .count, .hr-tile .count{
     background:var(--ksa-gold);color:#fff;font-weight:800;font-size:12px;
     border-radius:999px;padding:3px 9px;flex-shrink:0;
@@ -6675,21 +6684,21 @@ function renderCeoHome(){
 
     ${state.ceoMoreSectionOpen ? `
     <div style="margin-top:8px;">
-      <div class="ceo-tile" id="openSendAnnouncementBtn">
+      <div class="ceo-tile ceo-tile-more" id="openSendAnnouncementBtn">
         <div class="icon">📢</div>
         <div class="body">
           <div class="title">Send Announcement</div>
           <div class="desc">Message every employee's page instantly, with AI translation</div>
         </div>
       </div>
-      <div class="ceo-tile" id="openCeoTimesheetSummaryBtn">
+      <div class="ceo-tile ceo-tile-more" id="openCeoTimesheetSummaryBtn">
         <div class="icon">📊</div>
         <div class="body">
           <div class="title">Timesheet Submissions</div>
           <div class="desc">Who has and hasn't submitted their timesheet this month</div>
         </div>
       </div>
-      <div class="ceo-tile" id="openCeoLeaveBtn">
+      <div class="ceo-tile ceo-tile-more" id="openCeoLeaveBtn">
         <div class="icon">🌴</div>
         <div class="body">
           <div class="title">Leave Requests</div>
@@ -6697,7 +6706,7 @@ function renderCeoHome(){
         </div>
         ${pendingCount ? `<div class="count">${pendingCount}</div>` : ""}
       </div>
-      <div class="ceo-tile" id="openCeoInboxBtn">
+      <div class="ceo-tile ceo-tile-more" id="openCeoInboxBtn">
         <div class="icon">📨</div>
         <div class="body">
           <div class="title">View Employee Requests</div>
@@ -6705,7 +6714,7 @@ function renderCeoHome(){
         </div>
         ${unreadCount ? `<div class="count">${unreadCount}</div>` : ""}
       </div>
-      <div class="ceo-tile" id="openEmployeeDirectoryBtn">
+      <div class="ceo-tile ceo-tile-more" id="openEmployeeDirectoryBtn">
         <div class="icon">👤</div>
         <div class="body">
           <div class="title">Employee Directory</div>
