@@ -479,6 +479,7 @@ let state = {
   whatsappEmployeeList: [],
   whatsappMissingNumberCount: 0,
   hrTimesheetsSectionOpen: false,
+  ceoMoreSectionOpen: false,
   ceoTimesheetSummaryMonth: "",
   ceoTimesheetSummaryRows: [],
   announcementDraft: "",
@@ -6639,6 +6640,14 @@ function renderCeoHome(){
       <h2>مرحباً، ${state.user.name}</h2>
       <div class="sub">Executive overview and approvals</div>
     </div>
+
+    <div class="ceo-tile" id="openCombinedReportsBtn">
+      <div class="icon">📋</div>
+      <div class="body">
+        <div class="title">Daily Progress Reports</div>
+        <div class="desc">Today's site activity from every supervisor</div>
+      </div>
+    </div>
     <div class="ceo-tile" id="openFinancialReportBtn">
       <div class="icon">💰</div>
       <div class="body">
@@ -6653,64 +6662,70 @@ function renderCeoHome(){
         <div class="desc">Overall PO Value, expenses, invoices and margin per project</div>
       </div>
     </div>
-    <div class="ceo-tile" id="openSendAnnouncementBtn">
-      <div class="icon">📢</div>
-      <div class="body">
-        <div class="title">Send Announcement</div>
-        <div class="desc">Message every employee's page instantly, with AI translation</div>
-      </div>
-    </div>
-    <div class="ceo-tile" id="openCeoTimesheetSummaryBtn">
-      <div class="icon">📊</div>
-      <div class="body">
-        <div class="title">Timesheet Submissions</div>
-        <div class="desc">Who has and hasn't submitted their timesheet this month</div>
-      </div>
-    </div>
-    <div class="ceo-tile" id="openCombinedReportsBtn">
-      <div class="icon">📋</div>
-      <div class="body">
-        <div class="title">Daily Progress Reports</div>
-        <div class="desc">Today's site activity from every supervisor</div>
-      </div>
-    </div>
-    <div class="ceo-tile" id="openCeoLeaveBtn">
-      <div class="icon">🌴</div>
-      <div class="body">
-        <div class="title">Leave Requests</div>
-        <div class="desc">Review and approve applications sent by HR</div>
-      </div>
-      ${pendingCount ? `<div class="count">${pendingCount}</div>` : ""}
-    </div>
-    <div class="ceo-tile" id="openCeoInboxBtn">
-      <div class="icon">📨</div>
-      <div class="body">
-        <div class="title">View Employee Requests</div>
-        <div class="desc">Messages sent to you directly by employees</div>
-      </div>
-      ${unreadCount ? `<div class="count">${unreadCount}</div>` : ""}
-    </div>
-    <div class="ceo-tile" id="openEmployeeDirectoryBtn">
-      <div class="icon">👤</div>
-      <div class="body">
-        <div class="title">Employee Directory</div>
-        <div class="desc">View any employee's full profile</div>
+
+    <div class="card" style="padding:12px 14px;margin-top:14px;cursor:pointer;" id="toggleCeoMoreSectionBtn">
+      <div class="row-between">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">⋯</span>
+          <div style="font-weight:800;font-size:13.5px;color:var(--navy);">More${(pendingCount||unreadCount) ? ` (${pendingCount+unreadCount} waiting)` : ""}</div>
+        </div>
+        <span style="color:var(--blue);font-size:16px;font-weight:800;">${state.ceoMoreSectionOpen ? "▲" : "▼"}</span>
       </div>
     </div>
 
-    <div class="card" style="margin-top:16px;">
-      <h3 style="font-size:14px;">🔒 Account Security</h3>
-      <div class="meta">${state.user.password_hash ? "A password is set for your account." : "No password set — you sign in with just your ID number."}</div>
-      <div style="display:flex;gap:8px;margin-top:10px;">
-        <button class="btn btn-outline btn-sm" id="setAccountPasswordBtn" style="flex:1;">${state.user.password_hash ? "🔑 Change Password" : "🔑 Set Password"}</button>
-        ${state.user.password_hash ? `<button class="btn btn-outline btn-sm" id="removeAccountPasswordBtn" style="flex:1;color:var(--absent);">🗑 Remove</button>` : ""}
+    ${state.ceoMoreSectionOpen ? `
+    <div style="margin-top:8px;">
+      <div class="ceo-tile" id="openSendAnnouncementBtn">
+        <div class="icon">📢</div>
+        <div class="body">
+          <div class="title">Send Announcement</div>
+          <div class="desc">Message every employee's page instantly, with AI translation</div>
+        </div>
       </div>
-      <div class="meta" style="margin-top:10px;">${hasBiometricUnlockSetUp() ? "Face ID / Fingerprint unlock is enabled on this device." : "Face ID / Fingerprint unlock is not set up on this device."}</div>
-      <button class="btn btn-outline btn-sm" id="${hasBiometricUnlockSetUp() ? "disableBiometricUnlockBtn" : "enableBiometricUnlockBtn"}" style="width:100%;margin-top:8px;">${hasBiometricUnlockSetUp() ? "🔓 Turn Off Biometric Unlock" : "🔓 Enable Face ID / Fingerprint Unlock"}</button>
-      <div class="field-note" style="margin-top:6px;">Biometric unlock is set up per device — you'll need to enable it again on any new phone or browser.</div>
-    </div>
+      <div class="ceo-tile" id="openCeoTimesheetSummaryBtn">
+        <div class="icon">📊</div>
+        <div class="body">
+          <div class="title">Timesheet Submissions</div>
+          <div class="desc">Who has and hasn't submitted their timesheet this month</div>
+        </div>
+      </div>
+      <div class="ceo-tile" id="openCeoLeaveBtn">
+        <div class="icon">🌴</div>
+        <div class="body">
+          <div class="title">Leave Requests</div>
+          <div class="desc">Review and approve applications sent by HR</div>
+        </div>
+        ${pendingCount ? `<div class="count">${pendingCount}</div>` : ""}
+      </div>
+      <div class="ceo-tile" id="openCeoInboxBtn">
+        <div class="icon">📨</div>
+        <div class="body">
+          <div class="title">View Employee Requests</div>
+          <div class="desc">Messages sent to you directly by employees</div>
+        </div>
+        ${unreadCount ? `<div class="count">${unreadCount}</div>` : ""}
+      </div>
+      <div class="ceo-tile" id="openEmployeeDirectoryBtn">
+        <div class="icon">👤</div>
+        <div class="body">
+          <div class="title">Employee Directory</div>
+          <div class="desc">View any employee's full profile</div>
+        </div>
+      </div>
 
-    <div class="ceo-soon">More sections will appear here soon.</div>
+      <div class="card" style="margin-top:16px;">
+        <h3 style="font-size:14px;">🔒 Account Security</h3>
+        <div class="meta">${state.user.password_hash ? "A password is set for your account." : "No password set — you sign in with just your ID number."}</div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="btn btn-outline btn-sm" id="setAccountPasswordBtn" style="flex:1;">${state.user.password_hash ? "🔑 Change Password" : "🔑 Set Password"}</button>
+          ${state.user.password_hash ? `<button class="btn btn-outline btn-sm" id="removeAccountPasswordBtn" style="flex:1;color:var(--absent);">🗑 Remove</button>` : ""}
+        </div>
+        <div class="meta" style="margin-top:10px;">${hasBiometricUnlockSetUp() ? "Face ID / Fingerprint unlock is enabled on this device." : "Face ID / Fingerprint unlock is not set up on this device."}</div>
+        <button class="btn btn-outline btn-sm" id="${hasBiometricUnlockSetUp() ? "disableBiometricUnlockBtn" : "enableBiometricUnlockBtn"}" style="width:100%;margin-top:8px;">${hasBiometricUnlockSetUp() ? "🔓 Turn Off Biometric Unlock" : "🔓 Enable Face ID / Fingerprint Unlock"}</button>
+        <div class="field-note" style="margin-top:6px;">Biometric unlock is set up per device — you'll need to enable it again on any new phone or browser.</div>
+      </div>
+    </div>
+    ` : ""}
   `;
 }
 
@@ -7583,6 +7598,11 @@ function handleDelegatedClick(e){
   }
   if(el("toggleHrTimesheetsSectionBtn")){
     state.hrTimesheetsSectionOpen = !state.hrTimesheetsSectionOpen;
+    render();
+    return;
+  }
+  if(el("toggleCeoMoreSectionBtn")){
+    state.ceoMoreSectionOpen = !state.ceoMoreSectionOpen;
     render();
     return;
   }
