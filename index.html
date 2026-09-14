@@ -1196,7 +1196,7 @@ function computeTotals(entries){
 async function loadSupervisorList(){
   state.loading = true; render();
   const mk = monthKey(state.monthDate);
-  const { data: staff } = await sb.from("ts_employees").select("*").eq("supervisor_id", state.user.id).eq("active", true).order("name");
+  const { data: staff } = await sb.from("ts_employees").select("*").eq("timesheet_supervisor_id", state.user.id).eq("active", true).order("name");
   const ids = (staff||[]).map(s=>s.id);
   let subs = [];
   if(ids.length){
@@ -5117,16 +5117,16 @@ function renderRajeshDashboard(){
 
     ${renderMonthNav("supervisor")}
 
-    <div class="card" style="padding:14px 16px;margin-bottom:14px;cursor:pointer;background:linear-gradient(135deg,#E7F1FC,#F3F8FD);border:2px solid var(--blue-light);" id="mySelfTimesheetBtn">
+    <div class="card" style="padding:16px;margin-bottom:14px;cursor:pointer;background:linear-gradient(135deg,#1C8A4E,#2FAE68);border:none;box-shadow:0 3px 10px rgba(28,138,78,0.3);" id="mySelfTimesheetBtn">
       <div class="row-between">
         <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:22px;">🕒</span>
+          <span style="font-size:26px;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.25));">🕒</span>
           <div>
-            <div style="font-weight:800;font-size:14.5px;color:var(--navy);">My timesheet</div>
-            <div class="meta">Fill in your own hours</div>
+            <div style="font-weight:800;font-size:15px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.3);">My Timesheet</div>
+            <div style="font-size:11.5px;color:#DFF3E6;">Fill in your own hours</div>
           </div>
         </div>
-        <span style="color:var(--blue);font-size:20px;font-weight:800;">›</span>
+        <span style="color:#fff;font-size:22px;font-weight:800;">›</span>
       </div>
     </div>
 
@@ -5141,26 +5141,26 @@ function renderRajeshDashboard(){
 
     <div class="hr-section-label" style="color:#E8A33D;">✅ Approvals</div>
     <div class="hr-tile-grid">
-      <div class="hr-tile" id="openSupervisorLeaveListBtn" style="border-color:#F0DBA8;"><span class="icon">🌴</span><span class="label">Leave<br>Requests</span></div>
-      <div class="hr-tile" id="openPurchaseFormBtn" style="border-color:#A9D9CD;"><span class="icon">🧾</span><span class="label">Record<br>Purchase</span></div>
+      <div class="hr-tile" id="openSupervisorLeaveListBtn" style="background:linear-gradient(135deg,#E8A33D,#C4791F);"><span class="icon">🌴</span><span class="label">Leave<br>Requests</span></div>
+      <div class="hr-tile" id="openPurchaseFormBtn" style="background:linear-gradient(135deg,#2FAE68,#1C8A4E);"><span class="icon">🧾</span><span class="label">Record<br>Purchase</span></div>
     </div>
 
     <div class="hr-section-label" style="color:var(--present);">📋 Daily Reports</div>
     <div class="hr-tile-grid">
-      <div class="hr-tile" id="openDailyReportBtn" style="border-color:var(--ksa-gold-light);"><span class="icon">📋</span><span class="label">Add Daily<br>Report</span></div>
-      <div class="hr-tile" id="openCombinedReportsBtn" style="border-color:var(--ksa-gold-light);"><span class="icon">👁</span><span class="label">View Daily<br>Reports</span></div>
+      <div class="hr-tile" id="openDailyReportBtn" style="background:linear-gradient(135deg,var(--ksa-gold),#B8912A);"><span class="icon">📋</span><span class="label">Add Daily<br>Report</span></div>
+      <div class="hr-tile" id="openCombinedReportsBtn" style="background:linear-gradient(135deg,var(--ksa-gold),#B8912A);"><span class="icon">👁</span><span class="label">View Daily<br>Reports</span></div>
     </div>
 
     <div class="hr-section-label" style="color:#6B4FC4;">👤 Directory</div>
     <div class="hr-tile-grid">
-      <div class="hr-tile" id="openEmployeeDirectoryBtn" style="border-color:#DCD0F5;"><span class="icon">👤</span><span class="label">Employee<br>Directory</span></div>
-      <div class="hr-tile" id="openVehicleDocumentsBtn" style="border-color:#A9D9CD;"><span class="icon">🚗</span><span class="label">Vehicle<br>Documents</span></div>
+      <div class="hr-tile" id="openEmployeeDirectoryBtn" style="background:linear-gradient(135deg,#8E72E0,#6B4FC4);"><span class="icon">👤</span><span class="label">Employee<br>Directory</span></div>
+      <div class="hr-tile" id="openVehicleDocumentsBtn" style="background:linear-gradient(135deg,#2FA391,#1B7A6B);"><span class="icon">🚗</span><span class="label">Vehicle<br>Documents</span></div>
     </div>
 
     <div class="hr-section-label" style="color:var(--navy);">💰 Finance</div>
     <div class="hr-tile-grid">
-      <div class="hr-tile" id="openFinancialReportBtn" style="border-color:#C7D9EA;"><span class="icon">💰</span><span class="label">Financial<br>Report</span></div>
-      <div class="hr-tile" id="openProjectSummaryBtn" style="border-color:#C7D9EA;"><span class="icon">📊</span><span class="label">Project<br>Summary</span></div>
+      <div class="hr-tile" id="openFinancialReportBtn" style="background:linear-gradient(135deg,var(--navy),var(--blue));"><span class="icon">💰</span><span class="label">Financial<br>Report</span></div>
+      <div class="hr-tile" id="openProjectSummaryBtn" style="background:linear-gradient(135deg,var(--navy),var(--blue));"><span class="icon">📊</span><span class="label">Project<br>Summary</span></div>
     </div>
   `;
 }
