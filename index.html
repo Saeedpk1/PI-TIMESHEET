@@ -3207,7 +3207,7 @@ async function handleAddUnitFromReport(projectId, selectEl){
 }
 
 async function loadAllEmployeesForReport(){
-  const { data } = await sb.from("ts_employees").select("*").eq("active", true).not("short_name", "is", null).order("short_name");
+  const { data } = await sb.from("ts_employees").select("*").eq("active", true).eq("exclude_from_daily_reports", false).not("short_name", "is", null).order("short_name");
   state.allEmployeesForReport = data || [];
 }
 
@@ -4954,7 +4954,7 @@ function renderEmployeeView(){
   const subStatus = state.submission ? state.submission.status : "draft";
   const locked = subStatus === "submitted" || subStatus === "approved";
   const isSelfSubmit = state.user.role !== "employee";
-  const generalProjectId = isSelfSubmit ? (state.projects.find(p => p.name === "General")?.id || "") : "";
+  const generalProjectId = (isSelfSubmit || state.user.default_general_project) ? (state.projects.find(p => p.name === "General")?.id || "") : "";
   const ar = isSaudiUser();
 
   let banner = "";
