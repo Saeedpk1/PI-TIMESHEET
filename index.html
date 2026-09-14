@@ -481,6 +481,12 @@ let state = {
   hrTimesheetsSectionOpen: false,
   ceoTimesheetSummaryMonth: "",
   ceoTimesheetSummaryRows: [],
+  announcementDraft: "",
+  announcementTranslatedDraft: "",
+  announcementTargetLanguage: "",
+  announcementTranslating: false,
+  latestAnnouncement: null,
+  announcementIsNew: false,
   projectSummaryShowArchived: false,
   financialReportDate: todayLocalISO(),
   financialDirty: false,
@@ -950,6 +956,7 @@ async function completeLogin(match){
   const { data } = await sb.from("ts_employees").select("id, iqama_number").eq("iqama_number", "1091504728").maybeSingle();
   state.hrmSupervisorId = data ? data.id : null;
   await loadProjects();
+  await loadLatestAnnouncementForUser();
   state.view = match.role === "employee" ? "employee" : (match.role === "supervisor" ? "supervisor" : (match.role === "ceo" ? "ceo-home" : "hr"));
   if(state.view === "employee") await loadEmployeeMonth();
   if(state.view === "supervisor") await loadSupervisorList();
@@ -2888,6 +2895,100 @@ async function loadWhatsAppBroadcastList(){
   render();
 }
 
+/* ---------------- In-app Announcements (replaces WhatsApp broadcast) ---------------- */
+const ANNOUNCEMENT_LANGUAGES = [
+  { code: "en", name: "English" },
+  { code: "hi", name: "Hindi" },
+  { code: "ur", name: "Urdu" },
+  { code: "bn", name: "Bengali" },
+  { code: "ne", name: "Nepali" },
+  { code: "tl", name: "Tagalog (Filipino)" },
+  { code: "ar", name: "Arabic" },
+  { code: "ps", name: "Pashto" },
+  { code: "ml", name: "Malayalam" }
+];
+
+async function translateAnnouncementDraft(){
+  const text = (state.announcementDraft || "").trim();
+  if(!text){ toast("Type a message first."); return; }
+  const targetLang = state.announcementTargetLanguage;
+  if(!targetLang){ toast("Pick a language to translate into."); return; }
+  state.announcementTranslating = true; render();
+  try{
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${targetLang}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const translated = data?.responseData?.translatedText;
+    if(!translated) throw new Error("No translation returned");
+    state.announcementTranslatedDraft = translated;
+    toast("Translated. Review it below before sending.");
+  }catch(e){
+    console.error("Translate error:", e);
+    toast("Could not translate. Try again, or send in the original language.");
+  }
+  state.announcementTranslating = false;
+  render();
+}
+
+async function sendAnnouncement(){
+  const original = (state.announcementDraft || "").trim();
+  if(!original){ toast("Type a message first."); return; }
+  const toSend = (state.announcementTranslatedDraft || "").trim() || original;
+  if(!confirm(`Send this announcement to all employees?\n\n"${toSend}"`)) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_announcements").insert({
+    message: toSend,
+    original_message: state.announcementTranslatedDraft ? original : null,
+    original_language: state.announcementTranslatedDraft ? "en" : null,
+    created_by: state.user.name
+  });
+  state.loading = false;
+  toast(error ? "Could not send. Try again." : "Announcement sent to all employees.");
+  if(!error){
+    state.announcementDraft = "";
+    state.announcementTranslatedDraft = "";
+    state.announcementTargetLanguage = "";
+  }
+  render();
+}
+
+function playNotificationChime(){
+  try{
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    [880, 1108].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, now + i*0.18);
+      gain.gain.exponentialRampToValueAtTime(0.3, now + i*0.18 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i*0.18 + 0.35);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(now + i*0.18); osc.stop(now + i*0.18 + 0.4);
+    });
+  }catch(e){ console.error("Chime error:", e); }
+}
+
+async function loadLatestAnnouncementForUser(){
+  const { data } = await sb.from("ts_announcements").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if(!data) return;
+  state.latestAnnouncement = data;
+  const seenKey = "ts_seen_announcement_" + data.id;
+  if(!localStorage.getItem(seenKey)){
+    state.announcementIsNew = true;
+    playNotificationChime();
+  }
+}
+
+function dismissAnnouncement(){
+  if(state.latestAnnouncement){
+    localStorage.setItem("ts_seen_announcement_" + state.latestAnnouncement.id, "true");
+  }
+  state.announcementIsNew = false;
+  render();
+}
+
 async function generateEmployeeProfilePdf(){
   const emp = state.employeeDirectory.find(e=>e.id===state.selectedDirectoryEmployeeId);
   if(!emp){ toast("Select an employee first."); return; }
@@ -4685,7 +4786,7 @@ function render(){
   else if(state.view === "vehicle-documents") body = renderVehicleDocumentsScreen();
   else if(state.view === "financial-report") body = renderFinancialReport();
   else if(state.view === "project-summary") body = renderProjectSummary();
-  else if(state.view === "whatsapp-broadcast") body = renderWhatsAppBroadcast();
+  else if(state.view === "send-announcement") body = renderSendAnnouncement();
   else if(state.view === "employee-directory") body = renderEmployeeDirectory();
   else if(state.view === "my-profile") body = renderMyProfile();
   else if(state.view === "combined-reports") body = renderCombinedReports();
@@ -4694,10 +4795,25 @@ function render(){
   else if(state.view === "ceo-inbox") body = renderCeoInbox();
   else if(state.view === "ceo-timesheet-summary") body = renderCeoTimesheetSummary();
 
-  root.innerHTML = header + `<main>${body}</main>` + renderPhotoOverlay();
+  root.innerHTML = header + renderAnnouncementBanner() + `<main>${body}</main>` + renderPhotoOverlay();
   attachViewEvents();
   if(state.view === "supervisor-signature") initSigPad();
   if(state.view === "leave-form") initLeaveSigPad();
+}
+
+function renderAnnouncementBanner(){
+  if(!state.announcementIsNew || !state.latestAnnouncement) return "";
+  return `
+    <div style="margin:10px 12px 0;background:linear-gradient(135deg,#6B4FC4,#8E72E0);border-radius:12px;padding:12px 14px;box-shadow:0 4px 14px rgba(107,79,196,0.35);position:relative;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+        <div>
+          <div style="font-size:10px;color:#F0EDFA;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;">📢 Announcement</div>
+          <div style="font-size:13.5px;color:#fff;font-weight:700;margin-top:3px;">${state.latestAnnouncement.message}</div>
+        </div>
+        <button id="announcementDismissBtn" style="border:none;background:rgba(255,255,255,0.25);color:#fff;border-radius:50%;width:24px;height:24px;font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0;">✕</button>
+      </div>
+    </div>
+  `;
 }
 
 function renderPhotoOverlay(){
@@ -5139,45 +5255,45 @@ function renderMyProfile(){
   `;
 }
 
-function renderWhatsAppBroadcast(){
+function renderSendAnnouncement(){
   const isCeoUser = state.user.role === "ceo";
   const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (state.user.role === "hr" ? "backToHrBtn" : "backToSupervisorHomeBtn");
-  const msg = state.whatsappMessageDraft || "";
-  const hasMsg = msg.trim().length > 0;
-
-  const rows = state.whatsappEmployeeList.map(e => {
-    const link = hasMsg ? buildWhatsAppLink(e.mobile_number, msg) : null;
-    return `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 4px;border-top:1px dashed var(--line);">
-        <div>
-          <div style="font-weight:700;font-size:13px;">${e.short_name || e.name}</div>
-          <div class="meta">${e.mobile_number || "-"}</div>
-        </div>
-        ${link
-          ? `<a href="${link}" target="_blank" rel="noopener" style="text-decoration:none;background:linear-gradient(135deg,#1C8A4E,#2FAE68);color:#fff;font-weight:800;font-size:12px;padding:7px 12px;border-radius:999px;">📤 Send</a>`
-          : `<span style="font-size:11px;color:var(--muted);padding:7px 12px;">${hasMsg ? "no number" : "type a message"}</span>`
-        }
-      </div>`;
-  }).join("");
+  const msg = state.announcementDraft || "";
+  const langOptions = ANNOUNCEMENT_LANGUAGES.map(l => `<option value="${l.code}" ${state.announcementTargetLanguage===l.code?"selected":""}>${l.name}</option>`).join("");
 
   return `
     <button class="link-btn" id="${backBtnId}" style="margin-bottom:12px;">‹ Back</button>
-    <div style="background:linear-gradient(135deg,#1C8A4E,#128C4A);border-radius:16px;padding:16px 18px;margin-bottom:14px;box-shadow:0 4px 14px rgba(28,138,78,0.25);position:relative;overflow:hidden;">
-      <div style="position:absolute;top:-10px;right:-8px;font-size:56px;opacity:0.15;">💬</div>
-      <h3 style="color:#fff;font-size:16px;margin:0;position:relative;">💬 Message Employees</h3>
-      <div class="meta" style="color:#DFF3E6;position:relative;">Send a WhatsApp message using numbers on file — no contacts to save</div>
+    <div style="background:linear-gradient(135deg,#6B4FC4,#8E72E0);border-radius:16px;padding:16px 18px;margin-bottom:14px;box-shadow:0 4px 14px rgba(107,79,196,0.25);position:relative;overflow:hidden;">
+      <div style="position:absolute;top:-10px;right:-8px;font-size:56px;opacity:0.15;">📢</div>
+      <h3 style="color:#fff;font-size:16px;margin:0;position:relative;">📢 Send Announcement</h3>
+      <div class="meta" style="color:#F0EDFA;position:relative;">Appears on every employee's page instantly, with a notification sound</div>
     </div>
 
     <label style="margin-top:0;">Your message</label>
-    <textarea id="whatsappMessageInput" rows="4" placeholder="e.g. Eid Mubarak to you and your family! 🌙">${msg}</textarea>
-    <div class="field-note">Type your message, then tap "Send" next to each person — WhatsApp opens with this exact message ready to go, you just tap send there.</div>
+    <textarea id="announcementMessageInput" rows="4" placeholder="e.g. Eid Mubarak to you and your family! 🌙">${msg}</textarea>
 
-    ${state.whatsappMissingNumberCount > 0 ? `<div class="field-note" style="color:#C4791F;margin-top:8px;">⚠️ ${state.whatsappMissingNumberCount} active ${state.whatsappMissingNumberCount === 1 ? "employee has" : "employees have"} no mobile number on file and won't appear below.</div>` : ""}
-
-    <div class="card" style="margin-top:14px;">
-      <div style="font-weight:800;font-size:13px;color:var(--navy);">👥 ${state.whatsappEmployeeList.length} Employees</div>
-      ${rows || `<div class="empty-state"><div class="ic">📵</div>No employees with a mobile number on file.</div>`}
+    <div class="card" style="margin-top:12px;border:2px solid #DCD0F5;">
+      <div style="font-weight:800;font-size:12.5px;color:#6B4FC4;">🌐 AI Translate (optional)</div>
+      <label style="margin-top:8px;">Translate into</label>
+      <select id="announcementLanguageSelect">
+        <option value="">Choose a language…</option>
+        ${langOptions}
+      </select>
+      <button class="btn btn-outline btn-sm" id="translateAnnouncementBtn" style="width:100%;margin-top:8px;" ${state.announcementTranslating?"disabled":""}>${state.announcementTranslating ? '<span class="spinner"></span>Translating…' : "🌐 Translate"}</button>
+      ${state.announcementTranslatedDraft ? `
+      <label style="margin-top:10px;">Translated message (edit if needed)</label>
+      <textarea id="announcementTranslatedInput" rows="4">${state.announcementTranslatedDraft}</textarea>
+      <div class="field-note">This translated version will be sent instead of the original, since it's filled in below.</div>
+      ` : ""}
     </div>
+
+    <button class="btn btn-primary" id="sendAnnouncementBtn" style="width:100%;margin-top:14px;background:linear-gradient(135deg,#1C8A4E,#2FAE68);border:none;font-weight:800;">📤 Send to All Employees</button>
+
+    ${state.latestAnnouncement ? `
+    <div class="card" style="margin-top:16px;">
+      <div class="meta">Last sent ${new Date(state.latestAnnouncement.created_at).toLocaleString()}</div>
+      <div style="font-weight:700;font-size:13.5px;margin-top:4px;">${state.latestAnnouncement.message}</div>
+    </div>` : ""}
   `;
 }
 
@@ -6494,11 +6610,11 @@ function renderCeoHome(){
         <div class="desc">Overall PO Value, expenses, invoices and margin per project</div>
       </div>
     </div>
-    <div class="ceo-tile" id="openWhatsappBroadcastBtn">
-      <div class="icon">💬</div>
+    <div class="ceo-tile" id="openSendAnnouncementBtn">
+      <div class="icon">📢</div>
       <div class="body">
-        <div class="title">Message Employees</div>
-        <div class="desc">Send a WhatsApp message using numbers already on file</div>
+        <div class="title">Send Announcement</div>
+        <div class="desc">Message every employee's page instantly, with AI translation</div>
       </div>
     </div>
     <div class="ceo-tile" id="openCeoTimesheetSummaryBtn">
@@ -7399,12 +7515,22 @@ function handleDelegatedClick(e){
     loadProjectSummary(false);
     return;
   }
-  if(el("openWhatsappBroadcastBtn")){
-    state.view = "whatsapp-broadcast";
-    state.whatsappMessageDraft = "";
-    loadWhatsAppBroadcastList();
+  if(el("openSendAnnouncementBtn")){
+    state.view = "send-announcement";
+    state.announcementDraft = "";
+    state.announcementTranslatedDraft = "";
+    state.announcementTargetLanguage = "";
+    render();
     return;
   }
+  if(el("translateAnnouncementBtn")){
+    const langSelect = document.getElementById("announcementLanguageSelect");
+    if(langSelect) state.announcementTargetLanguage = langSelect.value;
+    translateAnnouncementDraft();
+    return;
+  }
+  if(el("sendAnnouncementBtn")){ sendAnnouncement(); return; }
+  if(el("announcementDismissBtn")){ dismissAnnouncement(); return; }
   if(el("openCeoTimesheetSummaryBtn")){
     state.view = "ceo-timesheet-summary";
     loadCeoTimesheetSummary();
@@ -7822,12 +7948,15 @@ function handleDelegatedInput(e){
     const freshInput = document.getElementById("unitForecastDaysInput");
     if(freshInput){ freshInput.focus(); freshInput.setSelectionRange(cursorPos, cursorPos); }
   }
-  if(e.target.id === "whatsappMessageInput"){
-    state.whatsappMessageDraft = e.target.value;
+  if(e.target.id === "announcementMessageInput"){
+    state.announcementDraft = e.target.value;
     const cursorPos = e.target.selectionStart;
     render();
-    const freshInput = document.getElementById("whatsappMessageInput");
+    const freshInput = document.getElementById("announcementMessageInput");
     if(freshInput){ freshInput.focus(); freshInput.setSelectionRange(cursorPos, cursorPos); }
+  }
+  if(e.target.id === "announcementTranslatedInput"){
+    state.announcementTranslatedDraft = e.target.value; // no re-render, so cursor stays put while typing
   }
   if(e.target.id === "myProfileMobile"){ state.myProfileDraft.mobile_number = e.target.value; }
   if(e.target.id === "myProfilePassportNo"){ state.myProfileDraft.passport_no = e.target.value; }
