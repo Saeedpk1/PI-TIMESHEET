@@ -489,8 +489,11 @@ let state = {
   whatsappMissingNumberCount: 0,
   hrTimesheetsSectionOpen: false,
   ceoMoreSectionOpen: false,
+  ceoSecuritySectionOpen: false,
   ceoTimesheetSummaryMonth: "",
   ceoTimesheetSummaryRows: [],
+  ceoViewTimesheetEmployee: null,
+  ceoViewTimesheetEntries: {},
   announcementDraft: "",
   announcementTranslatedDraft: "",
   announcementTargetLanguage: "",
@@ -1580,6 +1583,22 @@ async function loadCeoTimesheetSummary(){
   (submissions || []).forEach(s => { statusByEmpId[s.employee_id] = s; });
   state.ceoTimesheetSummaryMonth = month;
   state.ceoTimesheetSummaryRows = (employees || []).map(e => ({ ...e, submission: statusByEmpId[e.id] || null }));
+  state.loading = false;
+  render();
+}
+
+async function loadCeoViewTimesheet(employeeId){
+  state.loading = true; render();
+  const month = state.ceoTimesheetSummaryMonth || monthKey(new Date());
+  const [{ data: emp }, { data: entries }] = await Promise.all([
+    sb.from("ts_employees").select("*").eq("id", employeeId).maybeSingle(),
+    sb.from("ts_timesheet_entries").select("*").eq("employee_id", employeeId).eq("month", month)
+  ]);
+  state.ceoViewTimesheetEmployee = emp || null;
+  const entriesByDate = {};
+  (entries || []).forEach(e => { entriesByDate[e.entry_date] = e; });
+  state.ceoViewTimesheetEntries = entriesByDate;
+  state.view = "ceo-view-timesheet";
   state.loading = false;
   render();
 }
@@ -4840,6 +4859,7 @@ function render(){
   else if(state.view === "ceo-contact-form") body = renderCeoContactForm();
   else if(state.view === "ceo-inbox") body = renderCeoInbox();
   else if(state.view === "ceo-timesheet-summary") body = renderCeoTimesheetSummary();
+  else if(state.view === "ceo-view-timesheet") body = renderCeoViewTimesheet();
 
   root.innerHTML = header + renderAnnouncementBanner() + `<main>${body}</main>` + renderPhotoOverlay();
   attachViewEvents();
@@ -6722,8 +6742,17 @@ function renderCeoHome(){
         </div>
       </div>
 
-      <div class="card" style="margin-top:16px;">
-        <h3 style="font-size:14px;">🔒 Account Security</h3>
+      <div class="card" style="margin-top:16px;padding:12px 14px;cursor:pointer;" id="toggleCeoSecuritySectionBtn">
+        <div class="row-between">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:18px;">🔒</span>
+            <div style="font-weight:800;font-size:13px;color:var(--navy);">Account Security</div>
+          </div>
+          <span style="color:var(--blue);font-size:14px;font-weight:800;">${state.ceoSecuritySectionOpen ? "▲" : "▼"}</span>
+        </div>
+      </div>
+      ${state.ceoSecuritySectionOpen ? `
+      <div class="card" style="margin-top:8px;">
         <div class="meta">${state.user.password_hash ? "A password is set for your account." : "No password set — you sign in with just your ID number."}</div>
         <div style="display:flex;gap:8px;margin-top:10px;">
           <button class="btn btn-outline btn-sm" id="setAccountPasswordBtn" style="flex:1;">${state.user.password_hash ? "🔑 Change Password" : "🔑 Set Password"}</button>
@@ -6733,6 +6762,7 @@ function renderCeoHome(){
         <button class="btn btn-outline btn-sm" id="${hasBiometricUnlockSetUp() ? "disableBiometricUnlockBtn" : "enableBiometricUnlockBtn"}" style="width:100%;margin-top:8px;">${hasBiometricUnlockSetUp() ? "🔓 Turn Off Biometric Unlock" : "🔓 Enable Face ID / Fingerprint Unlock"}</button>
         <div class="field-note" style="margin-top:6px;">Biometric unlock is set up per device — you'll need to enable it again on any new phone or browser.</div>
       </div>
+      ` : ""}
     </div>
     ` : ""}
   `;
@@ -7042,8 +7072,54 @@ function renderCeoTimesheetSummary(){
 
     <div class="card" style="margin-top:12px;">
       <h3 style="font-size:13px;color:var(--present);margin:0 0 4px;">✅ Submitted (${submitted.length})</h3>
-      ${submitted.length ? submitted.map(e => `<div style="display:flex;justify-content:space-between;padding:6px 4px;border-top:1px dashed var(--line);"><span style="font-weight:700;font-size:13px;">${e.short_name || e.name}</span>${e.submission?.status === "approved" ? `<span class="badge badge-approved">Approved</span>` : `<span class="badge badge-submitted">Submitted</span>`}</div>`).join("") : `<div class="empty-state" style="padding:10px;">No one has submitted yet.</div>`}
+      ${submitted.length ? submitted.map(e => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 4px;border-top:1px dashed var(--line);"><span style="font-weight:700;font-size:13px;">${e.short_name || e.name}</span><div style="display:flex;align-items:center;gap:8px;">${e.submission?.status === "approved" ? `<span class="badge badge-approved">Approved</span>` : `<span class="badge badge-submitted">Submitted</span>`}<button data-view-ceo-timesheet="${e.id}" style="border:none;background:none;padding:2px;font-size:15px;cursor:pointer;color:var(--blue);">👁</button></div></div>`).join("") : `<div class="empty-state" style="padding:10px;">No one has submitted yet.</div>`}
     </div>
+
+    <div class="meta" style="text-align:center;margin-top:10px;">Tap 👁 next to anyone who has submitted to view their timesheet.</div>
+  `;
+}
+
+function renderCeoViewTimesheet(){
+  const emp = state.ceoViewTimesheetEmployee;
+  if(!emp) return `<div class="empty-state">Nothing selected.</div>`;
+  const [hy, hm] = (state.ceoTimesheetSummaryMonth || monthKey(new Date())).split("-").map(Number);
+  const nd = new Date(hy, hm, 0).getDate();
+  const totals = computeTotals(state.ceoViewTimesheetEntries);
+
+  let rows = "";
+  for(let day=1; day<=nd; day++){
+    const dstr = fmtDate(hy, hm-1, day);
+    const v = state.ceoViewTimesheetEntries[dstr];
+    const status = v?.status || (isFriday(hy, hm-1, day) ? "Friday" : "-");
+    const projectName = v?.project_id ? (state.projects.find(p=>p.id===v.project_id)?.name || "-") : "-";
+    const statusColor = { Present: "var(--present)", Absent: "var(--absent)", Sick: "#C4791F", Friday: "var(--muted)" }[status] || "var(--muted)";
+    rows += `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 4px;border-top:1px dashed var(--line);">
+        <div style="font-weight:700;font-size:12px;width:70px;flex-shrink:0;">${String(day).padStart(2,"0")} ${dayName(hy,hm-1,day)}</div>
+        <div style="font-weight:800;font-size:12px;color:${statusColor};flex:1;text-align:center;">${status}</div>
+        <div style="font-size:11px;color:var(--muted);flex:1;text-align:right;">${projectName}</div>
+      </div>`;
+  }
+
+  return `
+    <button class="link-btn" id="backToCeoTimesheetSummaryBtn" style="margin-bottom:12px;">‹ Close</button>
+    <div class="card">
+      <h3>${emp.name || ""}</h3>
+      <div class="meta">${emp.employee_no || ""} ${emp.project_site ? "• " + emp.project_site : ""} • ${monthLabel(new Date(hy, hm-1, 1))}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0;">
+      <div style="background:#EAF6ED;border-radius:10px;padding:8px;text-align:center;">
+        <div class="meta">Present</div><div style="font-weight:800;font-size:16px;color:var(--present);">${totals.present}</div>
+      </div>
+      <div style="background:#FDECEA;border-radius:10px;padding:8px;text-align:center;">
+        <div class="meta">Absent</div><div style="font-weight:800;font-size:16px;color:var(--absent);">${totals.absent}</div>
+      </div>
+      <div style="background:#FDF3E6;border-radius:10px;padding:8px;text-align:center;">
+        <div class="meta">OT Hours</div><div style="font-weight:800;font-size:16px;color:#C4791F;">${totals.ot}</div>
+      </div>
+    </div>
+    <div class="card">${rows}</div>
+    <button class="btn btn-outline" id="backToCeoTimesheetSummaryBtn2" style="width:100%;margin-top:14px;">Close</button>
   `;
 }
 
@@ -7605,6 +7681,13 @@ function handleDelegatedClick(e){
     loadCeoTimesheetSummary();
     return;
   }
+  const viewCeoTimesheetEl = e.target.closest("[data-view-ceo-timesheet]");
+  if(viewCeoTimesheetEl){ loadCeoViewTimesheet(viewCeoTimesheetEl.getAttribute("data-view-ceo-timesheet")); return; }
+  if(el("backToCeoTimesheetSummaryBtn") || el("backToCeoTimesheetSummaryBtn2")){
+    state.view = "ceo-timesheet-summary";
+    render();
+    return;
+  }
   if(el("toggleHrTimesheetsSectionBtn")){
     state.hrTimesheetsSectionOpen = !state.hrTimesheetsSectionOpen;
     render();
@@ -7612,6 +7695,11 @@ function handleDelegatedClick(e){
   }
   if(el("toggleCeoMoreSectionBtn")){
     state.ceoMoreSectionOpen = !state.ceoMoreSectionOpen;
+    render();
+    return;
+  }
+  if(el("toggleCeoSecuritySectionBtn")){
+    state.ceoSecuritySectionOpen = !state.ceoSecuritySectionOpen;
     render();
     return;
   }
