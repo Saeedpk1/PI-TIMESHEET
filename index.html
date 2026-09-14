@@ -479,6 +479,8 @@ let state = {
   whatsappEmployeeList: [],
   whatsappMissingNumberCount: 0,
   hrTimesheetsSectionOpen: false,
+  ceoTimesheetSummaryMonth: "",
+  ceoTimesheetSummaryRows: [],
   projectSummaryShowArchived: false,
   financialReportDate: todayLocalISO(),
   financialDirty: false,
@@ -1549,6 +1551,21 @@ async function deleteLeaveRequestHr(reqId){
 }
 
 /* ---------------- CEO flow ---------------- */
+async function loadCeoTimesheetSummary(){
+  state.loading = true; render();
+  const month = monthKey(new Date());
+  const [{ data: employees }, { data: submissions }] = await Promise.all([
+    sb.from("ts_employees").select("id, name, short_name").eq("active", true).not("short_name", "is", null).order("short_name"),
+    sb.from("ts_timesheet_submissions").select("employee_id, status, submitted_at").eq("month", month)
+  ]);
+  const statusByEmpId = {};
+  (submissions || []).forEach(s => { statusByEmpId[s.employee_id] = s; });
+  state.ceoTimesheetSummaryMonth = month;
+  state.ceoTimesheetSummaryRows = (employees || []).map(e => ({ ...e, submission: statusByEmpId[e.id] || null }));
+  state.loading = false;
+  render();
+}
+
 async function loadCeoLeaveRequests(){
   state.loading = true; render();
   const [{ data }, { data: sig }] = await Promise.all([
@@ -1587,6 +1604,16 @@ async function rejectLeaveCeo(reqId){
   state.loading = false;
   toast(error ? "Could not reject. Try again." : "Leave request rejected.");
   if(!error && state.view === "ceo-leave-review") state.view = "ceo-leave-list";
+  await loadCeoLeaveRequests();
+  render();
+}
+
+async function deleteLeaveRequestCeo(reqId){
+  if(!confirm("Permanently delete this leave request from history? This cannot be undone.")) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_leave_requests").delete().eq("id", reqId);
+  state.loading = false;
+  toast(error ? "Could not delete. Try again." : "Leave request deleted.");
   await loadCeoLeaveRequests();
   render();
 }
@@ -4665,6 +4692,7 @@ function render(){
   else if(state.view === "unit-financial-report") body = renderUnitFinancialReport();
   else if(state.view === "ceo-contact-form") body = renderCeoContactForm();
   else if(state.view === "ceo-inbox") body = renderCeoInbox();
+  else if(state.view === "ceo-timesheet-summary") body = renderCeoTimesheetSummary();
 
   root.innerHTML = header + `<main>${body}</main>` + renderPhotoOverlay();
   attachViewEvents();
@@ -6473,6 +6501,13 @@ function renderCeoHome(){
         <div class="desc">Send a WhatsApp message using numbers already on file</div>
       </div>
     </div>
+    <div class="ceo-tile" id="openCeoTimesheetSummaryBtn">
+      <div class="icon">📊</div>
+      <div class="body">
+        <div class="title">Timesheet Submissions</div>
+        <div class="desc">Who has and hasn't submitted their timesheet this month</div>
+      </div>
+    </div>
     <div class="ceo-tile" id="openCombinedReportsBtn">
       <div class="icon">📋</div>
       <div class="body">
@@ -6790,6 +6825,45 @@ function renderCeoInbox(){
   `;
 }
 
+function renderCeoTimesheetSummary(){
+  const rows = state.ceoTimesheetSummaryRows;
+  const submitted = rows.filter(r => r.submission && r.submission.status !== "draft");
+  const notSubmitted = rows.filter(r => !r.submission || r.submission.status === "draft");
+  const monthLabel = state.ceoTimesheetSummaryMonth
+    ? new Date(state.ceoTimesheetSummaryMonth + "-01T00:00:00").toLocaleDateString(undefined, { month: "long", year: "numeric" })
+    : "";
+
+  return `
+    <button class="link-btn" id="backToCeoHomeBtn" style="margin-bottom:12px;">‹ Back</button>
+    <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:16px 18px;margin-bottom:14px;box-shadow:0 4px 14px rgba(15,53,86,0.25);position:relative;overflow:hidden;">
+      <div style="position:absolute;top:-10px;right:-8px;font-size:56px;opacity:0.12;">📊</div>
+      <h3 style="color:#fff;font-size:16px;margin:0;position:relative;">📊 Timesheet Submissions</h3>
+      <div class="meta" style="color:#BFDCF5;position:relative;">${monthLabel}</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+      <div style="background:linear-gradient(135deg,#1C8A4E,#2FAE68);border-radius:12px;padding:14px;text-align:center;box-shadow:0 3px 10px rgba(28,138,78,0.3);">
+        <div style="color:#fff;font-size:10.5px;opacity:0.9;font-weight:700;text-transform:uppercase;">✅ Submitted</div>
+        <div style="color:#fff;font-size:26px;font-weight:800;margin-top:2px;">${submitted.length}</div>
+      </div>
+      <div style="background:linear-gradient(135deg,#C43B3B,#E0645F);border-radius:12px;padding:14px;text-align:center;box-shadow:0 3px 10px rgba(196,59,59,0.3);">
+        <div style="color:#fff;font-size:10.5px;opacity:0.9;font-weight:700;text-transform:uppercase;">🔴 Not Submitted</div>
+        <div style="color:#fff;font-size:26px;font-weight:800;margin-top:2px;">${notSubmitted.length}</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:13px;color:var(--absent);margin:0 0 4px;">🔴 Not Submitted Yet (${notSubmitted.length})</h3>
+      ${notSubmitted.length ? notSubmitted.map(e => `<div style="padding:6px 4px;border-top:1px dashed var(--line);font-weight:700;font-size:13px;">${e.short_name || e.name}</div>`).join("") : `<div class="empty-state" style="padding:10px;"><div class="ic">🎉</div>Everyone has submitted this month.</div>`}
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <h3 style="font-size:13px;color:var(--present);margin:0 0 4px;">✅ Submitted (${submitted.length})</h3>
+      ${submitted.length ? submitted.map(e => `<div style="display:flex;justify-content:space-between;padding:6px 4px;border-top:1px dashed var(--line);"><span style="font-weight:700;font-size:13px;">${e.short_name || e.name}</span>${e.submission?.status === "approved" ? `<span class="badge badge-approved">Approved</span>` : `<span class="badge badge-submitted">Submitted</span>`}</div>`).join("") : `<div class="empty-state" style="padding:10px;">No one has submitted yet.</div>`}
+    </div>
+  `;
+}
+
 function renderCeoLeaveList(){
   const pending = state.ceoLeaveRequests.filter(r=>r.status==="sent_to_ceo");
   const others = state.ceoLeaveRequests.filter(r=>r.status!=="sent_to_ceo");
@@ -6804,6 +6878,7 @@ function renderCeoLeaveList(){
       </div>
       <span class="badge ${b.cls}">${shortStatusLabel[r.status] || b.label}</span>
       <button class="link-btn" data-view-leave-ceo="${r.id}" style="color:var(--blue) !important;margin-left:8px;">👁 View</button>
+      <button class="link-btn" data-delete-leave-ceo="${r.id}" style="color:var(--absent) !important;margin-left:6px;">🗑</button>
     </div>`;
   }).join("");
 
@@ -7330,6 +7405,11 @@ function handleDelegatedClick(e){
     loadWhatsAppBroadcastList();
     return;
   }
+  if(el("openCeoTimesheetSummaryBtn")){
+    state.view = "ceo-timesheet-summary";
+    loadCeoTimesheetSummary();
+    return;
+  }
   if(el("toggleHrTimesheetsSectionBtn")){
     state.hrTimesheetsSectionOpen = !state.hrTimesheetsSectionOpen;
     render();
@@ -7521,6 +7601,8 @@ function handleDelegatedClick(e){
   if(approveLeaveCeoEl){ approveLeaveCeo(approveLeaveCeoEl.getAttribute("data-approve-leave-ceo")); return; }
   const rejectLeaveCeoEl = e.target.closest("[data-reject-leave-ceo]");
   if(rejectLeaveCeoEl){ rejectLeaveCeo(rejectLeaveCeoEl.getAttribute("data-reject-leave-ceo")); return; }
+  const deleteLeaveCeoEl = e.target.closest("[data-delete-leave-ceo]");
+  if(deleteLeaveCeoEl){ deleteLeaveRequestCeo(deleteLeaveCeoEl.getAttribute("data-delete-leave-ceo")); return; }
   if(el("clearLeaveSigBtn")){ clearLeaveSigPad(); return; }
   if(el("leavePhotoBtn")){ document.getElementById("leavePhotoInput")?.click(); return; }
   if(el("submitLeaveBtn")){ submitLeaveRequest(); return; }
