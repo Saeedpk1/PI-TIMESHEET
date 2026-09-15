@@ -7205,8 +7205,8 @@ function renderCeoInbox(){
 
 function renderCeoTimesheetSummary(){
   const rows = state.ceoTimesheetSummaryRows;
-  const submitted = rows.filter(r => r.submission && r.submission.status !== "draft");
-  const notSubmitted = rows.filter(r => !r.submission || r.submission.status === "draft");
+  const submitted = rows.filter(r => r.submission && r.submission.status === "approved");
+  const notSubmitted = rows.filter(r => !r.submission || r.submission.status !== "approved");
   const monthLabel = state.ceoTimesheetSummaryMonth
     ? new Date(state.ceoTimesheetSummaryMonth + "-01T00:00:00").toLocaleDateString(undefined, { month: "long", year: "numeric" })
     : "";
@@ -7232,15 +7232,15 @@ function renderCeoTimesheetSummary(){
 
     <div class="card">
       <h3 style="font-size:13px;color:var(--absent);margin:0 0 4px;">🔴 Not Submitted Yet (${notSubmitted.length})</h3>
-      ${notSubmitted.length ? notSubmitted.map(e => `<div style="padding:6px 4px;border-top:1px dashed var(--line);font-weight:700;font-size:13px;">${e.short_name || e.name}</div>`).join("") : `<div class="empty-state" style="padding:10px;"><div class="ic">🎉</div>Everyone has submitted this month.</div>`}
+      ${notSubmitted.length ? notSubmitted.map(e => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 4px;border-top:1px dashed var(--line);"><span style="font-weight:700;font-size:13px;">${e.short_name || e.name}</span>${e.submission?.status === "rejected" ? `<span class="badge badge-rejected">Rejected</span>` : e.submission?.status === "submitted" ? `<span class="badge badge-submitted">Awaiting approval</span>` : ""}</div>`).join("") : `<div class="empty-state" style="padding:10px;"><div class="ic">🎉</div>Everyone has submitted this month.</div>`}
     </div>
 
     <div class="card" style="margin-top:12px;">
-      <h3 style="font-size:13px;color:var(--present);margin:0 0 4px;">✅ Submitted (${submitted.length})</h3>
-      ${submitted.length ? submitted.map(e => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 4px;border-top:1px dashed var(--line);"><span style="font-weight:700;font-size:13px;">${e.short_name || e.name}</span><div style="display:flex;align-items:center;gap:8px;">${e.submission?.status === "approved" ? `<span class="badge badge-approved">Approved</span>` : `<span class="badge badge-submitted">Submitted</span>`}<button data-view-ceo-timesheet="${e.id}" style="border:none;background:none;padding:2px;font-size:15px;cursor:pointer;color:var(--blue);">👁</button></div></div>`).join("") : `<div class="empty-state" style="padding:10px;">No one has submitted yet.</div>`}
+      <h3 style="font-size:13px;color:var(--present);margin:0 0 4px;">✅ Approved (${submitted.length})</h3>
+      ${submitted.length ? submitted.map(e => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 4px;border-top:1px dashed var(--line);"><span style="font-weight:700;font-size:13px;">${e.short_name || e.name}</span><div style="display:flex;align-items:center;gap:8px;"><span class="badge badge-approved">Approved</span><button data-view-ceo-timesheet="${e.id}" style="border:none;background:none;padding:2px;font-size:15px;cursor:pointer;color:var(--blue);">👁</button></div></div>`).join("") : `<div class="empty-state" style="padding:10px;">No one has been approved yet.</div>`}
     </div>
 
-    <div class="meta" style="text-align:center;margin-top:10px;">Tap 👁 next to anyone who has submitted to view their timesheet.</div>
+    <div class="meta" style="text-align:center;margin-top:10px;">Tap 👁 next to anyone approved to view their timesheet.</div>
   `;
 }
 
