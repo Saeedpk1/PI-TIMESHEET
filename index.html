@@ -502,6 +502,10 @@ let state = {
   latestAnnouncement: null,
   announcementIsNew: false,
   announcementHistory: [],
+  hrTodoDraft: "",
+  hrTodoHistory: [],
+  latestHrTodo: null,
+  hrTodoIsNew: false,
   projectSummaryShowArchived: false,
   financialReportDate: todayLocalISO(),
   financialDirty: false,
@@ -972,6 +976,7 @@ async function completeLogin(match){
   state.hrmSupervisorId = data ? data.id : null;
   await loadProjects();
   await loadLatestAnnouncementForUser();
+  if(match.role === "ceo") await loadLatestHrTodoForOwner();
   state.view = match.role === "employee" ? "employee" : (match.role === "supervisor" ? "supervisor" : (match.role === "ceo" ? "ceo-home" : "hr"));
   if(state.view === "employee") await loadEmployeeMonth();
   if(state.view === "supervisor") await loadSupervisorList();
@@ -3072,6 +3077,65 @@ async function deleteAnnouncementFromHistory(id){
   render();
 }
 
+/* ---------------- HR To-Do for Owner (reverse of Announcements) ---------------- */
+async function sendHrTodo(){
+  const text = (state.hrTodoDraft || "").trim();
+  if(!text){ toast("Type something first."); return; }
+  if(!confirm(`Send this to-do list to the Owner?\n\n"${text}"`)) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_hr_todos").insert({ message: text, created_by: state.user.name });
+  state.loading = false;
+  toast(error ? "Could not send. Try again." : "Sent to the Owner.");
+  if(!error){
+    state.hrTodoDraft = "";
+    await loadHrTodoHistory();
+  }
+  render();
+}
+
+async function loadHrTodoHistory(){
+  state.loading = true; render();
+  const { data } = await sb.from("ts_hr_todos").select("*").order("created_at", { ascending: false });
+  state.hrTodoHistory = data || [];
+  state.loading = false;
+  render();
+}
+
+async function deleteHrTodoFromHistory(id){
+  if(!confirm("Delete this to-do entry? It'll stop showing on the Owner's page once they next open the app.")) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_hr_todos").delete().eq("id", id);
+  state.loading = false;
+  toast(error ? "Could not delete. Try again." : "Deleted.");
+  if(!error){
+    if(state.latestHrTodo && state.latestHrTodo.id === id){
+      state.latestHrTodo = null;
+      state.hrTodoIsNew = false;
+    }
+    await loadHrTodoHistory();
+  }
+  render();
+}
+
+async function loadLatestHrTodoForOwner(){
+  const { data } = await sb.from("ts_hr_todos").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if(!data) return;
+  state.latestHrTodo = data;
+  const seenKey = "ts_seen_hr_todo_" + data.id;
+  if(!localStorage.getItem(seenKey)){
+    state.hrTodoIsNew = true;
+    playNotificationChime();
+  }
+}
+
+function dismissHrTodo(){
+  if(state.latestHrTodo){
+    localStorage.setItem("ts_seen_hr_todo_" + state.latestHrTodo.id, "true");
+  }
+  state.hrTodoIsNew = false;
+  render();
+}
+
 async function generateEmployeeProfilePdf(){
   const emp = state.employeeDirectory.find(e=>e.id===state.selectedDirectoryEmployeeId);
   if(!emp){ toast("Select an employee first."); return; }
@@ -4875,6 +4939,7 @@ function render(){
   else if(state.view === "financial-report") body = renderFinancialReport();
   else if(state.view === "project-summary") body = renderProjectSummary();
   else if(state.view === "send-announcement") body = renderSendAnnouncement();
+  else if(state.view === "send-hr-todo") body = renderSendHrTodo();
   else if(state.view === "employee-directory") body = renderEmployeeDirectory();
   else if(state.view === "my-profile") body = renderMyProfile();
   else if(state.view === "combined-reports") body = renderCombinedReports();
@@ -4884,7 +4949,7 @@ function render(){
   else if(state.view === "ceo-timesheet-summary") body = renderCeoTimesheetSummary();
   else if(state.view === "ceo-view-timesheet") body = renderCeoViewTimesheet();
 
-  root.innerHTML = header + renderAnnouncementBanner() + `<main>${body}</main>` + renderPhotoOverlay();
+  root.innerHTML = header + renderAnnouncementBanner() + renderHrTodoBanner() + `<main>${body}</main>` + renderPhotoOverlay();
   attachViewEvents();
   if(state.view === "supervisor-signature") initSigPad();
   if(state.view === "leave-form") initLeaveSigPad();
@@ -4901,6 +4966,22 @@ function renderAnnouncementBanner(){
           <div style="font-size:13.5px;color:#fff;font-weight:700;margin-top:3px;">${state.latestAnnouncement.message}</div>
         </div>
         <button id="announcementDismissBtn" style="border:none;background:rgba(255,255,255,0.25);color:#fff;border-radius:50%;width:24px;height:24px;font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0;">✕</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderHrTodoBanner(){
+  if(!state.hrTodoIsNew || !state.latestHrTodo || state.user?.role !== "ceo") return "";
+  const sender = state.latestHrTodo.created_by;
+  return `
+    <div style="margin:10px 12px 0;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);border-radius:12px;padding:12px 14px;box-shadow:0 4px 14px rgba(184,145,42,0.35);position:relative;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+        <div>
+          <div style="font-size:10px;color:#FDF6E3;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;">📝 To-Do from ${sender || "HR"}</div>
+          <div style="font-size:13.5px;color:#fff;font-weight:700;margin-top:3px;white-space:pre-line;">${state.latestHrTodo.message}</div>
+        </div>
+        <button id="hrTodoDismissBtn" style="border:none;background:rgba(255,255,255,0.25);color:#fff;border-radius:50%;width:24px;height:24px;font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0;">✕</button>
       </div>
     </div>
   `;
@@ -5390,6 +5471,38 @@ function renderSendAnnouncement(){
           </div>
           <button data-delete-announcement="${a.id}" style="border:none;background:none;padding:2px;font-size:15px;cursor:pointer;color:var(--absent);flex-shrink:0;">🗑</button>
         </div>`).join("") : `<div class="empty-state" style="padding:10px;"><div class="ic">📢</div>No announcements sent yet.</div>`}
+    </div>
+  `;
+}
+
+function renderSendHrTodo(){
+  const backBtnId = "backToHrBtn";
+  const msg = state.hrTodoDraft || "";
+
+  return `
+    <button class="link-btn" id="${backBtnId}" style="margin-bottom:12px;">‹ Back</button>
+    <div style="background:linear-gradient(135deg,var(--ksa-gold),#B8912A);border-radius:16px;padding:16px 18px;margin-bottom:14px;box-shadow:0 4px 14px rgba(184,145,42,0.25);position:relative;overflow:hidden;">
+      <div style="position:absolute;top:-10px;right:-8px;font-size:56px;opacity:0.15;">📝</div>
+      <h3 style="color:#fff;font-size:16px;margin:0;position:relative;">📝 To-Do for Owner</h3>
+      <div class="meta" style="color:#FDF6E3;position:relative;">Sends straight to the Owner's page with a notification sound</div>
+    </div>
+
+    <label style="margin-top:0;color:#B8912A;font-weight:800;">Things that need attention today</label>
+    <textarea id="hrTodoMessageInput" rows="6" placeholder="e.g.${String.fromCharCode(10)}1- Buy ticket for Mr. X${String.fromCharCode(10)}2- Balance amount to pay to supplier Y${String.fromCharCode(10)}3- Issue exit re-entry for iqama 12345" style="border:2.5px solid var(--ksa-gold);background:#FDF9EF;border-radius:12px;font-size:14px;padding:12px;">${msg}</textarea>
+    <div class="field-note">Numbered items work well (1-, 2-, 3-…) since the Owner will see this exactly as typed.</div>
+
+    <button class="btn btn-primary" id="sendHrTodoBtn" style="width:100%;margin-top:14px;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);border:none;font-weight:800;">📤 Send to Owner</button>
+
+    <h3 style="font-size:13px;color:var(--navy);margin:18px 0 6px;">📜 History (${state.hrTodoHistory.length})</h3>
+    <div class="card">
+      ${state.hrTodoHistory.length ? state.hrTodoHistory.map(a => `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:8px 4px;border-top:1px dashed var(--line);">
+          <div style="flex:1;min-width:0;">
+            <div class="meta">${a.created_by || "-"} — ${new Date(a.created_at).toLocaleString()}</div>
+            <div style="font-weight:700;font-size:13px;margin-top:2px;white-space:pre-line;">${a.message}</div>
+          </div>
+          <button data-delete-hr-todo="${a.id}" style="border:none;background:none;padding:2px;font-size:15px;cursor:pointer;color:var(--absent);flex-shrink:0;">🗑</button>
+        </div>`).join("") : `<div class="empty-state" style="padding:10px;"><div class="ic">📝</div>Nothing sent yet.</div>`}
     </div>
   `;
 }
@@ -6326,9 +6439,10 @@ function renderHrView(){
       <div class="hr-tile" id="openVehicleDocumentsBtn" style="background:linear-gradient(135deg,#2FA391,#1B7A6B);"><span class="icon">🚗</span><span class="label">Vehicle<br>Documents</span></div>
     </div>
 
-    <div class="hr-section-label" style="color:var(--blue);">📨 Employee Requests</div>
+    <div class="hr-section-label" style="color:var(--blue);">📨 To Owner</div>
     <div class="hr-tile-grid">
       <div class="hr-tile" id="openCeoInboxBtn" style="background:linear-gradient(135deg,#3E86C4,#1B5A96);"><span class="icon">📨</span><span class="label">Messages<br>to Owner</span></div>
+      <div class="hr-tile" id="openSendHrTodoBtn" style="background:linear-gradient(135deg,var(--ksa-gold),#B8912A);"><span class="icon">📝</span><span class="label">To-Do for<br>Owner</span></div>
     </div>
 
     <div class="hr-section-label" style="color:var(--blue);">📅 Monthly Timesheets</div>
@@ -7707,8 +7821,18 @@ function handleDelegatedClick(e){
   }
   if(el("sendAnnouncementBtn")){ sendAnnouncement(); return; }
   if(el("announcementDismissBtn")){ dismissAnnouncement(); return; }
+  if(el("hrTodoDismissBtn")){ dismissHrTodo(); return; }
   const deleteAnnouncementEl = e.target.closest("[data-delete-announcement]");
   if(deleteAnnouncementEl){ deleteAnnouncementFromHistory(deleteAnnouncementEl.getAttribute("data-delete-announcement")); return; }
+  if(el("openSendHrTodoBtn")){
+    state.view = "send-hr-todo";
+    state.hrTodoDraft = "";
+    loadHrTodoHistory();
+    return;
+  }
+  if(el("sendHrTodoBtn")){ sendHrTodo(); return; }
+  const deleteHrTodoEl = e.target.closest("[data-delete-hr-todo]");
+  if(deleteHrTodoEl){ deleteHrTodoFromHistory(deleteHrTodoEl.getAttribute("data-delete-hr-todo")); return; }
   if(el("openCeoTimesheetSummaryBtn")){
     state.view = "ceo-timesheet-summary";
     loadCeoTimesheetSummary();
@@ -8160,6 +8284,13 @@ function handleDelegatedInput(e){
   if(e.target.id === "announcementTranslatedInput"){
     state.announcementTranslatedDraft = e.target.value; // no re-render, so cursor stays put while typing
   }
+  if(e.target.id === "hrTodoMessageInput"){
+    state.hrTodoDraft = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    render();
+    const freshInput = document.getElementById("hrTodoMessageInput");
+    if(freshInput){ freshInput.focus(); freshInput.setSelectionRange(cursorPos, cursorPos); }
+  }
   if(e.target.id === "myProfileMobile"){ state.myProfileDraft.mobile_number = e.target.value; }
   if(e.target.id === "myProfilePassportNo"){ state.myProfileDraft.passport_no = e.target.value; }
   if(e.target.id === "myProfileBankName"){ state.myProfileDraft.bank_name = e.target.value; }
@@ -8193,6 +8324,7 @@ async function init(){
     state.hrmSupervisorId = mohammed ? mohammed.id : null;
     await loadProjects();
     await loadLatestAnnouncementForUser();
+    if(state.user.role === "ceo") await loadLatestHrTodoForOwner();
     state.view = state.user.role === "employee" ? "employee" : (state.user.role === "supervisor" ? "supervisor" : (state.user.role === "ceo" ? "ceo-home" : "hr"));
     if(state.view === "employee") await loadEmployeeMonth();
     else if(state.view === "supervisor") await loadSupervisorList();
