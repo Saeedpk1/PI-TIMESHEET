@@ -5299,6 +5299,13 @@ function renderCeoContactForm(){
 }
 
 function renderEmployeeDirectory(){
+  if(state.loading && !state.employeeDirectory.length){
+    const backId = state.user.role === "ceo" ? "backToCeoHomeBtn" : (state.user.role === "hr" ? "backToHrBtn" : "backToSupervisorHomeBtn");
+    return `
+    <button class="link-btn" id="${backId}" style="margin-bottom:14px;">‹ Back</button>
+    <div class="empty-state"><div class="ic">👤</div><span class="spinner" style="margin-right:8px;"></span>Loading employee directory…</div>
+    `;
+  }
   const nonSaudiList = state.employeeDirectory.filter(e => e.supervisor_id !== state.hrmSupervisorId);
   const emp = nonSaudiList.find(e=>e.id===state.selectedDirectoryEmployeeId);
   const options = nonSaudiList.map(e => `<option value="${e.id}" ${e.id===state.selectedDirectoryEmployeeId?"selected":""}>${e.name}</option>`).join("");
