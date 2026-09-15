@@ -5209,22 +5209,6 @@ function renderSupervisorList(){
 }
 
 function renderRajeshDashboard(){
-  const initials = (name)=> (name||"?").trim().split(/\s+/).slice(0,2).map(w=>w[0]?.toUpperCase()||"").join("");
-  const rows = state.supervisorEmployees.map(e=>{
-    const st = e.submission ? e.submission.status : "draft";
-    const badgeClass = { submitted:"badge-submitted", approved:"badge-approved", rejected:"badge-rejected", draft:"badge-draft" }[st];
-    const label = { submitted:"Awaiting review", approved:"Approved", rejected:"Rejected", draft:"Draft" }[st];
-    return `
-    <div class="emp-list-item li-${st}" data-emp="${e.id}">
-      <div class="emp-avatar">${initials(e.name)}</div>
-      <div style="flex:1;min-width:0;">
-        <div class="name">${e.name}</div>
-        <div class="sub">${e.employee_no || ""} ${e.project_site ? "• " + e.project_site : ""}</div>
-      </div>
-      <span class="badge ${badgeClass}">${label}</span>
-    </div>`;
-  }).join("") || `<div class="empty-state"><div class="ic">👷</div>No employees assigned to you yet.</div>`;
-
   return `
     <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:18px;position:relative;overflow:hidden;margin-bottom:14px;">
       <div style="position:absolute;top:-10px;right:-8px;font-size:64px;opacity:0.12;">🗂️</div>
@@ -5248,19 +5232,11 @@ function renderRajeshDashboard(){
       </div>
     </div>
 
-    <div class="hr-section-label" style="color:var(--blue);">👥 Your Team</div>
     <div class="card" style="padding:12px 14px;">
-      <div class="row-between" style="margin-bottom:8px;">
+      <div class="row-between">
         <div class="meta">${monthLabel(state.monthDate)}</div>
         <button class="link-btn" id="sigSettingsBtn" style="color:var(--blue) !important;">${state.savedSignature ? "✎ Update signature" : "✎ Set up signature"}</button>
       </div>
-      <div>${rows}</div>
-    </div>
-
-    <div class="hr-section-label" style="color:#E8A33D;">✅ Approvals</div>
-    <div class="hr-tile-grid-2col">
-      <div class="hr-tile" id="openSupervisorLeaveListBtn" style="background:linear-gradient(135deg,#C99752,#A87A3D);"><span class="icon">🌴</span><span class="label">Leave<br>Requests</span></div>
-      <div class="hr-tile" id="openPurchaseFormBtn" style="background:linear-gradient(135deg,#5C9E7C,#3E7A5D);"><span class="icon">🧾</span><span class="label">Record<br>Purchase</span></div>
     </div>
 
     <div class="hr-section-label" style="color:var(--present);">📋 Daily Reports</div>
@@ -5269,16 +5245,22 @@ function renderRajeshDashboard(){
       <div class="hr-tile" id="openCombinedReportsBtn" style="background:linear-gradient(135deg,#B8A05C,#957F42);"><span class="icon">👁</span><span class="label">View Daily<br>Reports</span></div>
     </div>
 
-    <div class="hr-section-label" style="color:#6B4FC4;">👤 Directory</div>
-    <div class="hr-tile-grid-2col">
-      <div class="hr-tile" id="openEmployeeDirectoryBtn" style="background:linear-gradient(135deg,#9885B8,#7A6699);"><span class="icon">👤</span><span class="label">Employee<br>Directory</span></div>
-      <div class="hr-tile" id="openVehicleDocumentsBtn" style="background:linear-gradient(135deg,#5C9187,#3F6D65);"><span class="icon">🚗</span><span class="label">Vehicle<br>Documents</span></div>
-    </div>
-
     <div class="hr-section-label" style="color:var(--navy);">💰 Finance</div>
     <div class="hr-tile-grid-2col">
       <div class="hr-tile" id="openFinancialReportBtn" style="background:linear-gradient(135deg,#3E5D78,#2E4864);"><span class="icon">💰</span><span class="label">Financial<br>Report</span></div>
       <div class="hr-tile" id="openProjectSummaryBtn" style="background:linear-gradient(135deg,#3E5D78,#2E4864);"><span class="icon">📊</span><span class="label">Project<br>Summary</span></div>
+    </div>
+
+    <div class="hr-section-label" style="color:#E8A33D;">✅ Approvals</div>
+    <div class="hr-tile-grid-2col">
+      <div class="hr-tile" id="openSupervisorLeaveListBtn" style="background:linear-gradient(135deg,#C99752,#A87A3D);"><span class="icon">🌴</span><span class="label">Leave<br>Requests</span></div>
+      <div class="hr-tile" id="openPurchaseFormBtn" style="background:linear-gradient(135deg,#5C9E7C,#3E7A5D);"><span class="icon">🧾</span><span class="label">Record<br>Purchase</span></div>
+    </div>
+
+    <div class="hr-section-label" style="color:#6B4FC4;">👤 Directory</div>
+    <div class="hr-tile-grid-2col">
+      <div class="hr-tile" id="openEmployeeDirectoryBtn" style="background:linear-gradient(135deg,#9885B8,#7A6699);"><span class="icon">👤</span><span class="label">Employee<br>Directory</span></div>
+      <div class="hr-tile" id="openVehicleDocumentsBtn" style="background:linear-gradient(135deg,#5C9187,#3F6D65);"><span class="icon">🚗</span><span class="label">Vehicle<br>Documents</span></div>
     </div>
   `;
 }
