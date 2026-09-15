@@ -3027,10 +3027,10 @@ function playNotificationChime(){
         osc.start(startAt); osc.stop(startAt + 0.35);
       });
     };
-    playNote(988, now, 0.55);
-    playNote(1319, now + 0.15, 0.6);
-    playNote(988, now + 0.55, 0.5);
-    playNote(1319, now + 0.70, 0.55);
+    playNote(1319, now, 0.55);
+    playNote(1760, now + 0.15, 0.6);
+    playNote(1319, now + 0.55, 0.5);
+    playNote(1760, now + 0.70, 0.55);
   }catch(e){ console.error("Chime error:", e); }
 }
 
@@ -4975,13 +4975,13 @@ function renderHrTodoBanner(){
   if(!state.hrTodoIsNew || !state.latestHrTodo || state.user?.role !== "ceo") return "";
   const sender = state.latestHrTodo.created_by;
   return `
-    <div style="margin:10px 12px 0;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);border-radius:12px;padding:12px 14px;box-shadow:0 4px 14px rgba(184,145,42,0.35);position:relative;">
+    <div style="margin:10px 12px 0;background:linear-gradient(135deg,#0EA5A5,#2DD4BF);border-radius:12px;padding:12px 14px;box-shadow:0 4px 14px rgba(14,165,165,0.35);position:relative;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
         <div>
-          <div style="font-size:10px;color:#FDF6E3;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;">📝 To-Do from ${sender || "HR"}</div>
-          <div style="font-size:13.5px;color:#fff;font-weight:700;margin-top:3px;white-space:pre-line;">${state.latestHrTodo.message}</div>
+          <div style="font-size:10px;color:#E6FFFA;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">📝 To-Do from ${sender || "HR"}</div>
+          <div style="font-size:13.5px;color:#fff;font-weight:400;margin-top:3px;white-space:pre-line;">${state.latestHrTodo.message}</div>
         </div>
-        <button id="hrTodoDismissBtn" style="border:none;background:rgba(255,255,255,0.25);color:#fff;border-radius:50%;width:24px;height:24px;font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0;">✕</button>
+        <button id="hrTodoDismissBtn" style="border:none;background:rgba(255,255,255,0.25);color:#fff;border-radius:50%;width:24px;height:24px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">✕</button>
       </div>
     </div>
   `;
