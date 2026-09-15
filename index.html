@@ -6890,6 +6890,7 @@ function renderUnitFinancialReport(){
       <svg viewBox="0 0 ${chartW} ${chartH}" style="width:100%;height:auto;">${svgBars}</svg>
     </div>
 
+    ${f.isManpower ? "" : `
     <div class="card" style="margin-top:14px;border:2px solid #DCD0F5;">
       <div style="font-weight:800;font-size:13px;color:#6B4FC4;">🔮 Forecast — if it takes longer</div>
       <div class="meta" style="margin-bottom:8px;">Not saved — just a quick "what if" based on the average daily cost so far.</div>
@@ -6931,6 +6932,7 @@ function renderUnitFinancialReport(){
         `;
       })()}
     </div>
+    `}
 
     <div class="meta" style="margin-top:14px;text-align:center;">Cost is calculated from each employee's daily rate × days worked.${f.isManpower ? " Invoice is calculated from each employee's claim rate × 8 hours × days worked." : ""}</div>
   `;
