@@ -5322,7 +5322,7 @@ function renderEmployeeDirectory(){
         const warn = days >= 0 && days <= 30;
         const bg = ok ? "#EAF6ED" : (warn ? "#FDF3E6" : "#FDECEA");
         const fg = ok ? "var(--present)" : (warn ? "#C4791F" : "var(--absent)");
-        const text = days < 0 ? `EXPIRED` : (days <= 30 ? `${days}d left` : "Valid");
+        const text = days < 0 ? `EXPIRED ${Math.abs(days)}d ago` : `${days}d left`;
         statusBadge = `<span style="background:${bg};color:${fg};font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:999px;margin-left:6px;">${text}</span>`;
       }
     }
