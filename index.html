@@ -2729,6 +2729,23 @@ function deleteFinancialPendingDraft(id){
   markFinancialDirty(); render();
 }
 
+function markFinancialPendingReceived(id){
+  const v = state.financialPending.find(x=>x.id===id);
+  if(!v) return;
+  const knownGroups = ["OTIS", "TKE", "Schindler"];
+  const parts = (v.client || "").split(" · ");
+  const company = parts.length > 1 && knownGroups.includes(parts[0]) ? parts[0] : "";
+  const project = parts.length > 1 ? parts.slice(1).join(" · ") : (v.client || "");
+  const monthLabel = new Date(state.financialReportDate + "T00:00:00").toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  if(!confirm(`Mark "${v.client}" (SAR ${Number(v.amount).toLocaleString()}) as received?\n\nIt'll move to "Received in ${monthLabel}" and disappear from Pending Collection.`)) return;
+  state.financialPayments.push({
+    id: financialTempId(), project, company, invoice_no: v.invoice_no, amount: v.amount, payment_date: state.financialReportDate
+  });
+  state.financialPending = state.financialPending.filter(x=>x.id!==id);
+  toast("Marked as received — don't forget to tap Save Report.");
+  markFinancialDirty(); render();
+}
+
 function addFinancialPoDraft(){
   const project = (prompt("Project name:") || "").trim();
   if(!project) return;
@@ -5532,7 +5549,7 @@ function renderFinancialReport(){
   });
   let grandTotalPending = 0;
   const pendingHeaders = ["Client","Invoice","Amount","Issue","Due", ...(canEdit?[""]:[])];
-  const pendingWidths = ["22%","22%","14%","14%","14%", ...(canEdit?["14%"]:[])];
+  const pendingWidths = ["20%","18%","14%","14%","14%", ...(canEdit?["20%"]:[])];
   const otisTotal = (groups["OTIS"]||[]).reduce((s,v)=>s+Number(v.amount||0),0);
   const tkeTotal = (groups["TKE"]||[]).reduce((s,v)=>s+Number(v.amount||0),0);
   const schindlerTotal = (groups["Schindler"]||[]).reduce((s,v)=>s+Number(v.amount||0),0);
@@ -5691,7 +5708,8 @@ function renderFinancialReport(){
       const fallback = { c: "#C4791F", t: "#FDF3E6" };
       return Object.entries(groups).map(([groupName, items]) => {
         const rows = items.map(v => [
-          v.projectName || "-", v.invoice_no || "-", fmt(v.amount), fmtD(v.issue_date), fmtD(v.due_date), editDelBtns("pending", v.id)
+          v.projectName || "-", v.invoice_no || "-", fmt(v.amount), fmtD(v.issue_date), fmtD(v.due_date),
+          canEdit ? `<button data-fin-receive="${v.id}" title="Mark as received" style="border:none;background:none;padding:0;font-size:13px;cursor:pointer;color:var(--present);">✅</button><span style="display:inline-block;width:5px;"></span>${editDelBtns("pending", v.id)}` : ""
         ].filter((_,i)=>i<pendingHeaders.length));
         const total = items.reduce((s,v)=>s+Number(v.amount||0),0);
         grandTotalPending += total;
@@ -7751,6 +7769,8 @@ function handleDelegatedClick(e){
   }
   const toggleyPoEl = e.target.closest("[data-toggle-po]");
   if(toggleyPoEl){ togglePoReceivedDraft(toggleyPoEl.getAttribute("data-toggle-po")); return; }
+  const finReceiveEl = e.target.closest("[data-fin-receive]");
+  if(finReceiveEl){ markFinancialPendingReceived(finReceiveEl.getAttribute("data-fin-receive")); return; }
   const finDeleteEl = e.target.closest("[data-fin-delete]");
   if(finDeleteEl){
     const [kind, id] = finDeleteEl.getAttribute("data-fin-delete").split(":");
