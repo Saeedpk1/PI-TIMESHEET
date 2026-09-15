@@ -309,6 +309,7 @@
 
   .hr-section-label{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin:12px 2px 5px;display:flex;align-items:center;gap:6px;}
   .hr-tile-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+  .hr-tile-grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
   .hr-tile{
     background:#fff;border-radius:10px;padding:7px 3px;text-align:center;cursor:pointer;
     border:none;box-shadow:0 2px 6px rgba(0,0,0,0.18);transition:transform .1s,box-shadow .15s;
@@ -5257,27 +5258,27 @@ function renderRajeshDashboard(){
     </div>
 
     <div class="hr-section-label" style="color:#E8A33D;">✅ Approvals</div>
-    <div class="hr-tile-grid">
-      <div class="hr-tile" id="openSupervisorLeaveListBtn" style="background:linear-gradient(135deg,#E8A33D,#C4791F);"><span class="icon">🌴</span><span class="label">Leave<br>Requests</span></div>
-      <div class="hr-tile" id="openPurchaseFormBtn" style="background:linear-gradient(135deg,#2FAE68,#1C8A4E);"><span class="icon">🧾</span><span class="label">Record<br>Purchase</span></div>
+    <div class="hr-tile-grid-2col">
+      <div class="hr-tile" id="openSupervisorLeaveListBtn" style="background:linear-gradient(135deg,#C99752,#A87A3D);"><span class="icon">🌴</span><span class="label">Leave<br>Requests</span></div>
+      <div class="hr-tile" id="openPurchaseFormBtn" style="background:linear-gradient(135deg,#5C9E7C,#3E7A5D);"><span class="icon">🧾</span><span class="label">Record<br>Purchase</span></div>
     </div>
 
     <div class="hr-section-label" style="color:var(--present);">📋 Daily Reports</div>
-    <div class="hr-tile-grid">
-      <div class="hr-tile" id="openDailyReportBtn" style="background:linear-gradient(135deg,var(--ksa-gold),#B8912A);"><span class="icon">📋</span><span class="label">Add Daily<br>Report</span></div>
-      <div class="hr-tile" id="openCombinedReportsBtn" style="background:linear-gradient(135deg,var(--ksa-gold),#B8912A);"><span class="icon">👁</span><span class="label">View Daily<br>Reports</span></div>
+    <div class="hr-tile-grid-2col">
+      <div class="hr-tile" id="openDailyReportBtn" style="background:linear-gradient(135deg,#B8A05C,#957F42);"><span class="icon">📋</span><span class="label">Add Daily<br>Report</span></div>
+      <div class="hr-tile" id="openCombinedReportsBtn" style="background:linear-gradient(135deg,#B8A05C,#957F42);"><span class="icon">👁</span><span class="label">View Daily<br>Reports</span></div>
     </div>
 
     <div class="hr-section-label" style="color:#6B4FC4;">👤 Directory</div>
-    <div class="hr-tile-grid">
-      <div class="hr-tile" id="openEmployeeDirectoryBtn" style="background:linear-gradient(135deg,#8E72E0,#6B4FC4);"><span class="icon">👤</span><span class="label">Employee<br>Directory</span></div>
-      <div class="hr-tile" id="openVehicleDocumentsBtn" style="background:linear-gradient(135deg,#2FA391,#1B7A6B);"><span class="icon">🚗</span><span class="label">Vehicle<br>Documents</span></div>
+    <div class="hr-tile-grid-2col">
+      <div class="hr-tile" id="openEmployeeDirectoryBtn" style="background:linear-gradient(135deg,#9885B8,#7A6699);"><span class="icon">👤</span><span class="label">Employee<br>Directory</span></div>
+      <div class="hr-tile" id="openVehicleDocumentsBtn" style="background:linear-gradient(135deg,#5C9187,#3F6D65);"><span class="icon">🚗</span><span class="label">Vehicle<br>Documents</span></div>
     </div>
 
     <div class="hr-section-label" style="color:var(--navy);">💰 Finance</div>
-    <div class="hr-tile-grid">
-      <div class="hr-tile" id="openFinancialReportBtn" style="background:linear-gradient(135deg,var(--navy),var(--blue));"><span class="icon">💰</span><span class="label">Financial<br>Report</span></div>
-      <div class="hr-tile" id="openProjectSummaryBtn" style="background:linear-gradient(135deg,var(--navy),var(--blue));"><span class="icon">📊</span><span class="label">Project<br>Summary</span></div>
+    <div class="hr-tile-grid-2col">
+      <div class="hr-tile" id="openFinancialReportBtn" style="background:linear-gradient(135deg,#3E5D78,#2E4864);"><span class="icon">💰</span><span class="label">Financial<br>Report</span></div>
+      <div class="hr-tile" id="openProjectSummaryBtn" style="background:linear-gradient(135deg,#3E5D78,#2E4864);"><span class="icon">📊</span><span class="label">Project<br>Summary</span></div>
     </div>
   `;
 }
