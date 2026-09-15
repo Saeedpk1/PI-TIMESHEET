@@ -490,6 +490,7 @@ let state = {
   hrTimesheetsSectionOpen: false,
   ceoMoreSectionOpen: false,
   ceoSecuritySectionOpen: false,
+  financialPoSectionOpen: false,
   ceoTimesheetSummaryMonth: "",
   ceoTimesheetSummaryRows: [],
   ceoViewTimesheetEmployee: null,
@@ -5722,9 +5723,15 @@ function renderFinancialReport(){
       <span>NET TOTAL PENDING</span><span>SAR ${fmt(grandTotalPending)}</span>
     </div>
 
-    ${sectionHead("📋 PO TRACKER", "#B8912A", "addPoBtn")}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 4px;cursor:pointer;" id="togglePoSectionBtn">
+      <h3 style="font-size:11px;color:#B8912A;margin:0;font-weight:800;">📋 PO TRACKER (${state.financialPo.length})</h3>
+      <span style="color:#B8912A;font-size:13px;font-weight:800;">${state.financialPoSectionOpen ? "▲" : "▼"}</span>
+    </div>
+    ${state.financialPoSectionOpen ? `
+    ${canEdit ? `<div style="text-align:right;margin-bottom:4px;"><button class="link-btn" id="addPoBtn" style="color:#B8912A !important;font-size:10.5px;font-weight:800;padding:0;">+ Add</button></div>` : ""}
     ${finTable("#B8912A", "#FDF6E3", poHeaders, poRows, poWidths)}
     <div style="text-align:right;font-weight:800;font-size:10px;color:#B8912A;padding:4px 4px 0;">Total: SAR ${fmt(totalPo)}</div>
+    ` : ""}
     `}
   `;
 }
@@ -7719,6 +7726,11 @@ function handleDelegatedClick(e){
   }
   if(el("toggleCeoMoreSectionBtn")){
     state.ceoMoreSectionOpen = !state.ceoMoreSectionOpen;
+    render();
+    return;
+  }
+  if(el("togglePoSectionBtn")){
+    state.financialPoSectionOpen = !state.financialPoSectionOpen;
     render();
     return;
   }
