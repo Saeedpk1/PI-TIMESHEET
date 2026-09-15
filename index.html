@@ -1603,9 +1603,10 @@ async function loadCeoTimesheetSummary(){
   (submissions || []).forEach(s => { statusByEmpId[s.employee_id] = s; });
   state.ceoTimesheetSummaryMonth = month;
   // Excludes the Saudi team (Mohammed Mutlaq's team, tracked separately),
-  // the Owner himself, and Akhil.
+  // Mohammed Mutlaq himself, the Owner, and Akhil.
   state.ceoTimesheetSummaryRows = (employees || [])
     .filter(e => e.supervisor_id !== state.hrmSupervisorId)
+    .filter(e => e.id !== state.hrmSupervisorId)
     .filter(e => e.role !== "ceo")
     .filter(e => !(e.name || "").toLowerCase().includes("akhil"))
     .map(e => ({ ...e, submission: statusByEmpId[e.id] || null }));
