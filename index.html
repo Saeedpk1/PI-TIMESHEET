@@ -2612,12 +2612,46 @@ function editFinancialLoanDraft(id){
   l.name = name; l.amount = amt;
   markFinancialDirty(); render();
 }
-function editFinancialLoanBreakdown(id){
-  const l = state.financialLoans.find(x=>x.id===id);
+function parseLoanBreakdown(raw){
+  if(!raw) return [];
+  try{
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  }catch(e){ return []; } // old free-text breakdowns, or anything unparseable, just start fresh
+}
+function addLoanBreakdownItem(loanId){
+  const l = state.financialLoans.find(x=>x.id===loanId);
   if(!l) return;
-  const breakdown = prompt("Breakdown for this loan (e.g. 1- From Ali: 20,000\\n2- From Bank: 28,960):", l.breakdown || "");
-  if(breakdown === null) return;
-  l.breakdown = breakdown.trim() || null;
+  const label = (prompt("What is this part of the loan for? (e.g. From Ali)") || "").trim();
+  if(!label) return;
+  const amt = Number(prompt("Amount (SAR):", "0"));
+  if(isNaN(amt)){ toast("Enter a valid amount."); return; }
+  const items = parseLoanBreakdown(l.breakdown);
+  items.push({ label, amount: amt });
+  l.breakdown = JSON.stringify(items);
+  markFinancialDirty(); render();
+}
+function editLoanBreakdownItem(loanId, index){
+  const l = state.financialLoans.find(x=>x.id===loanId);
+  if(!l) return;
+  const items = parseLoanBreakdown(l.breakdown);
+  const item = items[index];
+  if(!item) return;
+  const label = (prompt("What is this part of the loan for?", item.label) || "").trim();
+  if(!label) return;
+  const amt = Number(prompt("Amount (SAR):", item.amount));
+  if(isNaN(amt)){ toast("Enter a valid amount."); return; }
+  items[index] = { label, amount: amt };
+  l.breakdown = JSON.stringify(items);
+  markFinancialDirty(); render();
+}
+function deleteLoanBreakdownItem(loanId, index){
+  const l = state.financialLoans.find(x=>x.id===loanId);
+  if(!l) return;
+  if(!confirm("Remove this breakdown item?")) return;
+  const items = parseLoanBreakdown(l.breakdown);
+  items.splice(index, 1);
+  l.breakdown = items.length ? JSON.stringify(items) : null;
   markFinancialDirty(); render();
 }
 function toggleFinancialLoanBreakdown(id){
@@ -5662,18 +5696,46 @@ function renderFinancialReport(){
       <colgroup>${loanHeaders.map((h,i)=>loanWidths[i]?`<col style="width:${loanWidths[i]};">`:'<col>').join("")}</colgroup>
       <thead><tr>${loanHeaders.map((h,i)=>`<th style="background:#1B5A96;color:#fff;padding:3px 3px;text-align:${i===0?"left":"right"};font-size:8px;letter-spacing:0.2px;">${h}</th>`).join("")}</tr></thead>
       <tbody>
-        ${state.financialLoans.map((l,ri) => `
+        ${state.financialLoans.map((l,ri) => {
+          const items = parseLoanBreakdown(l.breakdown);
+          const itemsSum = items.reduce((s,it)=>s+Number(it.amount||0),0);
+          return `
           <tr style="background:${ri%2===0?"#EAF1FC":"#fff"};">
-            <td style="padding:3px 3px;text-align:left;vertical-align:middle;line-height:1.15;word-break:break-word;"><span data-toggle-loan-breakdown="${l.id}" style="cursor:pointer;font-weight:700;">${l.name} ${l.breakdown ? "▾" : "▸"}</span></td>
+            <td style="padding:3px 3px;text-align:left;vertical-align:middle;line-height:1.15;word-break:break-word;"><span data-toggle-loan-breakdown="${l.id}" style="cursor:pointer;font-weight:700;">${l.name} ${items.length ? "▾" : "▸"}</span></td>
             <td style="padding:3px 3px;text-align:right;vertical-align:middle;">${fmt(l.amount)}</td>
             ${canEdit ? `<td style="padding:3px 3px;text-align:right;">${editDelBtns("loan", l.id)}</td>` : ""}
           </tr>
           ${state.expandedLoanBreakdownId === l.id ? `
           <tr><td colspan="${loanHeaders.length}" style="padding:6px 8px;background:#F3F8FC;">
-            <div style="font-size:9.5px;white-space:pre-line;color:var(--ink);">${l.breakdown || "No breakdown added yet."}</div>
-            ${canEdit ? `<button data-edit-loan-breakdown="${l.id}" style="border:none;background:none;padding:0;margin-top:4px;font-size:9.5px;font-weight:700;cursor:pointer;color:var(--blue);">✎ ${l.breakdown ? "Edit" : "Add"} Breakdown</button>` : ""}
+            ${items.length ? `
+            <table style="width:100%;border-collapse:collapse;font-size:9.5px;">
+              <thead><tr>
+                <th style="text-align:left;padding:3px 4px;border-bottom:2px solid #1B5A96;color:#1B5A96;">#</th>
+                <th style="text-align:left;padding:3px 4px;border-bottom:2px solid #1B5A96;color:#1B5A96;">Description</th>
+                <th style="text-align:right;padding:3px 4px;border-bottom:2px solid #1B5A96;color:#1B5A96;">Amount</th>
+                ${canEdit ? `<th style="border-bottom:2px solid #1B5A96;"></th>` : ""}
+              </tr></thead>
+              <tbody>
+                ${items.map((it,idx) => `
+                  <tr>
+                    <td style="padding:4px;border-bottom:1px dashed var(--line);">${idx+1}</td>
+                    <td style="padding:4px;border-bottom:1px dashed var(--line);">${it.label}</td>
+                    <td style="padding:4px;border-bottom:1px dashed var(--line);text-align:right;font-weight:700;">${fmt(it.amount)}</td>
+                    ${canEdit ? `<td style="padding:4px;border-bottom:1px dashed var(--line);text-align:right;white-space:nowrap;"><button data-edit-loan-item="${l.id}:${idx}" style="border:none;background:none;padding:0;font-size:10px;cursor:pointer;">✎</button><span style="display:inline-block;width:5px;"></span><button data-delete-loan-item="${l.id}:${idx}" style="border:none;background:none;padding:0;font-size:10px;cursor:pointer;color:var(--absent);">🗑</button></td>` : ""}
+                  </tr>`).join("")}
+                <tr>
+                  <td colspan="2" style="padding:5px 4px;font-weight:800;text-align:right;">Sum</td>
+                  <td style="padding:5px 4px;font-weight:800;text-align:right;color:#1B5A96;">${fmt(itemsSum)}</td>
+                  ${canEdit ? `<td></td>` : ""}
+                </tr>
+              </tbody>
+            </table>
+            ${itemsSum !== Number(l.amount||0) ? `<div class="field-note" style="margin-top:4px;color:#C4791F;">⚠️ Breakdown sum (${fmt(itemsSum)}) doesn't match the loan total (${fmt(l.amount)}).</div>` : ""}
+            ` : `<div class="meta">No breakdown items added yet.</div>`}
+            ${canEdit ? `<button data-add-loan-item="${l.id}" style="border:none;background:none;padding:0;margin-top:6px;font-size:9.5px;font-weight:700;cursor:pointer;color:var(--blue);">+ Add Item</button>` : ""}
           </td></tr>` : ""}
-        `).join("")}
+        `;
+        }).join("")}
       </tbody>
     </table>`;
 
@@ -8000,8 +8062,20 @@ function handleDelegatedClick(e){
   if(toggleyPoEl){ togglePoReceivedDraft(toggleyPoEl.getAttribute("data-toggle-po")); return; }
   const toggleLoanBreakdownEl = e.target.closest("[data-toggle-loan-breakdown]");
   if(toggleLoanBreakdownEl){ toggleFinancialLoanBreakdown(toggleLoanBreakdownEl.getAttribute("data-toggle-loan-breakdown")); return; }
-  const editLoanBreakdownEl = e.target.closest("[data-edit-loan-breakdown]");
-  if(editLoanBreakdownEl){ editFinancialLoanBreakdown(editLoanBreakdownEl.getAttribute("data-edit-loan-breakdown")); return; }
+  const addLoanItemEl = e.target.closest("[data-add-loan-item]");
+  if(addLoanItemEl){ addLoanBreakdownItem(addLoanItemEl.getAttribute("data-add-loan-item")); return; }
+  const editLoanItemEl = e.target.closest("[data-edit-loan-item]");
+  if(editLoanItemEl){
+    const [loanId, idx] = editLoanItemEl.getAttribute("data-edit-loan-item").split(":");
+    editLoanBreakdownItem(loanId, Number(idx));
+    return;
+  }
+  const deleteLoanItemEl = e.target.closest("[data-delete-loan-item]");
+  if(deleteLoanItemEl){
+    const [loanId, idx] = deleteLoanItemEl.getAttribute("data-delete-loan-item").split(":");
+    deleteLoanBreakdownItem(loanId, Number(idx));
+    return;
+  }
   const finReceiveEl = e.target.closest("[data-fin-receive]");
   if(finReceiveEl){ markFinancialPendingReceived(finReceiveEl.getAttribute("data-fin-receive")); return; }
   const finDeleteEl = e.target.closest("[data-fin-delete]");
