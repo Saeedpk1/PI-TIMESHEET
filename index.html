@@ -5689,6 +5689,7 @@ function renderFinancialReport(){
   });
 
   // Loans
+  const canSeeLoanBreakdown = state.user.role === "ceo" || state.user.role === "hr";
   const loanHeaders = ["Loan","Amount", ...(canEdit?[""]:[])];
   const loanWidths = ["48%","32%", ...(canEdit?["20%"]:[])];
   const loanTable = `
@@ -5701,11 +5702,11 @@ function renderFinancialReport(){
           const itemsSum = items.reduce((s,it)=>s+Number(it.amount||0),0);
           return `
           <tr style="background:${ri%2===0?"#EAF1FC":"#fff"};">
-            <td style="padding:3px 3px;text-align:left;vertical-align:middle;line-height:1.15;word-break:break-word;"><span data-toggle-loan-breakdown="${l.id}" style="cursor:pointer;font-weight:700;">${l.name} ${items.length ? "▾" : "▸"}</span></td>
+            <td style="padding:3px 3px;text-align:left;vertical-align:middle;line-height:1.15;word-break:break-word;">${canSeeLoanBreakdown ? `<span data-toggle-loan-breakdown="${l.id}" style="cursor:pointer;font-weight:700;">${l.name} ${items.length ? "▾" : "▸"}</span>` : `<span style="font-weight:700;">${l.name}</span>`}</td>
             <td style="padding:3px 3px;text-align:right;vertical-align:middle;">${fmt(l.amount)}</td>
             ${canEdit ? `<td style="padding:3px 3px;text-align:right;">${editDelBtns("loan", l.id)}</td>` : ""}
           </tr>
-          ${state.expandedLoanBreakdownId === l.id ? `
+          ${canSeeLoanBreakdown && state.expandedLoanBreakdownId === l.id ? `
           <tr><td colspan="${loanHeaders.length}" style="padding:6px 8px;background:#F3EAFB;border-left:3px solid #6B4FC4;">
             ${items.length ? `
             <table style="width:100%;border-collapse:collapse;font-size:9.5px;background:#fff;border-radius:6px;overflow:hidden;">
