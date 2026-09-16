@@ -2570,7 +2570,7 @@ async function saveFinancialReportForDay(){
     ]);
     const inserts = [];
     if(state.financialBalance) inserts.push(sb.from("ts_financial_balance").insert({ report_date: date, balance: state.financialBalance.balance }));
-    if(state.financialLoans.length) inserts.push(sb.from("ts_financial_loans").insert(state.financialLoans.map(l => ({ name: l.name, amount: l.amount, report_date: date }))));
+    if(state.financialLoans.length) inserts.push(sb.from("ts_financial_loans").insert(state.financialLoans.map(l => ({ name: l.name, amount: l.amount, breakdown: l.breakdown || null, report_date: date }))));
     if(state.financialInvoices.length) inserts.push(sb.from("ts_financial_invoices").insert(state.financialInvoices.map(v => ({ description: v.description, invoice_no: v.invoice_no, amount_no_vat: v.amount_no_vat, amount_with_vat: v.amount_with_vat, invoice_month: v.invoice_month, project_id: v.project_id || null, report_date: date }))));
     if(state.financialPayments.length) inserts.push(sb.from("ts_financial_payments").insert(state.financialPayments.map(v => ({ project: v.project, company: v.company, invoice_no: v.invoice_no, amount: v.amount, payment_date: v.payment_date, report_date: date }))));
     if(state.financialPending.length) inserts.push(sb.from("ts_financial_pending").insert(state.financialPending.map(v => ({ client: v.client, invoice_no: v.invoice_no, amount: v.amount, issue_date: v.issue_date, due_date: v.due_date, report_date: date }))));
