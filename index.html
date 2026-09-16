@@ -5706,26 +5706,26 @@ function renderFinancialReport(){
             ${canEdit ? `<td style="padding:3px 3px;text-align:right;">${editDelBtns("loan", l.id)}</td>` : ""}
           </tr>
           ${state.expandedLoanBreakdownId === l.id ? `
-          <tr><td colspan="${loanHeaders.length}" style="padding:6px 8px;background:#F3F8FC;">
+          <tr><td colspan="${loanHeaders.length}" style="padding:6px 8px;background:#F3EAFB;border-left:3px solid #6B4FC4;">
             ${items.length ? `
-            <table style="width:100%;border-collapse:collapse;font-size:9.5px;">
+            <table style="width:100%;border-collapse:collapse;font-size:9.5px;background:#fff;border-radius:6px;overflow:hidden;">
               <thead><tr>
-                <th style="text-align:left;padding:3px 4px;border-bottom:2px solid #1B5A96;color:#1B5A96;">#</th>
-                <th style="text-align:left;padding:3px 4px;border-bottom:2px solid #1B5A96;color:#1B5A96;">Description</th>
-                <th style="text-align:right;padding:3px 4px;border-bottom:2px solid #1B5A96;color:#1B5A96;">Amount</th>
-                ${canEdit ? `<th style="border-bottom:2px solid #1B5A96;"></th>` : ""}
+                <th style="text-align:left;padding:4px 5px;background:#6B4FC4;color:#fff;">#</th>
+                <th style="text-align:left;padding:4px 5px;background:#6B4FC4;color:#fff;">Description</th>
+                <th style="text-align:right;padding:4px 5px;background:#6B4FC4;color:#fff;">Amount</th>
+                ${canEdit ? `<th style="background:#6B4FC4;"></th>` : ""}
               </tr></thead>
               <tbody>
                 ${items.map((it,idx) => `
-                  <tr>
-                    <td style="padding:4px;border-bottom:1px dashed var(--line);">${idx+1}</td>
-                    <td style="padding:4px;border-bottom:1px dashed var(--line);">${it.label}</td>
-                    <td style="padding:4px;border-bottom:1px dashed var(--line);text-align:right;font-weight:700;">${fmt(it.amount)}</td>
-                    ${canEdit ? `<td style="padding:4px;border-bottom:1px dashed var(--line);text-align:right;white-space:nowrap;"><button data-edit-loan-item="${l.id}:${idx}" style="border:none;background:none;padding:0;font-size:10px;cursor:pointer;">✎</button><span style="display:inline-block;width:5px;"></span><button data-delete-loan-item="${l.id}:${idx}" style="border:none;background:none;padding:0;font-size:10px;cursor:pointer;color:var(--absent);">🗑</button></td>` : ""}
+                  <tr style="background:${idx%2===0?"#F8F5FD":"#fff"};">
+                    <td style="padding:4px 5px;border-bottom:1px dashed #DCD0F5;">${idx+1}</td>
+                    <td style="padding:4px 5px;border-bottom:1px dashed #DCD0F5;">${it.label}</td>
+                    <td style="padding:4px 5px;border-bottom:1px dashed #DCD0F5;text-align:right;font-weight:700;">${fmt(it.amount)}</td>
+                    ${canEdit ? `<td style="padding:4px 5px;border-bottom:1px dashed #DCD0F5;text-align:right;white-space:nowrap;"><button data-edit-loan-item="${l.id}:${idx}" style="border:none;background:none;padding:0;font-size:10px;cursor:pointer;">✎</button><span style="display:inline-block;width:5px;"></span><button data-delete-loan-item="${l.id}:${idx}" style="border:none;background:none;padding:0;font-size:10px;cursor:pointer;color:var(--absent);">🗑</button></td>` : ""}
                   </tr>`).join("")}
-                <tr>
-                  <td colspan="2" style="padding:5px 4px;font-weight:800;text-align:right;">Sum</td>
-                  <td style="padding:5px 4px;font-weight:800;text-align:right;color:#1B5A96;">${fmt(itemsSum)}</td>
+                <tr style="background:#EDE5F9;">
+                  <td colspan="2" style="padding:5px;font-weight:800;text-align:right;color:#4A3785;">Sum</td>
+                  <td style="padding:5px;font-weight:800;text-align:right;color:#4A3785;">${fmt(itemsSum)}</td>
                   ${canEdit ? `<td></td>` : ""}
                 </tr>
               </tbody>
