@@ -492,6 +492,7 @@ let state = {
   ceoMoreSectionOpen: false,
   ceoSecuritySectionOpen: false,
   financialPoSectionOpen: false,
+  expandedLoanBreakdownId: null,
   ceoTimesheetSummaryMonth: "",
   ceoTimesheetSummaryRows: [],
   ceoViewTimesheetEmployee: null,
@@ -2610,6 +2611,18 @@ function editFinancialLoanDraft(id){
   if(isNaN(amt)){ toast("Enter a valid amount."); return; }
   l.name = name; l.amount = amt;
   markFinancialDirty(); render();
+}
+function editFinancialLoanBreakdown(id){
+  const l = state.financialLoans.find(x=>x.id===id);
+  if(!l) return;
+  const breakdown = prompt("Breakdown for this loan (e.g. 1- From Ali: 20,000\\n2- From Bank: 28,960):", l.breakdown || "");
+  if(breakdown === null) return;
+  l.breakdown = breakdown.trim() || null;
+  markFinancialDirty(); render();
+}
+function toggleFinancialLoanBreakdown(id){
+  state.expandedLoanBreakdownId = state.expandedLoanBreakdownId === id ? null : id;
+  render();
 }
 function deleteFinancialLoanDraft(id){
   if(!confirm("Remove this loan entry?")) return;
@@ -5643,8 +5656,26 @@ function renderFinancialReport(){
 
   // Loans
   const loanHeaders = ["Loan","Amount", ...(canEdit?[""]:[])];
-  const loanWidths = ["52%","36%", ...(canEdit?["12%"]:[])];
-  const loanRows = state.financialLoans.map(l => [l.name, fmt(l.amount), editDelBtns("loan", l.id)].filter((_,i)=>i<loanHeaders.length));
+  const loanWidths = ["48%","32%", ...(canEdit?["20%"]:[])];
+  const loanTable = `
+    <table class="fin-table" style="font-size:9px;width:100%;margin-bottom:4px;table-layout:fixed;border:2px solid #1B5A96;">
+      <colgroup>${loanHeaders.map((h,i)=>loanWidths[i]?`<col style="width:${loanWidths[i]};">`:'<col>').join("")}</colgroup>
+      <thead><tr>${loanHeaders.map((h,i)=>`<th style="background:#1B5A96;color:#fff;padding:3px 3px;text-align:${i===0?"left":"right"};font-size:8px;letter-spacing:0.2px;">${h}</th>`).join("")}</tr></thead>
+      <tbody>
+        ${state.financialLoans.map((l,ri) => `
+          <tr style="background:${ri%2===0?"#EAF1FC":"#fff"};">
+            <td style="padding:3px 3px;text-align:left;vertical-align:middle;line-height:1.15;word-break:break-word;"><span data-toggle-loan-breakdown="${l.id}" style="cursor:pointer;font-weight:700;">${l.name} ${l.breakdown ? "▾" : "▸"}</span></td>
+            <td style="padding:3px 3px;text-align:right;vertical-align:middle;">${fmt(l.amount)}</td>
+            ${canEdit ? `<td style="padding:3px 3px;text-align:right;">${editDelBtns("loan", l.id)}</td>` : ""}
+          </tr>
+          ${state.expandedLoanBreakdownId === l.id ? `
+          <tr><td colspan="${loanHeaders.length}" style="padding:6px 8px;background:#F3F8FC;">
+            <div style="font-size:9.5px;white-space:pre-line;color:var(--ink);">${l.breakdown || "No breakdown added yet."}</div>
+            ${canEdit ? `<button data-edit-loan-breakdown="${l.id}" style="border:none;background:none;padding:0;margin-top:4px;font-size:9.5px;font-weight:700;cursor:pointer;color:var(--blue);">✎ ${l.breakdown ? "Edit" : "Add"} Breakdown</button>` : ""}
+          </td></tr>` : ""}
+        `).join("")}
+      </tbody>
+    </table>`;
 
   // Invoices — separate columns
   const invHeaders = ["Description","Invoice No","W/O VAT","With VAT", ...(canEdit?[""]:[])];
@@ -5795,7 +5826,7 @@ function renderFinancialReport(){
     ` : ""}
 
     ${sectionHead("🏦 LOANS", "#1B5A96", "addLoanBtn")}
-    ${finTable("#1B5A96", "#EAF1FC", loanHeaders, loanRows, loanWidths)}
+    ${loanTable}
     <div style="text-align:right;font-weight:800;font-size:10px;color:#1B5A96;padding:4px 4px 0;">Total: SAR ${fmt(totalLoans)}</div>
 
     ${state.financialIqamaSoon.length ? `
@@ -7967,6 +7998,10 @@ function handleDelegatedClick(e){
   }
   const toggleyPoEl = e.target.closest("[data-toggle-po]");
   if(toggleyPoEl){ togglePoReceivedDraft(toggleyPoEl.getAttribute("data-toggle-po")); return; }
+  const toggleLoanBreakdownEl = e.target.closest("[data-toggle-loan-breakdown]");
+  if(toggleLoanBreakdownEl){ toggleFinancialLoanBreakdown(toggleLoanBreakdownEl.getAttribute("data-toggle-loan-breakdown")); return; }
+  const editLoanBreakdownEl = e.target.closest("[data-edit-loan-breakdown]");
+  if(editLoanBreakdownEl){ editFinancialLoanBreakdown(editLoanBreakdownEl.getAttribute("data-edit-loan-breakdown")); return; }
   const finReceiveEl = e.target.closest("[data-fin-receive]");
   if(finReceiveEl){ markFinancialPendingReceived(finReceiveEl.getAttribute("data-fin-receive")); return; }
   const finDeleteEl = e.target.closest("[data-fin-delete]");
