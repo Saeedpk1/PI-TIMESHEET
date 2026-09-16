@@ -2501,7 +2501,7 @@ async function loadFinancialReport(date){
   // Combined "documents expiring soon" (<1 month): vehicle docs + CR + Room Rent
   const docsSoon = [];
   (vehicles || []).forEach(v => {
-    [["Insurance", v.insurance_expiry], ["Istimara", v.istimara_expiry], ["Fahas", v.fahas_expiry]].forEach(([label, d]) => {
+    [["Insurance", v.insurance_expiry], ["Istimara", v.istimara_expiry], ["Fahas", v.fahas_expiry], ["Operation Card", v.operation_card_expiry]].forEach(([label, d]) => {
       const days = daysUntil(d);
       if(days !== null && days < 30) docsSoon.push({ label: `🚗 ${v.plate_no} — ${label}`, days });
     });
@@ -5874,7 +5874,8 @@ function renderVehicleDocumentsScreen(){
   const expiryFieldByDocType = {
     "Insurance": vehicle?.insurance_expiry,
     "Registration (Istimara)": vehicle?.istimara_expiry,
-    "Fahas": vehicle?.fahas_expiry
+    "Fahas": vehicle?.fahas_expiry,
+    "Operation Card": vehicle?.operation_card_expiry
   };
   const docsHtml = vehicle ? (state.vehicleDocuments[vehicle.id] || []).map(d => {
     const expiryDate = expiryFieldByDocType[d.document_type];
@@ -5959,7 +5960,7 @@ function renderRenewalsScreen(){
     .filter(e => e.days !== null && e.days <= 30);
   const vehicleAlerts = [];
   state.vehicles.forEach(v => {
-    [["Insurance", v.insurance_expiry], ["Istimara", v.istimara_expiry], ["Fahas", v.fahas_expiry]].forEach(([label, date]) => {
+    [["Insurance", v.insurance_expiry], ["Istimara", v.istimara_expiry], ["Fahas", v.fahas_expiry], ["Operation Card", v.operation_card_expiry]].forEach(([label, date]) => {
       const days = daysUntil(date);
       if(days !== null && days <= 30) vehicleAlerts.push({ plate: v.plate_no, label, days });
     });
