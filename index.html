@@ -2337,9 +2337,10 @@ async function saveVehicleDates(vehicleId){
   const insurance = document.getElementById(`vehInsurance-${vehicleId}`)?.value || null;
   const istimara = document.getElementById(`vehIstimara-${vehicleId}`)?.value || null;
   const fahas = document.getElementById(`vehFahas-${vehicleId}`)?.value || null;
+  const operationCard = document.getElementById(`vehOperationCard-${vehicleId}`)?.value || null;
   state.loading = true; render();
   const { error } = await sb.from("ts_vehicles").update({
-    insurance_expiry: insurance, istimara_expiry: istimara, fahas_expiry: fahas
+    insurance_expiry: insurance, istimara_expiry: istimara, fahas_expiry: fahas, operation_card_expiry: operationCard
   }).eq("id", vehicleId);
   state.loading = false;
   toast(error ? "Could not save. Try again." : "Vehicle dates updated.");
@@ -6007,6 +6008,7 @@ function renderRenewalsScreen(){
         <div><label style="font-size:10px;margin:0;">Insurance</label><input type="date" id="vehInsurance-${v.id}" value="${v.insurance_expiry || ""}" style="padding:6px;font-size:11.5px;"></div>
         <div><label style="font-size:10px;margin:0;">Istimara</label><input type="date" id="vehIstimara-${v.id}" value="${v.istimara_expiry || ""}" style="padding:6px;font-size:11.5px;"></div>
         <div><label style="font-size:10px;margin:0;">Fahas</label><input type="date" id="vehFahas-${v.id}" value="${v.fahas_expiry || ""}" style="padding:6px;font-size:11.5px;"></div>
+        <div><label style="font-size:10px;margin:0;">Operation Card</label><input type="date" id="vehOperationCard-${v.id}" value="${v.operation_card_expiry || ""}" style="padding:6px;font-size:11.5px;"></div>
         <button class="link-btn" data-save-vehicle="${v.id}" style="color:var(--present) !important;align-self:end;">💾 Save</button>
       </div>
     </div>`).join("") || `<div class="empty-state" style="padding:10px;"><div class="ic">🚗</div>No vehicles on file yet.</div>`;
