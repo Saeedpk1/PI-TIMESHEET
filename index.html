@@ -310,6 +310,11 @@
   .hr-section-label{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin:12px 2px 5px;display:flex;align-items:center;gap:6px;}
   .hr-tile-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
   .hr-tile-grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .hr-list-row{display:flex;align-items:center;justify-content:space-between;border-left:3px solid transparent;border-radius:0 10px 10px 0;padding:11px 12px;margin-bottom:6px;cursor:pointer;}
+  .hr-list-row .left{display:flex;align-items:center;gap:10px;}
+  .hr-list-row .icon{font-size:17px;}
+  .hr-list-row .label{font-size:13px;font-weight:700;}
+  .hr-list-row .chevron{font-size:16px;font-weight:800;}
   .hr-tile{
     background:#fff;border-radius:10px;padding:8px 4px;text-align:center;cursor:pointer;
     border:none;box-shadow:0 2px 6px rgba(0,0,0,0.18);transition:transform .1s,box-shadow .15s;
@@ -4447,7 +4452,6 @@ async function generateWpsPayroll(payrollGroup){
     // from the main employee record -- merge them in here.
     const { data: bankDetails, error: bankErr } = await sb.from("ts_employee_bank_details").select("*");
     if(bankErr) throw bankErr;
-    toast(`Debug: fetched ${bankDetails ? bankDetails.length : 0} bank detail rows.`);
     const bankByEmployeeId = {};
     (bankDetails || []).forEach(b => { bankByEmployeeId[b.employee_id] = b; });
     (allEmployees || []).forEach(e => {
@@ -6661,6 +6665,13 @@ function renderHrTimesheetReview(){
   `;
 }
 
+function hrRow(icon, label, id, color, tint){
+  return `<div class="hr-list-row" id="${id}" style="background:${tint};border-left-color:${color};">
+    <div class="left"><span class="icon" style="color:${color};">${icon}</span><span class="label" style="color:${color};">${label}</span></div>
+    <span class="chevron" style="color:${color};">›</span>
+  </div>`;
+}
+
 function renderHrView(){
   const isHrmTeam = (s) => s.ts_employees?.supervisor_id === state.hrmSupervisorId;
   const mainCount = state.hrApproved.filter(s => !state.hrExcluded.has(s.employee_id) && !isHrmTeam(s)).length;
@@ -6701,45 +6712,33 @@ function renderHrView(){
       </div>
     </div>
 
-    <div class="hr-section-label" style="color:var(--present);">📋 Daily Reports</div>
-    <div class="hr-tile-grid">
-      <div class="hr-tile" id="openDailyReportBtn" style="background:linear-gradient(135deg,var(--ksa-gold),#B8912A);"><span class="icon">📋</span><span class="label">Add Daily<br>Report</span></div>
-      <div class="hr-tile" id="openCombinedReportsBtn" style="background:linear-gradient(135deg,var(--ksa-gold),#B8912A);"><span class="icon">👁</span><span class="label">View Daily<br>Reports</span></div>
-      <div class="hr-tile" id="exportAttendanceByProjectBtn" style="background:linear-gradient(135deg,var(--ksa-gold),#B8912A);"><span class="icon">📊</span><span class="label">Attendance<br>by Project</span></div>
-    </div>
+    <div class="hr-section-label" style="color:#B8912A;">📋 Daily Reports</div>
+    ${hrRow("📋", "Add Daily Report", "openDailyReportBtn", "#B8912A", "#FAEEDA")}
+    ${hrRow("👁", "View Daily Reports", "openCombinedReportsBtn", "#B8912A", "#FAEEDA")}
+    ${hrRow("📊", "Attendance by Project", "exportAttendanceByProjectBtn", "#B8912A", "#FAEEDA")}
 
-    <div class="hr-section-label" style="color:var(--navy);">💰 Finance</div>
-    <div class="hr-tile-grid">
-      <div class="hr-tile" id="openFinancialReportBtn" style="background:linear-gradient(135deg,var(--navy),var(--blue));"><span class="icon">💰</span><span class="label">Financial<br>Report</span></div>
-      <div class="hr-tile" id="viewFinancialReportOnlyBtn" style="background:linear-gradient(135deg,var(--navy),var(--blue));"><span class="icon">👁</span><span class="label">View<br>Report</span></div>
-      <div class="hr-tile" id="openProjectSummaryBtn" style="background:linear-gradient(135deg,var(--navy),var(--blue));"><span class="icon">📊</span><span class="label">Project<br>Summary</span></div>
-    </div>
+    <div class="hr-section-label" style="color:#1B5A96;margin-top:14px;">💰 Finance</div>
+    ${hrRow("💰", "Financial Report", "openFinancialReportBtn", "#1B5A96", "#E6F1FB")}
+    ${hrRow("👁", "View Report", "viewFinancialReportOnlyBtn", "#1B5A96", "#E6F1FB")}
+    ${hrRow("📊", "Project Summary", "openProjectSummaryBtn", "#1B5A96", "#E6F1FB")}
 
-    <div class="hr-section-label" style="color:#6B4FC4;">💰 Payroll & Salary</div>
-    <div class="hr-tile-grid">
-      <div class="hr-tile" id="salarySheetBtn" style="background:linear-gradient(135deg,#8E72E0,#6B4FC4);"><span class="icon">📊</span><span class="label">Salary Sheet<br>(Excel)</span></div>
-      <div class="hr-tile" id="wpsPiSaudiBtn" style="background:linear-gradient(135deg,#3E86C4,#1B5A96);"><span class="icon">🏦</span><span class="label">WPS Payroll<br>PI + Saudi</span></div>
-      <div class="hr-tile" id="wpsAlFalakBtn" style="background:linear-gradient(135deg,#C4915E,#8A5A1C);"><span class="icon">🏦</span><span class="label">WPS Payroll<br>Al Falak</span></div>
-    </div>
+    <div class="hr-section-label" style="color:#6B4FC4;margin-top:14px;">💰 Payroll & Salary</div>
+    ${hrRow("📊", "Salary Sheet (Excel)", "salarySheetBtn", "#6B4FC4", "#F3EAFB")}
+    ${hrRow("🏦", "WPS Payroll — PI + Saudi", "wpsPiSaudiBtn", "#6B4FC4", "#F3EAFB")}
+    ${hrRow("🏦", "WPS Payroll — Al Falak", "wpsAlFalakBtn", "#6B4FC4", "#F3EAFB")}
 
-    <div class="hr-section-label" style="color:#E8A33D;">✅ Approvals</div>
-    <div class="hr-tile-grid">
-      <div class="hr-tile" id="openHrLeaveListBtn" style="background:linear-gradient(135deg,#E8A33D,#C4791F);"><span class="icon">🌴</span><span class="label">Leave<br>Approvals</span></div>
-      <div class="hr-tile" id="openHrPurchasesBtn" style="background:linear-gradient(135deg,#2FAE68,#1C8A4E);"><span class="icon">🧾</span><span class="label">Purchase /<br>Expenses</span></div>
-    </div>
+    <div class="hr-section-label" style="color:#D85A30;margin-top:14px;">✅ Approvals</div>
+    ${hrRow("🌴", "Leave Approvals", "openHrLeaveListBtn", "#D85A30", "#FAECE7")}
+    ${hrRow("🧾", "Purchase / Expenses", "openHrPurchasesBtn", "#D85A30", "#FAECE7")}
 
-    <div class="hr-section-label" style="color:#C4791F;">🔔 Renewals & Directory</div>
-    <div class="hr-tile-grid">
-      <div class="hr-tile" id="openRenewalsBtn" style="background:linear-gradient(135deg,#E0645F,#C43B3B);"><span class="icon">🔔</span><span class="label">Renewals &<br>Expiry</span></div>
-      <div class="hr-tile" id="openEmployeeDirectoryBtn" style="background:linear-gradient(135deg,#8E72E0,#6B4FC4);"><span class="icon">👤</span><span class="label">Employee<br>Directory</span></div>
-      <div class="hr-tile" id="openVehicleDocumentsBtn" style="background:linear-gradient(135deg,#2FA391,#1B7A6B);"><span class="icon">🚗</span><span class="label">Vehicle<br>Documents</span></div>
-    </div>
+    <div class="hr-section-label" style="color:#C43B3B;margin-top:14px;">🔔 Renewals & Directory</div>
+    ${hrRow("🔔", "Renewals & Expiry", "openRenewalsBtn", "#C43B3B", "#FDECEA")}
+    ${hrRow("👤", "Employee Directory", "openEmployeeDirectoryBtn", "#C43B3B", "#FDECEA")}
+    ${hrRow("🚗", "Vehicle Documents", "openVehicleDocumentsBtn", "#C43B3B", "#FDECEA")}
 
-    <div class="hr-section-label" style="color:var(--blue);">📨 To Owner</div>
-    <div class="hr-tile-grid">
-      <div class="hr-tile" id="openCeoInboxBtn" style="background:linear-gradient(135deg,#3E86C4,#1B5A96);"><span class="icon">📨</span><span class="label">Messages<br>to Owner</span></div>
-      <div class="hr-tile" id="openSendHrTodoBtn" style="background:linear-gradient(135deg,var(--ksa-gold),#B8912A);"><span class="icon">📝</span><span class="label">To-Do for<br>Owner</span></div>
-    </div>
+    <div class="hr-section-label" style="color:#0F6E56;margin-top:14px;">📨 To Owner</div>
+    ${hrRow("📨", "Messages to Owner", "openCeoInboxBtn", "#0F6E56", "#E1F5EE")}
+    ${hrRow("📝", "To-Do for Owner", "openSendHrTodoBtn", "#0F6E56", "#E1F5EE")}
 
     <div class="card" style="margin-top:14px;border:2px solid #C43B3B;">
       <div style="font-weight:800;font-size:12.5px;color:#C43B3B;">🛡️ Database Security (Phase 1)</div>
