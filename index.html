@@ -1007,15 +1007,17 @@ async function doLogin(iqama, skipPassword){
   if(!normalized){ state.error = "Enter your Iqama / ID number."; render(); return; }
   state.loading = true; render();
   try{
-    const { data, error } = await sb.from("ts_employees")
-      .select("*")
-      .eq("active", true);
+    // Uses a secure lookup function that returns only the one matching
+    // record, instead of downloading every employee and matching
+    // client-side (which used to expose everyone's full data to
+    // anyone who opened the login screen).
+    const { data, error } = await sb.rpc("login_lookup", { p_iqama: normalized });
     state.loading = false;
     if(error){
       state.error = "Connection problem — check your internet and try again.";
       render(); return;
     }
-    const match = (data || []).find(row => (row.iqama_number || "").replace(/\D/g, "") === normalized);
+    const match = Array.isArray(data) ? data[0] : data;
     if(!match){
       state.error = "No match found. Check your Iqama / ID number, or contact your admin.";
       render(); return;
@@ -1042,8 +1044,10 @@ async function submitLoginPassword(){
   if(!pw){ state.error = "Enter your password."; render(); return; }
   state.loading = true; render();
   // Re-fetch fresh, in case the password was changed on another device
-  // since this session was cached.
-  const { data: fresh, error: fetchError } = await sb.from("ts_employees").select("*").eq("id", cached.id).maybeSingle();
+  // since this session was cached. Uses a secure lookup by id since
+  // Supabase Auth isn't established yet at this point in the login flow.
+  const { data: freshData, error: fetchError } = await sb.rpc("login_refetch_by_id", { p_id: cached.id });
+  const fresh = Array.isArray(freshData) ? freshData[0] : freshData;
   if(fetchError || !fresh){
     state.loading = false;
     state.error = "Connection problem — check your internet and try again.";
@@ -1068,8 +1072,8 @@ async function completeLogin(match){
   state.user = match;
   localStorage.setItem("ts_user", JSON.stringify(match));
   await establishAuthSession(match);
-  const { data } = await sb.from("ts_employees").select("id, iqama_number").eq("iqama_number", "1091504728").maybeSingle();
-  state.hrmSupervisorId = data ? data.id : null;
+  const { data: hrmId } = await sb.rpc("get_hrm_supervisor_id");
+  state.hrmSupervisorId = hrmId || null;
   await loadProjects();
   await loadLatestAnnouncementForUser();
   if(match.role === "ceo") await loadLatestHrTodoForOwner();
@@ -1528,8 +1532,8 @@ async function submitLeaveRequest(){
     ({ error } = await sb.from("ts_leave_requests").update(payload).eq("id", state.editingLeaveRequestId));
   }else{
     payload.employee_id = state.user.id;
-    const { data: rajesh } = await sb.from("ts_employees").select("id").eq("iqama_number", "2357537808").maybeSingle();
-    payload.supervisor_id = rajesh?.id || state.user.leave_supervisor_id || state.user.supervisor_id || null;
+    const { data: rajeshId } = await sb.rpc("get_rajesh_id");
+    payload.supervisor_id = rajeshId || state.user.leave_supervisor_id || state.user.supervisor_id || null;
     ({ error } = await sb.from("ts_leave_requests").insert(payload));
   }
 
@@ -3824,8 +3828,8 @@ async function loadHrMonth(){
     .eq("month", state.hrMonth).eq("status", "approved");
   state.hrApproved = data || [];
   state.hrExcluded = new Set();
-  const { data: mohammed } = await sb.from("ts_employees").select("id").eq("iqama_number", "1091504728").maybeSingle();
-  state.hrmSupervisorId = mohammed ? mohammed.id : null;
+  const { data: mohammedId } = await sb.rpc("get_hrm_supervisor_id");
+  state.hrmSupervisorId = mohammedId || null;
   state.loading = false;
   render();
 }
@@ -4374,8 +4378,8 @@ async function generateWpsPayroll(payrollGroup){
     }
 
     if(!state.hrmSupervisorId){
-      const { data: mohammed } = await sb.from("ts_employees").select("id").eq("iqama_number", "1091504728").maybeSingle();
-      state.hrmSupervisorId = mohammed ? mohammed.id : null;
+      const { data: mohammedId } = await sb.rpc("get_hrm_supervisor_id");
+      state.hrmSupervisorId = mohammedId || null;
     }
 
     const { data: allEmployees, error: empErr } = await sb.from("ts_employees")
@@ -4523,8 +4527,8 @@ async function generateSalarySheet(){
     (approvedSubs || []).forEach(s => { otMap[s.employee_id] = Number(s.approved_ot_hours) || 0; });
 
     if(!state.hrmSupervisorId){
-      const { data: mohammed } = await sb.from("ts_employees").select("id").eq("iqama_number", "1091504728").maybeSingle();
-      state.hrmSupervisorId = mohammed ? mohammed.id : null;
+      const { data: mohammedId } = await sb.rpc("get_hrm_supervisor_id");
+      state.hrmSupervisorId = mohammedId || null;
     }
 
     const records = [];
@@ -8595,8 +8599,8 @@ async function init(){
   document.addEventListener("change", handleDelegatedChange);
   document.addEventListener("input", handleDelegatedInput);
   if(state.user){
-    const { data: mohammed } = await sb.from("ts_employees").select("id").eq("iqama_number", "1091504728").maybeSingle();
-    state.hrmSupervisorId = mohammed ? mohammed.id : null;
+    const { data: mohammedId } = await sb.rpc("get_hrm_supervisor_id");
+    state.hrmSupervisorId = mohammedId || null;
     await loadProjects();
     await loadLatestAnnouncementForUser();
     if(state.user.role === "ceo") await loadLatestHrTodoForOwner();
