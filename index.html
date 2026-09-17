@@ -494,6 +494,7 @@ let state = {
   financialPoSectionOpen: false,
   expandedLoanBreakdownId: null,
   authMigrationResult: null,
+  authMigrationProgress: null,
   ceoTimesheetSummaryMonth: "",
   ceoTimesheetSummaryRows: [],
   ceoViewTimesheetEmployee: null,
@@ -943,7 +944,7 @@ async function establishAuthSession(match){
 
 async function migrateEmployeesToAuth(){
   if(state.user.role !== "hr"){ toast("Only HR can run this."); return; }
-  if(!confirm("Create a real login account for every active employee who doesn't have one yet? This can take a while for a large team and can be re-run safely if it's interrupted.")) return;
+  if(!confirm("Create a real login account for every active employee who doesn't have one yet? This spaces out requests to avoid rate limits, so it can take a few minutes for a large team. Safe to re-run if it's interrupted.")) return;
   state.loading = true; render();
   const { data: employees, error: fetchError } = await sb.from("ts_employees").select("id, iqama_number, name").eq("active", true).is("auth_user_id", null);
   if(fetchError){
@@ -953,26 +954,47 @@ async function migrateEmployeesToAuth(){
     return;
   }
   const toMigrate = (employees || []).filter(e => e.iqama_number);
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   let succeeded = 0, failed = [];
-  for(const emp of toMigrate){
-    try{
-      const email = syntheticAuthEmail(emp.iqama_number);
-      const { data, error } = await sb.auth.signUp({ email, password: emp.iqama_number });
-      if(error || !data?.user){
-        failed.push(`${emp.name}: ${error?.message || "no user returned"}`);
-        continue;
+  for(let i = 0; i < toMigrate.length; i++){
+    const emp = toMigrate[i];
+    let attempt = 0, done = false;
+    while(!done && attempt < 3){
+      attempt++;
+      try{
+        const email = syntheticAuthEmail(emp.iqama_number);
+        const { data, error } = await sb.auth.signUp({ email, password: emp.iqama_number });
+        const isRateLimit = error && /rate limit/i.test(error.message || "");
+        if(isRateLimit && attempt < 3){
+          state.authMigrationProgress = `Rate limit hit — pausing before retrying ${emp.name} (${i+1}/${toMigrate.length})…`;
+          render();
+          await sleep(20000); // Supabase's signup rate limit window -- back off and retry
+          continue;
+        }
+        if(error || !data?.user){
+          failed.push(`${emp.name}: ${error?.message || "no user returned"}`);
+          done = true;
+          continue;
+        }
+        const { error: updateError } = await sb.from("ts_employees").update({ auth_user_id: data.user.id }).eq("id", emp.id);
+        if(updateError){
+          failed.push(`${emp.name}: created account but couldn't link it (${updateError.message})`);
+          done = true;
+          continue;
+        }
+        succeeded++;
+        done = true;
+      }catch(e){
+        failed.push(`${emp.name}: ${e.message}`);
+        done = true;
       }
-      const { error: updateError } = await sb.from("ts_employees").update({ auth_user_id: data.user.id }).eq("id", emp.id);
-      if(updateError){
-        failed.push(`${emp.name}: created account but couldn't link it (${updateError.message})`);
-        continue;
-      }
-      succeeded++;
-    }catch(e){
-      failed.push(`${emp.name}: ${e.message}`);
     }
+    state.authMigrationProgress = `Processed ${i+1} of ${toMigrate.length}…`;
+    render();
+    if(i < toMigrate.length - 1) await sleep(1500); // space out requests to stay under the rate limit
   }
   state.loading = false;
+  state.authMigrationProgress = null;
   state.authMigrationResult = { total: toMigrate.length, succeeded, failed };
   toast(`Migration finished: ${succeeded} of ${toMigrate.length} succeeded.`);
   render();
@@ -6634,7 +6656,8 @@ function renderHrView(){
     <div class="card" style="margin-top:14px;border:2px solid #C43B3B;">
       <div style="font-weight:800;font-size:12.5px;color:#C43B3B;">🛡️ Database Security (Phase 1)</div>
       <div class="meta" style="margin-top:4px;">Creates a real login account for every employee, laying the groundwork for locking down who can access what in the database. Safe to run — nothing changes about how anyone logs in yet, and this can be re-run if some accounts fail the first time.</div>
-      <button class="btn btn-outline btn-sm" id="runAuthMigrationBtn" style="width:100%;margin-top:8px;color:#C43B3B;border-color:#C43B3B;">🛡️ Create Login Accounts for All Employees</button>
+      <button class="btn btn-outline btn-sm" id="runAuthMigrationBtn" style="width:100%;margin-top:8px;color:#C43B3B;border-color:#C43B3B;" ${state.loading && state.authMigrationProgress ? "disabled" : ""}>🛡️ Create Login Accounts for All Employees</button>
+      ${state.authMigrationProgress ? `<div class="field-note" style="margin-top:8px;"><span class="spinner" style="margin-right:6px;"></span>${state.authMigrationProgress}</div>` : ""}
       ${state.authMigrationResult ? `
       <div class="field-note" style="margin-top:8px;">
         ${state.authMigrationResult.succeeded} of ${state.authMigrationResult.total} succeeded.
