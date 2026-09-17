@@ -494,6 +494,7 @@ let state = {
   whatsappEmployeeList: [],
   whatsappMissingNumberCount: 0,
   hrTimesheetsSectionOpen: false,
+  hrSecuritySectionOpen: false,
   ceoMoreSectionOpen: false,
   ceoSecuritySectionOpen: false,
   financialPoSectionOpen: false,
@@ -6752,9 +6753,19 @@ function renderHrView(){
       ${hrTileLight("📝", "To-Do for<br>Owner", "openSendHrTodoBtn", "#085041", "#E1F5EE")}
     </div>
 
-    <div class="card" style="margin-top:14px;border:2px solid #C43B3B;">
-      <div style="font-weight:800;font-size:12.5px;color:#C43B3B;">🛡️ Database Security (Phase 1)</div>
-      <div class="meta" style="margin-top:4px;">Creates a real login account for every employee, laying the groundwork for locking down who can access what in the database. Safe to run — nothing changes about how anyone logs in yet, and this can be re-run if some accounts fail the first time.</div>
+    <div class="hr-section-label" style="color:#C43B3B;">🛡️ Database Security</div>
+    <div class="card" style="padding:12px 14px;cursor:pointer;" id="toggleHrSecuritySectionBtn">
+      <div class="row-between">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">🛡️</span>
+          <div style="font-weight:800;font-size:13.5px;color:#C43B3B;">Database Security (Phase 1)</div>
+        </div>
+        <span style="color:#C43B3B;font-size:16px;font-weight:800;">${state.hrSecuritySectionOpen ? "▲" : "▼"}</span>
+      </div>
+    </div>
+    ${state.hrSecuritySectionOpen ? `
+    <div class="card" style="margin-top:8px;border:2px solid #C43B3B;">
+      <div class="meta">Creates a real login account for every employee, laying the groundwork for locking down who can access what in the database. Safe to run — nothing changes about how anyone logs in yet, and this can be re-run if some accounts fail the first time.</div>
       <button class="btn btn-outline btn-sm" id="runAuthMigrationBtn" style="width:100%;margin-top:8px;color:#C43B3B;border-color:#C43B3B;" ${state.loading && state.authMigrationProgress ? "disabled" : ""}>🛡️ Create Login Accounts for All Employees</button>
       ${state.authMigrationProgress ? `<div class="field-note" style="margin-top:8px;"><span class="spinner" style="margin-right:6px;"></span>${state.authMigrationProgress}</div>` : ""}
       ${state.authMigrationResult ? `
@@ -6763,6 +6774,7 @@ function renderHrView(){
         ${state.authMigrationResult.failed.length ? `<div style="color:#C4791F;margin-top:4px;">Failed:<br>${state.authMigrationResult.failed.map(f=>`• ${f}`).join("<br>")}</div>` : ""}
       </div>` : ""}
     </div>
+    ` : ""}
 
     <div class="hr-section-label" style="color:var(--blue);">📅 Monthly Timesheets</div>
     <div class="card" style="padding:12px 14px;cursor:pointer;" id="toggleHrTimesheetsSectionBtn">
@@ -8193,6 +8205,11 @@ function handleDelegatedClick(e){
   }
   if(el("toggleHrTimesheetsSectionBtn")){
     state.hrTimesheetsSectionOpen = !state.hrTimesheetsSectionOpen;
+    render();
+    return;
+  }
+  if(el("toggleHrSecuritySectionBtn")){
+    state.hrSecuritySectionOpen = !state.hrSecuritySectionOpen;
     render();
     return;
   }
