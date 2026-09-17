@@ -6665,10 +6665,10 @@ function renderHrTimesheetReview(){
   `;
 }
 
-function hrRow(icon, label, id, color, tint){
-  return `<div class="hr-list-row" id="${id}" style="background:${tint};border-left-color:${color};">
-    <div class="left"><span class="icon" style="color:${color};">${icon}</span><span class="label" style="color:${color};">${label}</span></div>
-    <span class="chevron" style="color:${color};">›</span>
+function hrTileLight(icon, label, id, color, tint){
+  return `<div class="hr-tile" id="${id}" style="background:${tint};">
+    <span class="icon" style="filter:none;color:${color};">${icon}</span>
+    <span class="label" style="color:${color};text-shadow:none;">${label}</span>
   </div>`;
 }
 
@@ -6713,32 +6713,44 @@ function renderHrView(){
     </div>
 
     <div class="hr-section-label" style="color:#B8912A;">📋 Daily Reports</div>
-    ${hrRow("📋", "Add Daily Report", "openDailyReportBtn", "#B8912A", "#FAEEDA")}
-    ${hrRow("👁", "View Daily Reports", "openCombinedReportsBtn", "#B8912A", "#FAEEDA")}
-    ${hrRow("📊", "Attendance by Project", "exportAttendanceByProjectBtn", "#B8912A", "#FAEEDA")}
+    <div class="hr-tile-grid">
+      ${hrTileLight("📋", "Add Daily<br>Report", "openDailyReportBtn", "#8A6A1C", "#FAEEDA")}
+      ${hrTileLight("👁", "View Daily<br>Reports", "openCombinedReportsBtn", "#8A6A1C", "#FAEEDA")}
+      ${hrTileLight("📊", "Attendance<br>by Project", "exportAttendanceByProjectBtn", "#8A6A1C", "#FAEEDA")}
+    </div>
 
-    <div class="hr-section-label" style="color:#1B5A96;margin-top:14px;">💰 Finance</div>
-    ${hrRow("💰", "Financial Report", "openFinancialReportBtn", "#1B5A96", "#E6F1FB")}
-    ${hrRow("👁", "View Report", "viewFinancialReportOnlyBtn", "#1B5A96", "#E6F1FB")}
-    ${hrRow("📊", "Project Summary", "openProjectSummaryBtn", "#1B5A96", "#E6F1FB")}
+    <div class="hr-section-label" style="color:#1B5A96;">💰 Finance</div>
+    <div class="hr-tile-grid">
+      ${hrTileLight("💰", "Financial<br>Report", "openFinancialReportBtn", "#0C447C", "#E6F1FB")}
+      ${hrTileLight("👁", "View<br>Report", "viewFinancialReportOnlyBtn", "#0C447C", "#E6F1FB")}
+      ${hrTileLight("📊", "Project<br>Summary", "openProjectSummaryBtn", "#0C447C", "#E6F1FB")}
+    </div>
 
-    <div class="hr-section-label" style="color:#6B4FC4;margin-top:14px;">💰 Payroll & Salary</div>
-    ${hrRow("📊", "Salary Sheet (Excel)", "salarySheetBtn", "#6B4FC4", "#F3EAFB")}
-    ${hrRow("🏦", "WPS Payroll — PI + Saudi", "wpsPiSaudiBtn", "#6B4FC4", "#F3EAFB")}
-    ${hrRow("🏦", "WPS Payroll — Al Falak", "wpsAlFalakBtn", "#6B4FC4", "#F3EAFB")}
+    <div class="hr-section-label" style="color:#6B4FC4;">💰 Payroll & Salary</div>
+    <div class="hr-tile-grid">
+      ${hrTileLight("📊", "Salary Sheet<br>(Excel)", "salarySheetBtn", "#4A3785", "#F3EAFB")}
+      ${hrTileLight("🏦", "WPS Payroll<br>PI + Saudi", "wpsPiSaudiBtn", "#4A3785", "#F3EAFB")}
+      ${hrTileLight("🏦", "WPS Payroll<br>Al Falak", "wpsAlFalakBtn", "#4A3785", "#F3EAFB")}
+    </div>
 
-    <div class="hr-section-label" style="color:#D85A30;margin-top:14px;">✅ Approvals</div>
-    ${hrRow("🌴", "Leave Approvals", "openHrLeaveListBtn", "#D85A30", "#FAECE7")}
-    ${hrRow("🧾", "Purchase / Expenses", "openHrPurchasesBtn", "#D85A30", "#FAECE7")}
+    <div class="hr-section-label" style="color:#D85A30;">✅ Approvals</div>
+    <div class="hr-tile-grid">
+      ${hrTileLight("🌴", "Leave<br>Approvals", "openHrLeaveListBtn", "#993C1D", "#FAECE7")}
+      ${hrTileLight("🧾", "Purchase /<br>Expenses", "openHrPurchasesBtn", "#993C1D", "#FAECE7")}
+    </div>
 
-    <div class="hr-section-label" style="color:#C43B3B;margin-top:14px;">🔔 Renewals & Directory</div>
-    ${hrRow("🔔", "Renewals & Expiry", "openRenewalsBtn", "#C43B3B", "#FDECEA")}
-    ${hrRow("👤", "Employee Directory", "openEmployeeDirectoryBtn", "#C43B3B", "#FDECEA")}
-    ${hrRow("🚗", "Vehicle Documents", "openVehicleDocumentsBtn", "#C43B3B", "#FDECEA")}
+    <div class="hr-section-label" style="color:#C43B3B;">🔔 Renewals & Directory</div>
+    <div class="hr-tile-grid">
+      ${hrTileLight("🔔", "Renewals &<br>Expiry", "openRenewalsBtn", "#A32D2D", "#FDECEA")}
+      ${hrTileLight("👤", "Employee<br>Directory", "openEmployeeDirectoryBtn", "#A32D2D", "#FDECEA")}
+      ${hrTileLight("🚗", "Vehicle<br>Documents", "openVehicleDocumentsBtn", "#A32D2D", "#FDECEA")}
+    </div>
 
-    <div class="hr-section-label" style="color:#0F6E56;margin-top:14px;">📨 To Owner</div>
-    ${hrRow("📨", "Messages to Owner", "openCeoInboxBtn", "#0F6E56", "#E1F5EE")}
-    ${hrRow("📝", "To-Do for Owner", "openSendHrTodoBtn", "#0F6E56", "#E1F5EE")}
+    <div class="hr-section-label" style="color:#0F6E56;">📨 To Owner</div>
+    <div class="hr-tile-grid">
+      ${hrTileLight("📨", "Messages<br>to Owner", "openCeoInboxBtn", "#085041", "#E1F5EE")}
+      ${hrTileLight("📝", "To-Do for<br>Owner", "openSendHrTodoBtn", "#085041", "#E1F5EE")}
+    </div>
 
     <div class="card" style="margin-top:14px;border:2px solid #C43B3B;">
       <div style="font-weight:800;font-size:12.5px;color:#C43B3B;">🛡️ Database Security (Phase 1)</div>
