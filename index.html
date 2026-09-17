@@ -8671,6 +8671,20 @@ async function init(){
   document.addEventListener("change", handleDelegatedChange);
   document.addEventListener("input", handleDelegatedInput);
   if(state.user){
+    // Re-verify fresh from the database whether a password has been
+    // set yet, rather than trusting the cached session -- otherwise
+    // anyone already logged in on their phone could skip the new
+    // requirement indefinitely just by never logging out.
+    const { data: freshData } = await sb.rpc("login_refetch_by_id", { p_id: state.user.id });
+    const fresh = Array.isArray(freshData) ? freshData[0] : freshData;
+    if(fresh && !fresh.password_hash){
+      state.user = null;
+      localStorage.removeItem("ts_user");
+      state.pendingSetupPasswordUser = fresh;
+      render();
+      return;
+    }
+    if(fresh) state.user = fresh;
     const { data: mohammedId } = await sb.rpc("get_hrm_supervisor_id");
     state.hrmSupervisorId = mohammedId || null;
     await loadProjects();
