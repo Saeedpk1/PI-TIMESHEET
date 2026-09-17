@@ -4443,6 +4443,18 @@ async function generateWpsPayroll(payrollGroup){
       .select("*").in("role", ["employee","supervisor"]).eq("active", true).order("name");
     if(empErr) throw empErr;
 
+    // IBAN and bank code live in their own HR-only table now, separate
+    // from the main employee record -- merge them in here.
+    const { data: bankDetails, error: bankErr } = await sb.from("ts_employee_bank_details").select("*");
+    if(bankErr) throw bankErr;
+    const bankByEmployeeId = {};
+    (bankDetails || []).forEach(b => { bankByEmployeeId[b.employee_id] = b; });
+    (allEmployees || []).forEach(e => {
+      const b = bankByEmployeeId[e.id];
+      e.iban = b ? b.iban : null;
+      e.bank_code = b ? b.bank_code : null;
+    });
+
     const inScopeEmployees = (allEmployees || []).filter(e => {
       const isSaudiTeam = state.hrmSupervisorId && (e.id === state.hrmSupervisorId || e.supervisor_id === state.hrmSupervisorId);
       if(payrollGroup === "AL_FALAK") return e.salary_group === "Al falak";
