@@ -493,6 +493,7 @@ let state = {
   ceoSecuritySectionOpen: false,
   financialPoSectionOpen: false,
   expandedLoanBreakdownId: null,
+  authMigrationResult: null,
   ceoTimesheetSummaryMonth: "",
   ceoTimesheetSummaryRows: [],
   ceoViewTimesheetEmployee: null,
@@ -920,6 +921,63 @@ async function hashPassword(password, saltHex){
   return { hash: bytesToHex(new Uint8Array(bits)), salt: bytesToHex(salt) };
 }
 
+/* ---------------- Auth migration (Phase 1: real Supabase Auth accounts) ---------------- */
+function syntheticAuthEmail(iqamaNumber){
+  return `emp${iqamaNumber}@pi-timesheet-auth.internal`;
+}
+
+async function establishAuthSession(match){
+  // Tries to sign in with real Supabase Auth using the employee's iqama
+  // number as the password. This is additive: if it fails (employee not
+  // migrated yet, or Auth not set up), login still proceeds as before --
+  // nothing breaks during the transition. Once every employee has a real
+  // Auth session, RLS policies can be tightened to actually rely on this.
+  try{
+    const email = syntheticAuthEmail(match.iqama_number);
+    const { error } = await sb.auth.signInWithPassword({ email, password: match.iqama_number });
+    if(error) console.log("Auth session not established (not migrated yet, or Auth not configured):", error.message);
+  }catch(e){
+    console.log("Auth session attempt failed:", e.message);
+  }
+}
+
+async function migrateEmployeesToAuth(){
+  if(state.user.role !== "hr"){ toast("Only HR can run this."); return; }
+  if(!confirm("Create a real login account for every active employee who doesn't have one yet? This can take a while for a large team and can be re-run safely if it's interrupted.")) return;
+  state.loading = true; render();
+  const { data: employees, error: fetchError } = await sb.from("ts_employees").select("id, iqama_number, name").eq("active", true).is("auth_user_id", null);
+  if(fetchError){
+    state.loading = false;
+    toast("Could not load employee list. Try again.");
+    render();
+    return;
+  }
+  const toMigrate = (employees || []).filter(e => e.iqama_number);
+  let succeeded = 0, failed = [];
+  for(const emp of toMigrate){
+    try{
+      const email = syntheticAuthEmail(emp.iqama_number);
+      const { data, error } = await sb.auth.signUp({ email, password: emp.iqama_number });
+      if(error || !data?.user){
+        failed.push(`${emp.name}: ${error?.message || "no user returned"}`);
+        continue;
+      }
+      const { error: updateError } = await sb.from("ts_employees").update({ auth_user_id: data.user.id }).eq("id", emp.id);
+      if(updateError){
+        failed.push(`${emp.name}: created account but couldn't link it (${updateError.message})`);
+        continue;
+      }
+      succeeded++;
+    }catch(e){
+      failed.push(`${emp.name}: ${e.message}`);
+    }
+  }
+  state.loading = false;
+  state.authMigrationResult = { total: toMigrate.length, succeeded, failed };
+  toast(`Migration finished: ${succeeded} of ${toMigrate.length} succeeded.`);
+  render();
+}
+
 async function doLogin(iqama, skipPassword){
   state.error = "";
   if(!iqama){ state.error = "Enter your Iqama / ID number."; render(); return; }
@@ -987,6 +1045,7 @@ async function completeLogin(match){
   state.loading = true; render();
   state.user = match;
   localStorage.setItem("ts_user", JSON.stringify(match));
+  await establishAuthSession(match);
   const { data } = await sb.from("ts_employees").select("id, iqama_number").eq("iqama_number", "1091504728").maybeSingle();
   state.hrmSupervisorId = data ? data.id : null;
   await loadProjects();
@@ -6572,6 +6631,17 @@ function renderHrView(){
       <div class="hr-tile" id="openSendHrTodoBtn" style="background:linear-gradient(135deg,var(--ksa-gold),#B8912A);"><span class="icon">📝</span><span class="label">To-Do for<br>Owner</span></div>
     </div>
 
+    <div class="card" style="margin-top:14px;border:2px solid #C43B3B;">
+      <div style="font-weight:800;font-size:12.5px;color:#C43B3B;">🛡️ Database Security (Phase 1)</div>
+      <div class="meta" style="margin-top:4px;">Creates a real login account for every employee, laying the groundwork for locking down who can access what in the database. Safe to run — nothing changes about how anyone logs in yet, and this can be re-run if some accounts fail the first time.</div>
+      <button class="btn btn-outline btn-sm" id="runAuthMigrationBtn" style="width:100%;margin-top:8px;color:#C43B3B;border-color:#C43B3B;">🛡️ Create Login Accounts for All Employees</button>
+      ${state.authMigrationResult ? `
+      <div class="field-note" style="margin-top:8px;">
+        ${state.authMigrationResult.succeeded} of ${state.authMigrationResult.total} succeeded.
+        ${state.authMigrationResult.failed.length ? `<div style="color:#C4791F;margin-top:4px;">Failed:<br>${state.authMigrationResult.failed.map(f=>`• ${f}`).join("<br>")}</div>` : ""}
+      </div>` : ""}
+    </div>
+
     <div class="hr-section-label" style="color:var(--blue);">📅 Monthly Timesheets</div>
     <div class="card" style="padding:12px 14px;cursor:pointer;" id="toggleHrTimesheetsSectionBtn">
       <div class="row-between">
@@ -8018,6 +8088,7 @@ function handleDelegatedClick(e){
     render();
     return;
   }
+  if(el("runAuthMigrationBtn")){ migrateEmployeesToAuth(); return; }
   if(el("toggleProjectSummaryArchiveBtn")){
     state.expandedProjectSummaryId = null;
     loadProjectSummary(!state.projectSummaryShowArchived);
