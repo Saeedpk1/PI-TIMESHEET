@@ -4447,6 +4447,7 @@ async function generateWpsPayroll(payrollGroup){
     // from the main employee record -- merge them in here.
     const { data: bankDetails, error: bankErr } = await sb.from("ts_employee_bank_details").select("*");
     if(bankErr) throw bankErr;
+    toast(`Debug: fetched ${bankDetails ? bankDetails.length : 0} bank detail rows.`);
     const bankByEmployeeId = {};
     (bankDetails || []).forEach(b => { bankByEmployeeId[b.employee_id] = b; });
     (allEmployees || []).forEach(e => {
