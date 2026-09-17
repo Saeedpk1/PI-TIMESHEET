@@ -547,7 +547,8 @@ let state = {
   loading: false,
   error: "",
   pendingPasswordUser: cachedNeedsPassword ? cachedUser : null,
-  loginPasswordInput: ""
+  loginPasswordInput: "",
+  pendingSetupPasswordUser: null
 };
 
 function projectName(id){
@@ -927,15 +928,15 @@ function syntheticAuthEmail(iqamaNumber){
   return `emp${iqamaNumber}@pi-timesheet-auth.internal`;
 }
 
-async function establishAuthSession(match){
-  // Tries to sign in with real Supabase Auth using the employee's iqama
-  // number as the password. This is additive: if it fails (employee not
-  // migrated yet, or Auth not set up), login still proceeds as before --
-  // nothing breaks during the transition. Once every employee has a real
-  // Auth session, RLS policies can be tightened to actually rely on this.
+async function establishAuthSession(match, plaintextPassword){
+  // Signs into real Supabase Auth. Uses the employee's actual chosen
+  // password if they've set one (passed in by the login flow, since
+  // it's what was just typed and verified); falls back to their iqama
+  // number as the password for anyone who hasn't set a real one yet.
   try{
     const email = syntheticAuthEmail(match.iqama_number);
-    const { error } = await sb.auth.signInWithPassword({ email, password: match.iqama_number });
+    const password = plaintextPassword || match.iqama_number;
+    const { error } = await sb.auth.signInWithPassword({ email, password });
     if(error) console.log("Auth session not established (not migrated yet, or Auth not configured):", error.message);
   }catch(e){
     console.log("Auth session attempt failed:", e.message);
@@ -1028,6 +1029,14 @@ async function doLogin(iqama, skipPassword){
       render();
       return;
     }
+    if(!match.password_hash){
+      // Every employee now needs a real password -- this is their
+      // first login (or they haven't set one yet), so require it now
+      // before letting them into the app.
+      state.pendingSetupPasswordUser = match;
+      render();
+      return;
+    }
     await completeLogin(match);
   }catch(e){
     state.loading = false;
@@ -1064,14 +1073,62 @@ async function submitLoginPassword(){
   }
   state.error = "";
   state.pendingPasswordUser = null;
-  await completeLogin(match);
+  await completeLogin(match, pw);
 }
 
-async function completeLogin(match){
+async function submitSetupPassword(){
+  const match = state.pendingSetupPasswordUser;
+  if(!match) return;
+  const pw1Input = document.getElementById("setupPassword1");
+  const pw2Input = document.getElementById("setupPassword2");
+  const pw1 = pw1Input ? pw1Input.value : "";
+  const pw2 = pw2Input ? pw2Input.value : "";
+  if(pw1.length < 6){ state.error = "Password must be at least 6 characters."; render(); return; }
+  if(pw1 !== pw2){ state.error = "Passwords didn't match. Try again."; render(); return; }
+  state.error = "";
+  state.loading = true; render();
+  // First, sign in using their current (iqama-based) Auth password --
+  // this is a first-time setup, so their Auth account still uses their
+  // iqama number as the password at this point.
+  const email = syntheticAuthEmail(match.iqama_number);
+  const { error: signInError } = await sb.auth.signInWithPassword({ email, password: match.iqama_number });
+  if(signInError){
+    state.loading = false;
+    state.error = "Could not set up your password right now. Try again, or contact your admin.";
+    render();
+    return;
+  }
+  // Now that we're authenticated, actually change the Auth password to
+  // the one they just chose.
+  const { error: updateAuthError } = await sb.auth.updateUser({ password: pw1 });
+  if(updateAuthError){
+    state.loading = false;
+    state.error = "Could not save your new password. Try again.";
+    render();
+    return;
+  }
+  // Also save the app's own password hash, used for the quick re-entry
+  // check on future logins.
+  const { hash, salt } = await hashPassword(pw1);
+  const { error: updateEmpError } = await sb.from("ts_employees").update({ password_hash: hash, password_salt: salt }).eq("id", match.id);
+  state.loading = false;
+  if(updateEmpError){
+    state.error = "Password set for sign-in, but couldn't save it fully. Try logging in again.";
+    render();
+    return;
+  }
+  match.password_hash = hash;
+  match.password_salt = salt;
+  state.pendingSetupPasswordUser = null;
+  toast("Password set. You'll need it next time you log in.");
+  await completeLogin(match, pw1);
+}
+
+async function completeLogin(match, plaintextPassword){
   state.loading = true; render();
   state.user = match;
   localStorage.setItem("ts_user", JSON.stringify(match));
-  await establishAuthSession(match);
+  await establishAuthSession(match, plaintextPassword);
   const { data: hrmId } = await sb.rpc("get_hrm_supervisor_id");
   state.hrmSupervisorId = hrmId || null;
   await loadProjects();
@@ -1191,7 +1248,7 @@ async function removeAccountPassword(){
 
 function logout(){
   localStorage.removeItem("ts_user");
-  state = { ...state, user:null, view:"login", entries:{}, submission:null, error:"", pendingPasswordUser:null, loginPasswordInput:"" };
+  state = { ...state, user:null, view:"login", entries:{}, submission:null, error:"", pendingPasswordUser:null, loginPasswordInput:"", pendingSetupPasswordUser:null };
   render();
 }
 
@@ -5173,6 +5230,20 @@ function renderHeader(){
 }
 
 function renderLogin(){
+  if(state.pendingSetupPasswordUser){
+    return `
+    <div class="login-wrap">
+      <img class="login-logo" src="${LOGO_DATA_URI}" alt="Professional Installation Co">
+      <h1>Set Up Your Password</h1>
+      <p class="hint">Welcome, ${state.pendingSetupPasswordUser.name} — for your security, please set a password before continuing. You'll use it every time you log in from now on.</p>
+      <label>New password (at least 6 characters)</label>
+      <input type="password" id="setupPassword1" placeholder="Choose a password">
+      <label style="margin-top:10px;">Confirm password</label>
+      <input type="password" id="setupPassword2" placeholder="Type it again">
+      ${state.error ? `<div class="error-box">${state.error}</div>` : ""}
+      <button class="btn btn-primary" id="submitSetupPasswordBtn" style="margin-top:14px;" ${state.loading?"disabled":""}>${state.loading?'<span class="spinner"></span>Saving…':'Set Password & Continue'}</button>
+    </div>`;
+  }
   if(state.pendingPasswordUser){
     return `
     <div class="login-wrap">
@@ -7824,6 +7895,7 @@ function handleDelegatedClick(e){
   if(el("logoutBtn")){ logout(); return; }
   if(el("loginBtn")){ doLogin(document.getElementById("loginIqama").value); return; }
   if(el("submitLoginPasswordBtn")){ submitLoginPassword(); return; }
+  if(el("submitSetupPasswordBtn")){ submitSetupPassword(); return; }
   if(el("backToIqamaBtn")){ state.pendingPasswordUser = null; state.error = ""; render(); return; }
   if(el("biometricUnlockBtn")){ unlockWithBiometric(); return; }
   if(el("enableBiometricUnlockBtn")){ enableBiometricUnlock(); return; }
