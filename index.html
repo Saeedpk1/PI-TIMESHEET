@@ -495,6 +495,7 @@ let state = {
   whatsappMissingNumberCount: 0,
   hrTimesheetsSectionOpen: false,
   hrSecuritySectionOpen: false,
+  biometricSectionOpen: false,
   ceoMoreSectionOpen: false,
   ceoSecuritySectionOpen: false,
   financialPoSectionOpen: false,
@@ -1224,12 +1225,22 @@ function hasBiometricUnlockSetUp(){
 
 function renderBiometricCard(){
   return `
-  <div class="card" style="margin-top:12px;">
-    <div style="font-weight:800;font-size:12.5px;color:var(--navy);">🔓 Biometric Unlock</div>
-    <div class="meta" style="margin-top:4px;">${hasBiometricUnlockSetUp() ? "Face ID / Fingerprint unlock is enabled on this device." : "Sign in faster next time using Face ID or your fingerprint, instead of typing your password."}</div>
+  <div class="card" style="padding:12px 14px;cursor:pointer;margin-top:12px;" id="toggleBiometricSectionBtn">
+    <div class="row-between">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:20px;">🔓</span>
+        <div style="font-weight:800;font-size:13.5px;color:var(--navy);">Biometric Unlock</div>
+      </div>
+      <span style="color:var(--navy);font-size:16px;font-weight:800;">${state.biometricSectionOpen ? "▲" : "▼"}</span>
+    </div>
+  </div>
+  ${state.biometricSectionOpen ? `
+  <div class="card" style="margin-top:8px;">
+    <div class="meta">${hasBiometricUnlockSetUp() ? "Face ID / Fingerprint unlock is enabled on this device." : "Sign in faster next time using Face ID or your fingerprint, instead of typing your password."}</div>
     <button class="btn btn-outline btn-sm" id="${hasBiometricUnlockSetUp() ? "disableBiometricUnlockBtn" : "enableBiometricUnlockBtn"}" style="width:100%;margin-top:8px;">${hasBiometricUnlockSetUp() ? "🔓 Turn Off Biometric Unlock" : "🔓 Enable Face ID / Fingerprint Unlock"}</button>
     <div class="field-note" style="margin-top:6px;">This is set up per device — you'll need to enable it again on any new phone or browser.</div>
-  </div>`;
+  </div>
+  ` : ""}`;
 }
 
 async function unlockWithBiometric(){
@@ -8268,6 +8279,11 @@ function handleDelegatedClick(e){
   }
   if(el("toggleHrSecuritySectionBtn")){
     state.hrSecuritySectionOpen = !state.hrSecuritySectionOpen;
+    render();
+    return;
+  }
+  if(el("toggleBiometricSectionBtn")){
+    state.biometricSectionOpen = !state.biometricSectionOpen;
     render();
     return;
   }
