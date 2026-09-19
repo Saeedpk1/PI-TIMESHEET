@@ -522,6 +522,7 @@ let state = {
   financialReportDate: todayLocalISO(),
   financialDirty: false,
   employeeDirectory: [],
+  directoryVacations: [],
   selectedDirectoryEmployeeId: null,
   myProfile: null,
   myProfileDraft: { mobile_number: "", passport_no: "", passport_expiry: "", iqama_expiry_date: "", medical_insurance_expiry: "", bank_name: "", photo_data: "" },
@@ -3220,8 +3221,12 @@ async function exportFinancialReportExcel(){
 /* ---------------- Employee directory & self-service profile ---------------- */
 async function loadEmployeeDirectory(){
   state.loading = true; render();
-  const { data } = await sb.from("ts_employees").select("*").eq("active", true).order("name");
+  const [{ data }, { data: vacations }] = await Promise.all([
+    sb.from("ts_employees").select("*").eq("active", true).order("name"),
+    sb.from("ts_vacations").select("*").order("start_date", { ascending: false })
+  ]);
   state.employeeDirectory = data || [];
+  state.directoryVacations = vacations || [];
   state.loading = false;
   render();
 }
@@ -5679,6 +5684,17 @@ function renderEmployeeDirectory(){
       row("🩺", "Medical insurance expiry", emp.medical_insurance_expiry, emp.medical_insurance_expiry)
     )}
 
+    ${(() => {
+      const empVacations = state.directoryVacations.filter(v => v.employee_id === emp.id);
+      const vacationRows = empVacations.length
+        ? empVacations.map(v => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid rgba(0,0,0,0.06);">
+            <span style="font-size:12px;opacity:0.85;">🌴 ${v.start_date} → ${v.end_date}</span>
+          </div>`).join("")
+        : `<div style="padding:8px 0;font-size:12px;opacity:0.7;">No vacation on record.</div>`;
+      return section("🌴 VACATION HISTORY", "#6B4FC4", "#F3EAFB", vacationRows);
+    })()}
+
     ${section("🏦 BANK DETAILS", "#125C4F", "#EAF6F3",
       row("🏦", "Bank name", emp.bank_name)
     )}
@@ -7028,8 +7044,9 @@ function renderLeaveForm(){
 
     <div style="background:#F0F8FF;border:2px solid #B8D4EC;border-radius:12px;padding:12px;">
       <label style="margin-top:0;color:#1B5A96;">🗓️ Last Vacation Date</label>
-      <input type="date" id="leaveLastVacation" value="${f.lastVacationDate}" style="border-color:#B8D4EC;">
+      <input type="date" id="leaveLastVacation" value="${f.lastVacationDate}" style="border-color:#B8D4EC;background:#E8F0F7;color:#5B6B7C;" readonly disabled>
       ${f.lastVacationDate ? `<div class="field-note">📅 ${humanDuration(f.lastVacationDate)}</div>` : ""}
+      <div class="field-note" style="margin-top:4px;">This comes automatically from our records. If it looks wrong, contact HR to have it corrected — it can't be edited here.</div>
 
       <label style="color:#1B5A96;">📱 Mobile Number</label>
       <input type="tel" id="leaveMobile" placeholder="05xxxxxxxx" value="${f.mobileNumber}" style="border-color:#B8D4EC;">
