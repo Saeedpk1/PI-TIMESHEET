@@ -465,6 +465,7 @@ let state = {
   dailyReportDate: todayLocalISO(),
   todayVacations: [],
   vacationFormEmployeeId: "",
+  vacationManagerReturnView: "daily-report-form",
   vacationFormStart: "",
   vacationFormEnd: "",
   managerVacations: [],
@@ -524,6 +525,7 @@ let state = {
   selectedDirectoryEmployeeId: null,
   myProfile: null,
   myProfileDraft: { mobile_number: "", passport_no: "", passport_expiry: "", iqama_expiry_date: "", medical_insurance_expiry: "", bank_name: "", photo_data: "" },
+  myProfileVacations: [],
   myDailyReportsToday: [],
   editingDailyReportId: null,
   combinedReportsDate: todayLocalISO(),
@@ -3506,8 +3508,12 @@ async function generateEmployeeProfilePdf(){
 
 async function loadMyProfile(){
   state.loading = true; render();
-  const { data } = await sb.from("ts_employees").select("*").eq("id", state.user.id).maybeSingle();
+  const [{ data }, { data: vacations }] = await Promise.all([
+    sb.from("ts_employees").select("*").eq("id", state.user.id).maybeSingle(),
+    sb.from("ts_vacations").select("*").eq("employee_id", state.user.id).order("start_date", { ascending: false })
+  ]);
   state.myProfile = data || null;
+  state.myProfileVacations = vacations || [];
   state.myProfileDraft = {
     mobile_number: data?.mobile_number || "",
     passport_no: data?.passport_no || "",
@@ -5726,6 +5732,14 @@ function renderMyProfile(){
       <div class="field-note">To fix Nationality, DOB, or Iqama Number, contact HR directly — these aren't self-editable.</div>
     </div>
 
+    <div class="card" style="margin-top:14px;">
+      <h3 style="font-size:14px;">🌴 Vacation History</h3>
+      ${state.myProfileVacations.length ? state.myProfileVacations.map(v => `
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px dashed var(--line);font-size:12.5px;">
+          <span>${v.start_date} → ${v.end_date}</span>
+        </div>`).join("") : `<div class="meta">No vacation on record yet.</div>`}
+    </div>
+
     <div class="card" style="margin-top:14px;border:2px solid var(--ksa-gold-light);">
       <h3 style="font-size:14px;">✎ Update your info</h3>
       <label>Photo</label>
@@ -6429,7 +6443,7 @@ function renderVacationManager(){
     </div>`;
 
   return `
-    <button class="back-link-glow" id="backToDailyReportBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    <button class="back-link-glow" id="${state.vacationManagerReturnView === "hr" ? "backToHrBtn" : "backToDailyReportBtn"}" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);">
       <h3 style="color:var(--navy);">🏖️ Vacations</h3>
       <div class="meta" style="color:var(--blue);">Mark an employee's vacation once — it applies automatically for every day in that range.</div>
@@ -6832,6 +6846,7 @@ function renderHrView(){
       ${hrTileLight("🔔", "Renewals &<br>Expiry", "openRenewalsBtn", "#A32D2D", "#FDECEA")}
       ${hrTileLight("👤", "Employee<br>Directory", "openEmployeeDirectoryBtn", "#A32D2D", "#FDECEA")}
       ${hrTileLight("🚗", "Vehicle<br>Documents", "openVehicleDocumentsBtn", "#A32D2D", "#FDECEA")}
+      ${hrTileLight("🌴", "Vacation<br>Records", "openVacationManagerFromHrBtn", "#A32D2D", "#FDECEA")}
     </div>
 
     <div class="hr-section-label" style="color:#0F6E56;">📨 To Owner</div>
@@ -8474,7 +8489,15 @@ function handleDelegatedClick(e){
   }
   if(el("openVacationManagerBtn")){
     state.view = "vacation-manager";
+    state.vacationManagerReturnView = "daily-report-form";
     loadAllVacationsForManager();
+    return;
+  }
+  if(el("openVacationManagerFromHrBtn")){
+    state.view = "vacation-manager";
+    state.vacationManagerReturnView = "hr";
+    loadAllVacationsForManager();
+    loadAllEmployeesForReport();
     return;
   }
   if(el("addVacationBtn")){ addVacation(); return; }
