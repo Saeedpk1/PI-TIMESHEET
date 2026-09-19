@@ -1222,6 +1222,16 @@ function hasBiometricUnlockSetUp(){
   return !!(iqama && localStorage.getItem("ts_biometric_cred_" + iqama));
 }
 
+function renderBiometricCard(){
+  return `
+  <div class="card" style="margin-top:12px;">
+    <div style="font-weight:800;font-size:12.5px;color:var(--navy);">🔓 Biometric Unlock</div>
+    <div class="meta" style="margin-top:4px;">${hasBiometricUnlockSetUp() ? "Face ID / Fingerprint unlock is enabled on this device." : "Sign in faster next time using Face ID or your fingerprint, instead of typing your password."}</div>
+    <button class="btn btn-outline btn-sm" id="${hasBiometricUnlockSetUp() ? "disableBiometricUnlockBtn" : "enableBiometricUnlockBtn"}" style="width:100%;margin-top:8px;">${hasBiometricUnlockSetUp() ? "🔓 Turn Off Biometric Unlock" : "🔓 Enable Face ID / Fingerprint Unlock"}</button>
+    <div class="field-note" style="margin-top:6px;">This is set up per device — you'll need to enable it again on any new phone or browser.</div>
+  </div>`;
+}
+
 async function unlockWithBiometric(){
   const iqama = localStorage.getItem("ts_biometric_last_iqama");
   const credIdB64 = iqama ? localStorage.getItem("ts_biometric_cred_" + iqama) : null;
@@ -5464,6 +5474,7 @@ function renderSupervisorList(){
     <button id="openPurchaseFormBtn" style="display:block;width:100%;margin-bottom:10px;padding:10px 16px;border-radius:10px;border:2px solid #1B7A6B;background:#EAF6F3;color:#125C4F;font-weight:800;font-size:13.5px;cursor:pointer;">🧾 ${ar ? "تسجيل مشتريات" : "Record Purchase"}</button>
     <button id="openVehicleDocumentsBtn" style="display:block;width:100%;margin-bottom:14px;padding:10px 16px;border-radius:10px;border:2px solid #1B5A96;background:#EAF1FC;color:#0F3556;font-weight:800;font-size:13.5px;cursor:pointer;">🚗 ${ar ? "مستندات المركبات" : "Vehicle Documents"}</button>
     <div>${rows}</div>
+    ${renderBiometricCard()}
   `;
 }
 
@@ -5497,6 +5508,8 @@ function renderRajeshDashboard(){
         <button class="link-btn" id="sigSettingsBtn" style="color:var(--blue) !important;">${state.savedSignature ? "✎ Update signature" : "✎ Set up signature"}</button>
       </div>
     </div>
+
+    ${renderBiometricCard()}
 
     <div class="hr-section-label" style="color:var(--present);">📋 Daily Reports</div>
     <div class="hr-tile-grid-2col">
@@ -5686,6 +5699,8 @@ function renderMyProfile(){
       <input type="text" id="myProfileBankName" value="${d.bank_name}">
       <button class="btn btn-submit btn-sm" id="saveMyProfileBtn" style="width:100%;margin-top:10px;">💾 Save</button>
     </div>
+
+    ${renderBiometricCard()}
   `;
 }
 
@@ -6782,6 +6797,8 @@ function renderHrView(){
       ${hrTileLight("📝", "To-Do for<br>Owner", "openSendHrTodoBtn", "#085041", "#E1F5EE")}
     </div>
 
+    ${renderBiometricCard()}
+
     <div class="hr-section-label" style="color:#C43B3B;">🛡️ Database Security</div>
     <div class="card" style="padding:12px 14px;cursor:pointer;" id="toggleHrSecuritySectionBtn">
       <div class="row-between">
@@ -6928,7 +6945,7 @@ function renderLeaveForm(){
       </div>
       <span class="badge ${b.cls}">${b.label}</span>
       ${canEdit ? `<button class="link-btn" data-edit-leave="${r.id}" style="margin-left:8px;">✎ Edit</button>` : ""}
-      ${r.status === "hr_approved" ? `<button class="link-btn" data-download-leave="${r.id}" style="margin-left:8px;">⬇ PDF</button>` : ""}
+      ${(r.status === "hr_approved" || r.status === "ceo_approved") ? `<button class="link-btn" data-download-leave="${r.id}" style="margin-left:8px;">⬇ PDF</button>` : ""}
     </div>`;
   }).join("") || `<div class="empty-state"><div class="ic">🌴</div>No leave applications yet.</div>`;
 
