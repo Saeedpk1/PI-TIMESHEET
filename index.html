@@ -1559,6 +1559,24 @@ function startEditLeaveRequest(reqId){
   render();
 }
 
+async function openNewLeaveForm(){
+  state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", hasSiteId: false, photoDataUrl: "", photoCircleDataUrl: "", existingSignature: "" };
+  render();
+  await loadMyLeaveRequests();
+  // Auto-fill "last vacation" from their actual recorded vacation
+  // (Vacation Manager, used by Daily Reports) -- this is the real
+  // date they were marked as on vacation, not just what a leave
+  // request originally asked for, so it stays accurate even if the
+  // actual dates ended up different from what was requested.
+  const { data: vacations } = await sb.from("ts_vacations")
+    .select("start_date").eq("employee_id", state.user.id)
+    .order("start_date", { ascending: false }).limit(1);
+  if(vacations && vacations[0] && vacations[0].start_date){
+    state.leaveFormDraft.lastVacationDate = vacations[0].start_date;
+  }
+  render();
+}
+
 function cancelEditLeaveRequest(){
   state.editingLeaveRequestId = null;
   leaveSigSnapshot = null;
@@ -2353,6 +2371,23 @@ async function addVacation(){
     await loadAllVacationsForManager();
     await loadVacationsForDate(state.dailyReportDate);
   }
+  render();
+}
+
+async function editVacation(id){
+  const v = state.managerVacations.find(x=>x.id===id);
+  if(!v) return;
+  const newStart = (prompt(`Start date for ${v.employee_name} (YYYY-MM-DD):`, v.start_date) || "").trim();
+  if(!newStart) return;
+  const newEnd = (prompt(`End date for ${v.employee_name} (YYYY-MM-DD):`, v.end_date) || "").trim();
+  if(!newEnd) return;
+  if(newEnd < newStart){ toast("End date can't be before the start date."); return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_vacations").update({ start_date: newStart, end_date: newEnd }).eq("id", id);
+  state.loading = false;
+  toast(error ? "Could not save. Try again." : "Vacation updated.");
+  await loadAllVacationsForManager();
+  await loadVacationsForDate(state.dailyReportDate);
   render();
 }
 
@@ -6389,6 +6424,7 @@ function renderVacationManager(){
         <div class="name">${v.employee_name}</div>
         <div class="sub">${v.start_date} → ${v.end_date}</div>
       </div>
+      <button class="link-btn" data-edit-vacation="${v.id}" style="color:var(--blue) !important;margin-right:8px;">✎ Edit</button>
       <button class="link-btn" data-delete-vacation="${v.id}" style="color:var(--absent) !important;">🗑 Remove</button>
     </div>`;
 
@@ -8059,7 +8095,7 @@ function handleDelegatedClick(e){
   if(el("combinedPdfBtn")){ generateCombinedPdf(); return; }
   if(el("saudiPdfBtn")){ generateSaudiTimesheetPdf(); return; }
   if(el("saudiArabicPdfBtn")){ generateSaudiArabicPdf(); return; }
-  if(el("openLeaveFormBtn")){ leaveSigSnapshot = null; state.view = "leave-form"; loadMyLeaveRequests().then(render); return; }
+  if(el("openLeaveFormBtn")){ leaveSigSnapshot = null; state.editingLeaveRequestId = null; state.view = "leave-form"; openNewLeaveForm(); return; }
   if(el("openSupervisorLeaveListBtn")){ state.view = "supervisor-leave-list"; loadSupervisorLeaveRequests().then(render); return; }
   if(el("openHrLeaveListBtn")){ state.view = "hr-leave-list"; loadHrLeaveRequests().then(render); return; }
   if(el("wpsPiSaudiBtn")){ generateWpsPayroll("PI_SAUDI"); return; }
@@ -8442,6 +8478,8 @@ function handleDelegatedClick(e){
     return;
   }
   if(el("addVacationBtn")){ addVacation(); return; }
+  const editVacationEl = e.target.closest("[data-edit-vacation]");
+  if(editVacationEl){ editVacation(editVacationEl.getAttribute("data-edit-vacation")); return; }
   const deleteVacationEl = e.target.closest("[data-delete-vacation]");
   if(deleteVacationEl){ deleteVacation(deleteVacationEl.getAttribute("data-delete-vacation")); return; }
   if(el("backToDailyReportBtn")){ state.view = "daily-report-form"; render(); return; }
