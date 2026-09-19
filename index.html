@@ -5335,8 +5335,7 @@ function renderLogin(){
     <input type="text" inputmode="numeric" id="loginIqama" placeholder="Enter your Iqama or ID number">
     ${state.error ? `<div class="error-box">${state.error}</div>` : ""}
     <button class="btn btn-primary" id="loginBtn" ${state.loading?"disabled":""}>${state.loading?'<span class="spinner"></span>Signing in…':'Sign in'}</button>
-    ${hasBiometricUnlockSetUp() ? `<button class="btn btn-outline" id="biometricUnlockBtn" style="margin-top:10px;">🔓 Unlock with Face ID / Fingerprint</button>` : ""}
-  </div>`;
+    </div>`;
 }
 
 /* ---- employee view ---- */
@@ -5485,7 +5484,6 @@ function renderSupervisorList(){
     <button id="openPurchaseFormBtn" style="display:block;width:100%;margin-bottom:10px;padding:10px 16px;border-radius:10px;border:2px solid #1B7A6B;background:#EAF6F3;color:#125C4F;font-weight:800;font-size:13.5px;cursor:pointer;">🧾 ${ar ? "تسجيل مشتريات" : "Record Purchase"}</button>
     <button id="openVehicleDocumentsBtn" style="display:block;width:100%;margin-bottom:14px;padding:10px 16px;border-radius:10px;border:2px solid #1B5A96;background:#EAF1FC;color:#0F3556;font-weight:800;font-size:13.5px;cursor:pointer;">🚗 ${ar ? "مستندات المركبات" : "Vehicle Documents"}</button>
     <div>${rows}</div>
-    ${renderBiometricCard()}
   `;
 }
 
@@ -5520,7 +5518,6 @@ function renderRajeshDashboard(){
       </div>
     </div>
 
-    ${renderBiometricCard()}
 
     <div class="hr-section-label" style="color:var(--present);">📋 Daily Reports</div>
     <div class="hr-tile-grid-2col">
@@ -5711,7 +5708,6 @@ function renderMyProfile(){
       <button class="btn btn-submit btn-sm" id="saveMyProfileBtn" style="width:100%;margin-top:10px;">💾 Save</button>
     </div>
 
-    ${renderBiometricCard()}
   `;
 }
 
@@ -6808,7 +6804,6 @@ function renderHrView(){
       ${hrTileLight("📝", "To-Do for<br>Owner", "openSendHrTodoBtn", "#085041", "#E1F5EE")}
     </div>
 
-    ${renderBiometricCard()}
 
     <div class="hr-section-label" style="color:#C43B3B;">🛡️ Database Security</div>
     <div class="card" style="padding:12px 14px;cursor:pointer;" id="toggleHrSecuritySectionBtn">
@@ -7291,9 +7286,6 @@ function renderCeoHome(){
           <button class="btn btn-outline btn-sm" id="setAccountPasswordBtn" style="flex:1;">${state.user.password_hash ? "🔑 Change Password" : "🔑 Set Password"}</button>
           ${state.user.password_hash ? `<button class="btn btn-outline btn-sm" id="removeAccountPasswordBtn" style="flex:1;color:var(--absent);">🗑 Remove</button>` : ""}
         </div>
-        <div class="meta" style="margin-top:10px;">${hasBiometricUnlockSetUp() ? "Face ID / Fingerprint unlock is enabled on this device." : "Face ID / Fingerprint unlock is not set up on this device."}</div>
-        <button class="btn btn-outline btn-sm" id="${hasBiometricUnlockSetUp() ? "disableBiometricUnlockBtn" : "enableBiometricUnlockBtn"}" style="width:100%;margin-top:8px;">${hasBiometricUnlockSetUp() ? "🔓 Turn Off Biometric Unlock" : "🔓 Enable Face ID / Fingerprint Unlock"}</button>
-        <div class="field-note" style="margin-top:6px;">Biometric unlock is set up per device — you'll need to enable it again on any new phone or browser.</div>
       </div>
       ` : ""}
     </div>
@@ -8002,9 +7994,6 @@ function handleDelegatedClick(e){
   if(el("submitLoginPasswordBtn")){ submitLoginPassword(); return; }
   if(el("submitSetupPasswordBtn")){ submitSetupPassword(); return; }
   if(el("backToIqamaBtn")){ state.pendingPasswordUser = null; state.error = ""; render(); return; }
-  if(el("biometricUnlockBtn")){ unlockWithBiometric(); return; }
-  if(el("enableBiometricUnlockBtn")){ enableBiometricUnlock(); return; }
-  if(el("disableBiometricUnlockBtn")){ disableBiometricUnlock(); return; }
   if(el("setAccountPasswordBtn")){ setAccountPassword(); return; }
   if(el("removeAccountPasswordBtn")){ removeAccountPassword(); return; }
   if(el("installAppBtn")){ handleInstallClick(); return; }
@@ -8279,11 +8268,6 @@ function handleDelegatedClick(e){
   }
   if(el("toggleHrSecuritySectionBtn")){
     state.hrSecuritySectionOpen = !state.hrSecuritySectionOpen;
-    render();
-    return;
-  }
-  if(el("toggleBiometricSectionBtn")){
-    state.biometricSectionOpen = !state.biometricSectionOpen;
     render();
     return;
   }
