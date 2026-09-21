@@ -503,6 +503,12 @@ let state = {
   expandedLoanBreakdownId: null,
   authMigrationResult: null,
   authMigrationProgress: null,
+  commissionYear: new Date().getFullYear(),
+  commissionMonthlyPayments: [], // raw ts_financial_payments rows for the year, deduped per month
+  commissionOwnerRates: {}, // { 'YYYY-MM': rate }
+  commissionProjectLoss: [], // rows from ts_commission_project_loss
+  commissionPayments: [], // rows from ts_commission_payments
+  commissionOpeningBalance: 0,
   ceoTimesheetSummaryMonth: "",
   ceoTimesheetSummaryRows: [],
   ceoViewTimesheetEmployee: null,
@@ -2714,6 +2720,115 @@ function shiftFinancialReportDate(days){
   if(newDate > todayLocalISO()) return;
   if(state.financialDirty && !confirm("You have unsaved changes on this date. Switch anyway and lose them?")) return;
   loadFinancialReport(newDate);
+}
+
+/* ---------------- Commission Tracker ---------------- */
+async function loadCommissionTracker(year){
+  state.commissionYear = year || state.commissionYear;
+  state.loading = true; render();
+  const yearStart = `${state.commissionYear}-01-01`;
+  const yearEnd = `${state.commissionYear}-12-31`;
+  const [{ data: payments }, { data: rates }, { data: losses }, { data: paidOut }, { data: settings }] = await Promise.all([
+    sb.from("ts_financial_payments").select("invoice_no, project, company, amount, payment_date, report_date").gte("report_date", yearStart).lte("report_date", yearEnd).order("report_date", { ascending: true }),
+    sb.from("ts_commission_owner_rates").select("*").gte("month", `${state.commissionYear}-01`).lte("month", `${state.commissionYear}-12`),
+    sb.from("ts_commission_project_loss").select("*").gte("month", `${state.commissionYear}-01`).lte("month", `${state.commissionYear}-12`).order("created_at"),
+    sb.from("ts_commission_payments").select("*").order("payment_date", { ascending: false }),
+    sb.from("ts_commission_settings").select("*").maybeSingle()
+  ]);
+  state.commissionMonthlyPayments = payments || [];
+  const rateMap = {};
+  (rates || []).forEach(r => { rateMap[r.month] = Number(r.rate); });
+  state.commissionOwnerRates = rateMap;
+  state.commissionProjectLoss = losses || [];
+  state.commissionPayments = paidOut || [];
+  state.commissionOpeningBalance = settings ? Number(settings.rajesh_opening_balance) || 0 : 0;
+  state.loading = false;
+  render();
+}
+
+function commissionCollectionForMonth(monthKey){
+  // Same dedup logic as Financial Report's "Payments Received" --
+  // an invoice's payment carried forward via Copy Previous Day
+  // should only count once, using its latest saved version.
+  const inMonth = state.commissionMonthlyPayments.filter(v => v.report_date.slice(0,7) === monthKey);
+  const latestByKey = {};
+  inMonth.forEach(v => {
+    const key = v.invoice_no || `no-number-${v.project}-${v.company}-${v.payment_date}-${v.amount}`;
+    if(!latestByKey[key] || v.report_date >= latestByKey[key].report_date) latestByKey[key] = v;
+  });
+  return Object.values(latestByKey).reduce((s,v)=>s+Number(v.amount||0),0);
+}
+
+function commissionRajeshForMonth(monthKey){
+  const collection = commissionCollectionForMonth(monthKey);
+  const lossDeduction = state.commissionProjectLoss.filter(l => l.month === monthKey).reduce((s,l)=>s+Number(l.amount||0),0);
+  const net = collection - lossDeduction;
+  const afterThreshold = Math.max(net - 200000, 0);
+  const flatFee = afterThreshold > 0 ? 2000 : 0;
+  const commission = afterThreshold * 0.02 + flatFee;
+  return { collection, lossDeduction, net, afterThreshold, flatFee, commission };
+}
+
+function commissionOwnerForMonth(monthKey){
+  const collection = commissionCollectionForMonth(monthKey);
+  const rate = state.commissionOwnerRates[monthKey] != null ? state.commissionOwnerRates[monthKey] : 0.10;
+  return { collection, rate, commission: collection * rate };
+}
+
+async function saveCommissionOwnerRate(monthKey){
+  const current = state.commissionOwnerRates[monthKey] != null ? (state.commissionOwnerRates[monthKey]*100) : 10;
+  const input = prompt(`Owner's commission rate for ${monthKey} (%):`, current);
+  if(input === null) return;
+  const rate = Number(input) / 100;
+  if(isNaN(rate) || rate < 0){ toast("Enter a valid percentage."); return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_commission_owner_rates").upsert({ month: monthKey, rate }, { onConflict: "month" });
+  state.loading = false;
+  toast(error ? "Could not save. Try again." : "Rate updated.");
+  await loadCommissionTracker(state.commissionYear);
+}
+
+async function addCommissionProjectLoss(monthKey){
+  const projectName = (prompt(`Project name (in loss) for ${monthKey}:`) || "").trim();
+  if(!projectName) return;
+  const amt = Number(prompt("Amount to exclude from Rajesh's commission (SAR):"));
+  if(isNaN(amt) || amt <= 0){ toast("Enter a valid amount."); return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_commission_project_loss").insert({ month: monthKey, project_name: projectName, amount: amt });
+  state.loading = false;
+  toast(error ? "Could not save. Try again." : "Project loss recorded.");
+  await loadCommissionTracker(state.commissionYear);
+}
+
+async function deleteCommissionProjectLoss(id){
+  if(!confirm("Remove this project loss entry?")) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_commission_project_loss").delete().eq("id", id);
+  state.loading = false;
+  toast(error ? "Could not remove. Try again." : "Removed.");
+  await loadCommissionTracker(state.commissionYear);
+}
+
+async function addCommissionPayment(recipient){
+  const dateInput = (prompt(`Payment date to ${recipient === "rajesh" ? "Rajesh" : "the Owner"} (YYYY-MM-DD):`, todayLocalISO()) || "").trim();
+  if(!dateInput) return;
+  const amt = Number(prompt("Amount paid (SAR):"));
+  if(isNaN(amt) || amt <= 0){ toast("Enter a valid amount."); return; }
+  const note = (prompt("Note (optional, e.g. \"Paid to Al Falak\", \"Cash\"):") || "").trim();
+  state.loading = true; render();
+  const { error } = await sb.from("ts_commission_payments").insert({ recipient, payment_date: dateInput, amount: amt, note: note || null });
+  state.loading = false;
+  toast(error ? "Could not save. Try again." : "Payment recorded.");
+  await loadCommissionTracker(state.commissionYear);
+}
+
+async function deleteCommissionPayment(id){
+  if(!confirm("Remove this payment record?")) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_commission_payments").delete().eq("id", id);
+  state.loading = false;
+  toast(error ? "Could not remove. Try again." : "Removed.");
+  await loadCommissionTracker(state.commissionYear);
 }
 
 async function loadFinancialReport(date){
@@ -5290,6 +5405,7 @@ function render(){
   else if(state.view === "renewals-screen") body = renderRenewalsScreen();
   else if(state.view === "vehicle-documents") body = renderVehicleDocumentsScreen();
   else if(state.view === "financial-report") body = renderFinancialReport();
+  else if(state.view === "commission-tracker") body = renderCommissionTracker();
   else if(state.view === "project-summary") body = renderProjectSummary();
   else if(state.view === "send-announcement") body = renderSendAnnouncement();
   else if(state.view === "send-hr-todo") body = renderSendHrTodo();
@@ -5974,6 +6090,101 @@ function renderProjectSummary(){
     <button class="btn btn-sm" id="toggleProjectSummaryArchiveBtn" style="width:100%;margin-bottom:12px;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff;border:none;font-weight:800;">${showingArchived ? "📋 View Current Projects" : "📜 View History (completed/archived)"}</button>
     ${canEdit ? `<div class="field-note" style="margin-bottom:10px;">${showingArchived ? "Tap ↩ to bring a project back to the current list." : "PO Value combines each unit's fixed PO plus any manpower claim value accrued so far. Expenses come from Daily Progress Reports; Invoices come from the Financial Report. Tap a project's name to see its invoice list. Tap ✎ to set starting date or adjust opening Expenses/Invoices. Tap 📥 to save the accrued manpower claim as an actual invoice at month-end. Tap 🗄 to hide a project from Project Summary — it stays fully available in Daily Reports and Timesheets."}</div>` : `<div class="field-note" style="margin-bottom:10px;">Tap a project's name to see its invoice list.</div>`}
     ${state.projectSummaryRows.length ? table : `<div class="empty-state"><div class="ic">📊</div>${showingArchived ? "No projects in History." : "No active projects found."}</div>`}
+  `;
+}
+
+function renderCommissionTracker(){
+  const fmt = n => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
+  const backId = state.user.role === "ceo" ? "backToCeoHomeBtn" : "backToHrBtn";
+  const months = Array.from({length:12}, (_,i) => `${state.commissionYear}-${String(i+1).padStart(2,"0")}`);
+  const monthLabelShort = (mk) => new Date(mk+"-01T00:00:00").toLocaleDateString(undefined,{month:"short"});
+
+  let rajeshTotal = state.commissionOpeningBalance;
+  let ownerTotal = 0;
+  const rajeshRows = months.map(mk => {
+    const r = commissionRajeshForMonth(mk);
+    rajeshTotal += r.commission;
+    const lossEntries = state.commissionProjectLoss.filter(l=>l.month===mk);
+    return `
+    <tr>
+      <td style="padding:5px 4px;font-weight:700;">${monthLabelShort(mk)}</td>
+      <td style="padding:5px 4px;text-align:right;">${fmt(r.collection)}</td>
+      <td style="padding:5px 4px;text-align:right;color:var(--absent);">
+        ${lossEntries.length ? lossEntries.map(l=>`<div style="white-space:nowrap;">${fmt(l.amount)} <button data-delete-commission-loss="${l.id}" style="border:none;background:none;color:var(--absent);cursor:pointer;font-size:10px;">🗑</button></div>`).join("") : "-"}
+        <button data-add-commission-loss="${mk}" style="border:none;background:none;color:var(--blue);cursor:pointer;font-size:9.5px;">+ Loss</button>
+      </td>
+      <td style="padding:5px 4px;text-align:right;">${fmt(r.net)}</td>
+      <td style="padding:5px 4px;text-align:right;font-weight:800;color:#1C8A4E;">${fmt(r.commission)}</td>
+    </tr>`;
+  }).join("");
+
+  const ownerRows = months.map(mk => {
+    const o = commissionOwnerForMonth(mk);
+    ownerTotal += o.commission;
+    return `
+    <tr>
+      <td style="padding:5px 4px;font-weight:700;">${monthLabelShort(mk)}</td>
+      <td style="padding:5px 4px;text-align:right;">${fmt(o.collection)}</td>
+      <td style="padding:5px 4px;text-align:right;"><button data-edit-commission-rate="${mk}" style="border:none;background:none;color:var(--blue);cursor:pointer;font-weight:700;">${(o.rate*100).toFixed(0)}% ✎</button></td>
+      <td style="padding:5px 4px;text-align:right;font-weight:800;color:#1C8A4E;">${fmt(o.commission)}</td>
+    </tr>`;
+  }).join("");
+
+  const rajeshPaid = state.commissionPayments.filter(p=>p.recipient==="rajesh");
+  const rajeshPaidTotal = rajeshPaid.reduce((s,p)=>s+Number(p.amount||0),0);
+  const ownerPaid = state.commissionPayments.filter(p=>p.recipient==="owner");
+  const ownerPaidTotal = ownerPaid.reduce((s,p)=>s+Number(p.amount||0),0);
+
+  const paidListHtml = (list) => list.length ? list.map(p => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-top:1px dashed var(--line);font-size:11.5px;">
+      <span>${fmtDDMMYYYY(p.payment_date)} ${p.note ? "— " + p.note : ""}</span>
+      <span style="font-weight:700;">${fmt(p.amount)} <button data-delete-commission-payment="${p.id}" style="border:none;background:none;color:var(--absent);cursor:pointer;">🗑</button></span>
+    </div>`).join("") : `<div class="meta">No payments recorded yet.</div>`;
+
+  return `
+    <button class="link-btn" id="${backId}" style="margin-bottom:14px;">‹ Back</button>
+    <div class="card">
+      <h3>💰 Commission Tracker</h3>
+      <div class="meta">Collection figures match Financial Report's "Payments Received" for each month.</div>
+      <div class="row-between" style="margin-top:8px;">
+        <button class="link-btn" id="commissionYearPrevBtn">‹ ${state.commissionYear-1}</button>
+        <div style="font-weight:800;font-size:15px;">${state.commissionYear}</div>
+        <button class="link-btn" id="commissionYearNextBtn">${state.commissionYear+1} ›</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px;border:2px solid #1B5A96;">
+      <h3 style="font-size:14px;color:#1B5A96;">🧑‍🔧 Rajesh's Commission</h3>
+      <div class="meta">2% of collection above SAR 200,000/month, plus a flat SAR 2,000 once that threshold is met. Project-in-loss amounts are excluded before this calculation.</div>
+      <div style="overflow-x:auto;margin-top:8px;">
+        <table style="width:100%;font-size:11px;border-collapse:collapse;">
+          <thead><tr style="background:#EAF1FC;"><th style="padding:5px 4px;text-align:left;">Month</th><th style="padding:5px 4px;text-align:right;">Collection</th><th style="padding:5px 4px;text-align:right;">Loss excl.</th><th style="padding:5px 4px;text-align:right;">Net</th><th style="padding:5px 4px;text-align:right;">Commission</th></tr></thead>
+          <tbody>${rajeshRows}</tbody>
+        </table>
+      </div>
+      <div class="meta" style="margin-top:6px;">Opening balance carried in: SAR ${fmt(state.commissionOpeningBalance)}</div>
+      <div style="text-align:right;font-weight:800;font-size:13px;color:#1B5A96;margin-top:4px;">Total Earned: SAR ${fmt(rajeshTotal)}</div>
+      <div style="text-align:right;font-weight:800;font-size:13px;color:#1C8A4E;">Total Paid: SAR ${fmt(rajeshPaidTotal)}</div>
+      <div style="text-align:right;font-weight:800;font-size:14px;color:${(rajeshTotal-rajeshPaidTotal)>0?"var(--absent)":"var(--present)"};">Balance Owed: SAR ${fmt(rajeshTotal-rajeshPaidTotal)}</div>
+      <button class="btn btn-outline btn-sm" data-add-commission-payment="rajesh" style="width:100%;margin-top:8px;">+ Record Payment to Rajesh</button>
+      <div style="margin-top:6px;">${paidListHtml(rajeshPaid)}</div>
+    </div>
+
+    <div class="card" style="margin-top:12px;border:2px solid #B8912A;">
+      <h3 style="font-size:14px;color:#B8912A;">👑 Owner's Commission</h3>
+      <div class="meta">Percentage of full monthly collection — rate is editable per month since it can change.</div>
+      <div style="overflow-x:auto;margin-top:8px;">
+        <table style="width:100%;font-size:11px;border-collapse:collapse;">
+          <thead><tr style="background:#FDF6E3;"><th style="padding:5px 4px;text-align:left;">Month</th><th style="padding:5px 4px;text-align:right;">Collection</th><th style="padding:5px 4px;text-align:right;">Rate</th><th style="padding:5px 4px;text-align:right;">Commission</th></tr></thead>
+          <tbody>${ownerRows}</tbody>
+        </table>
+      </div>
+      <div style="text-align:right;font-weight:800;font-size:13px;color:#B8912A;margin-top:4px;">Total Earned: SAR ${fmt(ownerTotal)}</div>
+      <div style="text-align:right;font-weight:800;font-size:13px;color:#1C8A4E;">Total Paid: SAR ${fmt(ownerPaidTotal)}</div>
+      <div style="text-align:right;font-weight:800;font-size:14px;color:${(ownerTotal-ownerPaidTotal)>0?"var(--absent)":"var(--present)"};">Balance Owed: SAR ${fmt(ownerTotal-ownerPaidTotal)}</div>
+      <button class="btn btn-outline btn-sm" data-add-commission-payment="owner" style="width:100%;margin-top:8px;">+ Record Payment to Owner</button>
+      <div style="margin-top:6px;">${paidListHtml(ownerPaid)}</div>
+    </div>
   `;
 }
 
@@ -6902,6 +7113,7 @@ function renderHrView(){
       ${hrTileLight("💰", "Financial<br>Report", "openFinancialReportBtn", "#0C447C", "#E6F1FB")}
       ${hrTileLight("👁", "View<br>Report", "viewFinancialReportOnlyBtn", "#0C447C", "#E6F1FB")}
       ${hrTileLight("📊", "Project<br>Summary", "openProjectSummaryBtn", "#0C447C", "#E6F1FB")}
+      ${hrTileLight("💵", "Commission<br>Tracker", "openCommissionTrackerBtn", "#0C447C", "#E6F1FB")}
     </div>
 
     <div class="hr-section-label" style="color:#6B4FC4;">💰 Payroll & Salary</div>
@@ -7379,6 +7591,13 @@ function renderCeoHome(){
 
     ${state.ceoMoreSectionOpen ? `
     <div style="margin-top:8px;">
+      <div class="ceo-tile ceo-tile-more" id="openCommissionTrackerBtn">
+        <div class="icon">💵</div>
+        <div class="body">
+          <div class="title">Commission Tracker</div>
+          <div class="desc">Rajesh's and your own commission, calculated monthly</div>
+        </div>
+      </div>
       <div class="ceo-tile ceo-tile-more" id="openSendAnnouncementBtn">
         <div class="icon">📢</div>
         <div class="body">
@@ -8356,6 +8575,23 @@ function handleDelegatedClick(e){
     loadFinancialReport(todayLocalISO());
     return;
   }
+  if(el("openCommissionTrackerBtn")){
+    state.view = "commission-tracker";
+    loadCommissionTracker(new Date().getFullYear());
+    return;
+  }
+  if(el("commissionYearPrevBtn")){ loadCommissionTracker(state.commissionYear - 1); return; }
+  if(el("commissionYearNextBtn")){ loadCommissionTracker(state.commissionYear + 1); return; }
+  const addCommissionLossEl = e.target.closest("[data-add-commission-loss]");
+  if(addCommissionLossEl){ addCommissionProjectLoss(addCommissionLossEl.getAttribute("data-add-commission-loss")); return; }
+  const deleteCommissionLossEl = e.target.closest("[data-delete-commission-loss]");
+  if(deleteCommissionLossEl){ deleteCommissionProjectLoss(deleteCommissionLossEl.getAttribute("data-delete-commission-loss")); return; }
+  const editCommissionRateEl = e.target.closest("[data-edit-commission-rate]");
+  if(editCommissionRateEl){ saveCommissionOwnerRate(editCommissionRateEl.getAttribute("data-edit-commission-rate")); return; }
+  const addCommissionPaymentEl = e.target.closest("[data-add-commission-payment]");
+  if(addCommissionPaymentEl){ addCommissionPayment(addCommissionPaymentEl.getAttribute("data-add-commission-payment")); return; }
+  const deleteCommissionPaymentEl = e.target.closest("[data-delete-commission-payment]");
+  if(deleteCommissionPaymentEl){ deleteCommissionPayment(deleteCommissionPaymentEl.getAttribute("data-delete-commission-payment")); return; }
   if(el("viewFinancialReportOnlyBtn")){
     state.view = "financial-report";
     state.financialViewOnly = true;
