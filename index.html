@@ -3853,6 +3853,7 @@ async function loadAllEmployeesForVacationForm(){
   // are excluded from daily reports.
   const { data } = await sb.from("ts_employees").select("*").eq("active", true).order("name");
   state.vacationFormEmployees = data || [];
+  render();
 }
 
 async function loadDailyReportsForDate(date){
