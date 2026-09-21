@@ -2837,8 +2837,20 @@ async function addCommissionPayment(recipient){
   const amt = Number(prompt("Amount paid (SAR):"));
   if(isNaN(amt) || amt <= 0){ toast("Enter a valid amount."); return; }
   const note = (prompt("Note (optional, e.g. \"Paid to Al Falak\", \"Cash\"):") || "").trim();
+  let quarter = null;
+  if(recipient === "owner"){
+    // Which quarter's balance this payment is settling -- not
+    // necessarily the quarter the payment date falls in, since a
+    // payment can settle an earlier quarter's balance after that
+    // quarter has already ended.
+    const dateYear = dateInput.slice(0,4);
+    const suggestedQ = Math.ceil(Number(dateInput.slice(5,7)) / 3);
+    const qInput = (prompt(`Which quarter is this payment for? (e.g. ${dateYear}-Q${suggestedQ})`, `${dateYear}-Q${suggestedQ}`) || "").trim();
+    if(!qInput) return;
+    quarter = qInput;
+  }
   state.loading = true; render();
-  const { error } = await sb.from("ts_commission_payments").insert({ recipient, payment_date: dateInput, amount: amt, note: note || null });
+  const { error } = await sb.from("ts_commission_payments").insert({ recipient, payment_date: dateInput, amount: amt, note: note || null, quarter });
   state.loading = false;
   toast(error ? "Could not save. Try again." : "Payment recorded.");
   await loadCommissionTracker(state.commissionYear);
@@ -6166,11 +6178,8 @@ function renderCommissionTracker(){
     }).join("");
     const qCollection = q.months.reduce((s,mk)=>s+commissionCollectionForMonth(mk),0);
     const qCommission = q.months.reduce((s,mk)=>s+commissionOwnerForMonth(mk).commission,0);
-    const qStart = q.months[0] + "-01";
-    const qEndMonth = q.months[2];
-    const qEndDate = new Date(qEndMonth+"-01T00:00:00"); qEndDate.setMonth(qEndDate.getMonth()+1); qEndDate.setDate(0);
-    const qEnd = fmtDate(qEndDate.getFullYear(), qEndDate.getMonth(), qEndDate.getDate());
-    const qPaidList = ownerPaid.filter(p => p.payment_date >= qStart && p.payment_date <= qEnd);
+    const qKey = `${state.commissionYear}-${q.label}`;
+    const qPaidList = ownerPaid.filter(p => p.quarter === qKey);
     const qPaidTotal = qPaidList.reduce((s,p)=>s+Number(p.amount||0),0);
     ownerYearTotal += qCommission; ownerYearPaid += qPaidTotal;
     const qBalance = qCommission - qPaidTotal;
