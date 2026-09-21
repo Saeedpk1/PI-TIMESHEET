@@ -453,7 +453,7 @@ let state = {
   hrTimesheetSubmission: null,
   hrmSupervisorId: null, // Mohammed Mutlaq Al Morqi's id, for the separate SAUDI TIME SHEET export
   myLeaveRequests: [],
-  leaveFormDraft: { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", hasSiteId: false, photoDataUrl: "", photoCircleDataUrl: "" },
+  leaveFormDraft: { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", replacementRequired: "", replacementName: "", hasSiteId: false, photoDataUrl: "", photoCircleDataUrl: "" },
   supervisorLeaveRequests: [],
   hrLeaveRequests: [],
   ceoLeaveRequests: [],
@@ -1554,6 +1554,8 @@ function startEditLeaveRequest(reqId){
     lastDay: req.last_day || "",
     hasToolBox: req.has_tool_box === true ? "yes" : (req.has_tool_box === false ? "no" : ""),
     toolBoxHandoverTo: req.tool_box_handover_to || "",
+    replacementRequired: req.replacement_required === true ? "yes" : (req.replacement_required === false ? "no" : ""),
+    replacementName: req.replacement_name || "",
     hasSiteId: req.has_site_id === true,
     photoDataUrl: req.employee_photo || "",
     photoCircleDataUrl: req.employee_photo_circle || "",
@@ -1563,7 +1565,7 @@ function startEditLeaveRequest(reqId){
 }
 
 async function openNewLeaveForm(){
-  state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", hasSiteId: false, photoDataUrl: "", photoCircleDataUrl: "", existingSignature: "" };
+  state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", replacementRequired: "", replacementName: "", hasSiteId: false, photoDataUrl: "", photoCircleDataUrl: "", existingSignature: "" };
   render();
   await loadMyLeaveRequests();
   // Auto-fill "last vacation" from their actual recorded vacation
@@ -1583,7 +1585,7 @@ async function openNewLeaveForm(){
 function cancelEditLeaveRequest(){
   state.editingLeaveRequestId = null;
   leaveSigSnapshot = null;
-  state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", hasSiteId: false, photoDataUrl: "", photoCircleDataUrl: "", existingSignature: "" };
+  state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", replacementRequired: "", replacementName: "", hasSiteId: false, photoDataUrl: "", photoCircleDataUrl: "", existingSignature: "" };
   render();
 }
 
@@ -1646,6 +1648,9 @@ async function submitLeaveRequest(){
     has_tool_box: f.hasToolBox === "yes" ? true : (f.hasToolBox === "no" ? false : null),
     has_site_id: !!f.hasSiteId,
     tool_box_handover_to: f.toolBoxHandoverTo || null,
+    replacement_required: f.replacementRequired === "yes" ? true : (f.replacementRequired === "no" ? false : null),
+    replacement_name: f.replacementRequired === "yes" ? (f.replacementName || null) : null,
+    current_project_site: state.user.project_site || null,
     employee_signature: signatureData,
     employee_photo: f.photoDataUrl || null,
     employee_photo_circle: f.photoCircleDataUrl || null,
@@ -1674,7 +1679,7 @@ async function submitLeaveRequest(){
   state.loading = false;
   toast(error ? "Could not submit. Try again." : (isEditing ? "Leave application updated and resubmitted." : "Leave application submitted to your supervisor."));
   if(!error){
-    state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", hasSiteId: false, photoDataUrl: "", photoCircleDataUrl: "", existingSignature: "" };
+    state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", replacementRequired: "", replacementName: "", hasSiteId: false, photoDataUrl: "", photoCircleDataUrl: "", existingSignature: "" };
     leaveSigHasStroke = false;
     leaveSigSnapshot = null;
     state.editingLeaveRequestId = null;
@@ -2029,7 +2034,7 @@ async function generateLeavePdf(reqId){
 
     // ---- Section C: Employee Declaration ----
     sectionHeader("C", "Employee Declaration");
-    cardBody(100);
+    cardBody(130);
     doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(...INK);
     const hasBox = req.has_tool_box === true ? "YES" : req.has_tool_box === false ? "NO" : "-";
     const hasSiteId = req.has_site_id === true ? "YES" : req.has_site_id === false ? "NO" : "-";
@@ -2042,6 +2047,10 @@ async function generateLeavePdf(reqId){
       doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(...INK);
       doc.text("I will hand over my Site ID to my supervisor.", MARGIN + 14, y + 88, { maxWidth: declColW });
     }
+    doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(...INK);
+    doc.text(`Currently working on:  ${req.current_project_site || "-"}`, MARGIN + 14, y + 106, { maxWidth: declColW });
+    const replacementText = req.replacement_required === true ? `YES (${req.replacement_name || "name not given"})` : req.replacement_required === false ? "NO" : "-";
+    doc.text(`Replacement required:  ${replacementText}`, MARGIN + 14, y + 120, { maxWidth: declColW });
 
     const sigBoxX = MARGIN + colW + 10, sigBoxW = colW - 24, sigBoxH = 46, sigBoxY = y + 18;
     doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(...GREY);
@@ -2055,7 +2064,7 @@ async function generateLeavePdf(reqId){
       doc.setFont("helvetica","italic"); doc.setFontSize(8); doc.setTextColor(...GREY);
       doc.text("No signature on file", sigBoxX + 8, sigBoxY + sigBoxH/2 + 3);
     }
-    y += 100 + 16;
+    y += 130 + 16;
 
     // ---- Section D: 1st Approval ----
     sectionHeader("D", "1st Approval — Supervisor");
@@ -7132,6 +7141,20 @@ function renderLeaveForm(){
     </div>
 
     <div class="remarks-card" style="margin-top:12px;">
+      <label style="margin-top:0;color:#1B5A96;">📍 Current Assignment</label>
+      <div style="font-size:13px;font-weight:700;background:#fff;border-radius:8px;padding:8px 10px;border:1px solid #B8D4EC;">${state.user.project_site || "Not currently assigned to a project"}</div>
+      <label style="margin-top:10px;text-transform:none;font-weight:600;">Is a replacement required while I'm away?</label>
+      <div class="checklist" style="margin-bottom:10px;">
+        <label><input type="radio" name="replacementRequired" id="leaveReplacementYes" value="yes" ${f.replacementRequired==="yes"?"checked":""}> Yes, a replacement is needed</label>
+        <label><input type="radio" name="replacementRequired" id="leaveReplacementNo" value="no" ${f.replacementRequired==="no"?"checked":""}> No replacement needed</label>
+      </div>
+      ${f.replacementRequired === "yes" ? `
+      <label style="text-transform:none;font-weight:600;">Replacement's name</label>
+      <input type="text" id="leaveReplacementName" placeholder="Name" value="${f.replacementName}">
+      ` : ""}
+    </div>
+
+    <div class="remarks-card" style="margin-top:12px;">
       <label style="margin-top:0;color:#966109;">🪪 Site ID Declaration</label>
       <div class="checklist">
         <label><input type="checkbox" id="leaveSiteIdChk" ${f.hasSiteId?"checked":""}> I have my Site ID</label>
@@ -7186,6 +7209,7 @@ function renderLeaveReviewModal(req){
       <div class="meta">Mobile: ${req.mobile_number || "-"} ${req.home_mobile_number ? "• Home: " + req.home_mobile_number : ""}</div>
       <div style="margin-top:10px;font-size:14px;"><b>${req.first_day} → ${req.last_day}</b> (${req.number_of_days} day${req.number_of_days===1?"":"s"})</div>
       <div class="meta" style="margin-top:6px;">Tool box: ${req.has_tool_box===true?"Yes":req.has_tool_box===false?"No":"-"} ${req.tool_box_handover_to ? "• Handover to: " + req.tool_box_handover_to : ""} • Site ID: ${req.has_site_id===true?"Yes":req.has_site_id===false?"No":"-"}</div>
+      <div class="meta" style="margin-top:4px;">📍 Working on: <b>${req.current_project_site || "-"}</b> • Replacement needed: ${req.replacement_required===true?`Yes (${req.replacement_name || "name not given"})`:req.replacement_required===false?"No":"-"}</div>
       ${req.employee_signature ? `<div class="sig-preview" style="margin-top:10px;"><img src="${req.employee_signature}" alt="Employee signature"></div>` : ""}
     </div>
   `;
@@ -8709,6 +8733,7 @@ function handleDelegatedChange(e){
   if(e.target.id === "leaveFirstDay"){ state.leaveFormDraft.firstDay = e.target.value; render(); return; }
   if(e.target.id === "leaveLastDay"){ state.leaveFormDraft.lastDay = e.target.value; render(); return; }
   if(e.target.name === "hasToolBox"){ state.leaveFormDraft.hasToolBox = e.target.value; return; }
+  if(e.target.name === "replacementRequired"){ state.leaveFormDraft.replacementRequired = e.target.value; if(e.target.value === "no") state.leaveFormDraft.replacementName = ""; render(); return; }
   if(e.target.id === "leaveSiteIdChk"){ state.leaveFormDraft.hasSiteId = e.target.checked; return; }
   if(e.target.id === "vacationEmployeeSelect"){ state.vacationFormEmployeeId = e.target.value; return; }
   if(e.target.id === "vacationStartInput"){ state.vacationFormStart = e.target.value; return; }
@@ -8820,6 +8845,7 @@ function handleDelegatedInput(e){
   if(e.target.id === "leaveMobile"){ state.leaveFormDraft.mobileNumber = e.target.value; }
   if(e.target.id === "leaveHomeMobile"){ state.leaveFormDraft.homeMobileNumber = e.target.value; }
   if(e.target.id === "leaveHandoverTo"){ state.leaveFormDraft.toolBoxHandoverTo = e.target.value; }
+  if(e.target.id === "leaveReplacementName"){ state.leaveFormDraft.replacementName = e.target.value; }
   if(e.target.id === "purchaseItem"){ state.purchaseFormDraft.itemDescription = e.target.value; }
   if(e.target.id === "purchaseVendor"){ state.purchaseFormDraft.vendorName = e.target.value; }
   if(e.target.id === "purchaseAmount"){
