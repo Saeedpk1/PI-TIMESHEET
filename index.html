@@ -2566,11 +2566,15 @@ function promptDate(label, isoDefault){
 
 async function loadRenewalsScreen(){
   state.loading = true; render();
-  const [{ data: emps }, { data: vehicles }, { data: companyDocs }] = await Promise.all([
+  const [{ data: emps, error: empsError }, { data: vehicles, error: vehiclesError }, { data: companyDocs, error: companyDocsError }] = await Promise.all([
     sb.from("ts_employees").select("id, name, short_name, iqama_expiry_date, medical_insurance_expiry, passport_no, passport_expiry").eq("active", true).order("iqama_expiry_date"),
     sb.from("ts_vehicles").select("*").eq("active", true).order("plate_no"),
     sb.from("ts_company_documents").select("*").limit(1).maybeSingle()
   ]);
+  if(empsError || vehiclesError || companyDocsError){
+    console.error("Renewals screen load error:", empsError || vehiclesError || companyDocsError);
+    toast("Could not load Renewals data: " + (empsError?.message || vehiclesError?.message || companyDocsError?.message || "unknown error"));
+  }
   const allEmps = emps || [];
   state.employeesForRenewals = allEmps.filter(e => e.iqama_expiry_date || e.passport_expiry);
   state.companyMedicalExpiry = allEmps.find(e => e.medical_insurance_expiry)?.medical_insurance_expiry || "";
