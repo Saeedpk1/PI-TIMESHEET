@@ -7105,9 +7105,9 @@ function renderLeaveForm(){
 
     <div style="background:#F0F8FF;border:2px solid #B8D4EC;border-radius:12px;padding:12px;">
       <label style="margin-top:0;color:#1B5A96;">🗓️ Last Vacation Date</label>
-      <input type="date" id="leaveLastVacation" value="${f.lastVacationDate}" style="border-color:#B8D4EC;background:#E8F0F7;color:#5B6B7C;" readonly disabled>
+      <input type="date" id="leaveLastVacation" value="${f.lastVacationDate}" style="border-color:#B8D4EC;">
       ${f.lastVacationDate ? `<div class="field-note">📅 ${humanDuration(f.lastVacationDate)}</div>` : ""}
-      <div class="field-note" style="margin-top:4px;">This comes automatically from our records. If it looks wrong, contact HR to have it corrected — it can't be edited here.</div>
+      <div class="field-note" style="margin-top:4px;">This is filled in from our records — if it looks wrong, you can correct it here.</div>
 
       <label style="color:#1B5A96;">📱 Mobile Number</label>
       <input type="tel" id="leaveMobile" placeholder="05xxxxxxxx" value="${f.mobileNumber}" style="border-color:#B8D4EC;">
