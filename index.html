@@ -3850,9 +3850,12 @@ async function loadAllEmployeesForReport(){
 async function loadAllEmployeesForVacationForm(){
   // Broader than the Daily Report team list -- anyone active can go
   // on vacation, regardless of whether they have a short_name set or
-  // are excluded from daily reports.
+  // are excluded from daily reports. Excludes the Saudi team and the
+  // Owner, same as elsewhere in the app.
   const { data } = await sb.from("ts_employees").select("*").eq("active", true).order("name");
-  state.vacationFormEmployees = data || [];
+  state.vacationFormEmployees = (data || [])
+    .filter(e => e.supervisor_id !== state.hrmSupervisorId)
+    .filter(e => e.role !== "ceo");
   render();
 }
 
