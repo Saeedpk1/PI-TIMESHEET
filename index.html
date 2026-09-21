@@ -2363,12 +2363,25 @@ async function loadVacationsForDate(date){
 
 async function loadAllVacationsForManager(){
   state.loading = true; render();
-  const { data } = await sb.from("ts_vacations").select("*, ts_employees:employee_id(name)").order("start_date", { ascending: false });
+  const [{ data: vacations, error: vacError }, { data: employees }] = await Promise.all([
+    sb.from("ts_vacations").select("*").order("start_date", { ascending: false }),
+    sb.from("ts_employees").select("id, name, active")
+  ]);
+  if(vacError) console.error("Vacation fetch error:", vacError);
+  const employeeById = {};
+  (employees || []).forEach(e => { employeeById[e.id] = e; });
   // Always show the employee's actual current name, not whatever text
   // happened to be typed in when this specific vacation was added --
   // otherwise the same person can appear to be two different people
-  // if their name was entered differently at different times.
-  state.managerVacations = (data || []).map(v => ({ ...v, employee_name: v.ts_employees?.name || v.employee_name }));
+  // if their name was entered differently at different times. Also
+  // drop vacation records for employees who are no longer active --
+  // they shouldn't clutter this list once someone's left the company.
+  state.managerVacations = (vacations || [])
+    .map(v => {
+      const emp = employeeById[v.employee_id];
+      return { ...v, employee_name: emp ? emp.name : v.employee_name, _employeeActive: emp ? emp.active : true };
+    })
+    .filter(v => v._employeeActive !== false);
   state.loading = false;
   render();
 }
