@@ -465,6 +465,7 @@ let state = {
   dailyReportDate: todayLocalISO(),
   todayVacations: [],
   vacationFormEmployeeId: "",
+  vacationFormEmployees: [],
   vacationManagerReturnView: "daily-report-form",
   vacationFormStart: "",
   vacationFormEnd: "",
@@ -2382,6 +2383,16 @@ async function loadAllVacationsForManager(){
       return { ...v, employee_name: emp ? emp.name : v.employee_name, _employeeActive: emp ? emp.active : true };
     })
     .filter(v => v._employeeActive !== false);
+  // Only show each employee's single most recent vacation entry in
+  // this list -- older entries for the same person stay in the
+  // database untouched (still visible in My Profile / Employee
+  // Directory), just not repeated here once a newer one exists.
+  const latestByEmployee = {};
+  state.managerVacations.forEach(v => {
+    const existing = latestByEmployee[v.employee_id];
+    if(!existing || v.start_date > existing.start_date) latestByEmployee[v.employee_id] = v;
+  });
+  state.managerVacations = Object.values(latestByEmployee).sort((a,b) => (b.start_date||"").localeCompare(a.start_date||""));
   state.loading = false;
   render();
 }
@@ -3834,6 +3845,14 @@ async function handleAddUnitFromReport(projectId, selectEl){
 async function loadAllEmployeesForReport(){
   const { data } = await sb.from("ts_employees").select("*").eq("active", true).eq("exclude_from_daily_reports", false).not("short_name", "is", null).order("short_name");
   state.allEmployeesForReport = data || [];
+}
+
+async function loadAllEmployeesForVacationForm(){
+  // Broader than the Daily Report team list -- anyone active can go
+  // on vacation, regardless of whether they have a short_name set or
+  // are excluded from daily reports.
+  const { data } = await sb.from("ts_employees").select("*").eq("active", true).order("name");
+  state.vacationFormEmployees = data || [];
 }
 
 async function loadDailyReportsForDate(date){
@@ -6820,7 +6839,7 @@ function renderRenewalsScreen(){
 }
 
 function renderVacationManager(){
-  const employeeOptions = state.allEmployeesForReport.map(e => `<option value="${e.id}" ${state.vacationFormEmployeeId===e.id?"selected":""}>${e.short_name || e.name}</option>`).join("");
+  const employeeOptions = state.vacationFormEmployees.map(e => `<option value="${e.id}" ${state.vacationFormEmployeeId===e.id?"selected":""}>${e.short_name || e.name}</option>`).join("");
   const today = todayLocalISO();
   const upcoming = state.managerVacations.filter(v => v.end_date >= today);
   const past = state.managerVacations.filter(v => v.end_date < today);
@@ -8947,13 +8966,14 @@ function handleDelegatedClick(e){
     state.view = "vacation-manager";
     state.vacationManagerReturnView = "daily-report-form";
     loadAllVacationsForManager();
+    loadAllEmployeesForVacationForm();
     return;
   }
   if(el("openVacationManagerFromHrBtn")){
     state.view = "vacation-manager";
     state.vacationManagerReturnView = "hr";
     loadAllVacationsForManager();
-    loadAllEmployeesForReport();
+    loadAllEmployeesForVacationForm();
     return;
   }
   if(el("addVacationBtn")){ addVacation(); return; }
