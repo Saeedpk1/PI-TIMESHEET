@@ -2758,14 +2758,15 @@ async function loadCommissionTracker(year){
   state.loading = true; render();
   const yearStart = `${state.commissionYear}-01-01`;
   const yearEnd = `${state.commissionYear}-12-31`;
-  const [{ data: payments }, { data: rates }, { data: losses }, { data: paidOut }, { data: settings }, { data: overrides }, { data: ownerOpening }] = await Promise.all([
+  const [{ data: payments }, { data: rates }, { data: losses }, { data: paidOut }, { data: settings }, { data: overrides }, { data: ownerOpening }, { data: rajeshOpening }] = await Promise.all([
     sb.from("ts_financial_payments").select("invoice_no, project, company, amount, payment_date, report_date").gte("report_date", yearStart).lte("report_date", yearEnd).order("report_date", { ascending: true }),
     sb.from("ts_commission_owner_rates").select("*").gte("month", `${state.commissionYear}-01`).lte("month", `${state.commissionYear}-12`),
     sb.from("ts_commission_project_loss").select("*").gte("month", `${state.commissionYear}-01`).lte("month", `${state.commissionYear}-12`).order("created_at"),
     sb.from("ts_commission_payments").select("*").order("payment_date", { ascending: false }),
     sb.from("ts_commission_settings").select("*").maybeSingle(),
     sb.from("ts_commission_collection_override").select("*").gte("month", `${state.commissionYear}-01`).lte("month", `${state.commissionYear}-12`),
-    sb.from("ts_commission_owner_opening_balance").select("*").eq("year", state.commissionYear).maybeSingle()
+    sb.from("ts_commission_owner_opening_balance").select("*").eq("year", state.commissionYear).maybeSingle(),
+    sb.from("ts_commission_rajesh_opening_balance").select("*").eq("year", state.commissionYear).maybeSingle()
   ]);
   state.commissionMonthlyPayments = payments || [];
   const rateMap = {};
@@ -2773,7 +2774,10 @@ async function loadCommissionTracker(year){
   state.commissionOwnerRates = rateMap;
   state.commissionProjectLoss = losses || [];
   state.commissionPayments = paidOut || [];
-  state.commissionOpeningBalance = settings ? Number(settings.rajesh_opening_balance) || 0 : 0;
+  // Per-year balance if this year has one set; otherwise fall back to
+  // the old single global running balance (for years before this
+  // per-year system existed).
+  state.commissionOpeningBalance = rajeshOpening ? Number(rajeshOpening.amount) || 0 : (settings ? Number(settings.rajesh_opening_balance) || 0 : 0);
   const overrideMap = {};
   (overrides || []).forEach(o => { overrideMap[o.month] = Number(o.amount); });
   state.commissionCollectionOverrides = overrideMap;
@@ -2817,6 +2821,43 @@ async function computeOwnerBalanceForYear(year){
   return { totalEarned, totalPaid, balance: totalEarned - totalPaid };
 }
 
+// Same idea as computeOwnerBalanceForYear, but for Rajesh's formula:
+// nothing under SAR 200,000/month collection (after project-loss
+// deductions), then a flat SAR 2,000 plus 2% of everything above
+// that. His payments are a simple running total, not a per-quarter
+// waterfall like the Owner's.
+async function computeRajeshBalanceForYear(year){
+  const yearStart = `${year}-01-01`;
+  const yearEnd = `${year}-12-31`;
+  const [{ data: payments }, { data: overrides }, { data: losses }, { data: rajeshOpening }, { data: allRajeshPaid }] = await Promise.all([
+    sb.from("ts_financial_payments").select("invoice_no, project, company, amount, payment_date, report_date").gte("report_date", yearStart).lte("report_date", yearEnd),
+    sb.from("ts_commission_collection_override").select("*").gte("month", `${year}-01`).lte("month", `${year}-12`),
+    sb.from("ts_commission_project_loss").select("*").gte("month", `${year}-01`).lte("month", `${year}-12`),
+    sb.from("ts_commission_rajesh_opening_balance").select("*").eq("year", year).maybeSingle(),
+    sb.from("ts_commission_payments").select("*").eq("recipient", "rajesh")
+  ]);
+  const overrideMap = {}; (overrides||[]).forEach(o=>{ overrideMap[o.month] = Number(o.amount); });
+  const months = Array.from({length:12}, (_,i) => `${year}-${String(i+1).padStart(2,"0")}`);
+  const monthCollection = (mk) => {
+    if(overrideMap[mk] != null) return overrideMap[mk];
+    const inMonth = (payments||[]).filter(v=>v.report_date.slice(0,7)===mk);
+    const latestByKey = {};
+    inMonth.forEach(v=>{ const key=v.invoice_no||`no-number-${v.project}-${v.company}-${v.payment_date}-${v.amount}`; if(!latestByKey[key]||v.report_date>=latestByKey[key].report_date) latestByKey[key]=v; });
+    return Object.values(latestByKey).reduce((s,v)=>s+Number(v.amount||0),0);
+  };
+  const openingForThatYear = rajeshOpening ? Number(rajeshOpening.amount) || 0 : 0;
+  const totalEarned = months.reduce((sum, mk) => {
+    const collection = monthCollection(mk);
+    const lossDeduction = (losses||[]).filter(l=>l.month===mk).reduce((s,l)=>s+Number(l.amount||0),0);
+    const net = collection - lossDeduction;
+    const afterThreshold = Math.max(net - 200000, 0);
+    const flatFee = afterThreshold > 0 ? 2000 : 0;
+    return sum + afterThreshold * 0.02 + flatFee;
+  }, openingForThatYear);
+  const totalPaid = (allRajeshPaid||[]).reduce((s,p)=>s+Number(p.amount||0),0);
+  return { totalEarned, totalPaid, balance: totalEarned - totalPaid };
+}
+
 async function carryForwardOwnerBalance(){
   const prevYear = state.commissionYear - 1;
   state.loading = true; render();
@@ -2833,19 +2874,53 @@ async function carryForwardOwnerBalance(){
   await loadCommissionTracker(state.commissionYear);
 }
 
+async function carryForwardRajeshBalance(){
+  const prevYear = state.commissionYear - 1;
+  state.loading = true; render();
+  const { balance } = await computeRajeshBalanceForYear(prevYear);
+  state.loading = false; render();
+  const input = prompt(`${prevYear}'s unpaid balance came to SAR ${balance.toFixed(2)}. Use this as ${state.commissionYear}'s opening balance? Edit if needed:`, balance.toFixed(2));
+  if(input === null) return;
+  const amt = Number(input);
+  if(isNaN(amt)){ toast("Enter a valid amount."); return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_commission_rajesh_opening_balance").upsert({ year: state.commissionYear, amount: amt }, { onConflict: "year" });
+  state.loading = false;
+  toast(error ? "Could not save. Try again." : "Opening balance set.");
+  await loadCommissionTracker(state.commissionYear);
+}
+
+async function editRajeshOpeningBalance(){
+  const input = prompt(`Opening balance for ${state.commissionYear} (SAR):`, state.commissionOpeningBalance);
+  if(input === null) return;
+  const amt = Number(input);
+  if(isNaN(amt)){ toast("Enter a valid amount."); return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_commission_rajesh_opening_balance").upsert({ year: state.commissionYear, amount: amt }, { onConflict: "year" });
+  state.loading = false;
+  toast(error ? "Could not save. Try again." : "Opening balance updated.");
+  await loadCommissionTracker(state.commissionYear);
+}
+
 async function closeCommissionYear(){
   const closingYear = state.commissionYear;
   const nextYear = closingYear + 1;
   state.loading = true; render();
-  const { balance } = await computeOwnerBalanceForYear(closingYear);
+  const [ownerResult, rajeshResult] = await Promise.all([
+    computeOwnerBalanceForYear(closingYear),
+    computeRajeshBalanceForYear(closingYear)
+  ]);
   state.loading = false; render();
-  const confirmed = confirm(`Close year ${closingYear}?\n\nThis carries the Owner's unpaid balance (SAR ${balance.toFixed(2)}) forward as ${nextYear}'s opening balance, and switches you to ${nextYear}.\n\nAre you sure you want to close year ${closingYear}?`);
+  const confirmed = confirm(`Close year ${closingYear}?\n\nOwner's unpaid balance: SAR ${ownerResult.balance.toFixed(2)}\nRajesh's unpaid balance: SAR ${rajeshResult.balance.toFixed(2)}\n\nBoth carry forward as ${nextYear}'s opening balances, and you'll switch to ${nextYear}.\n\nAre you sure you want to close year ${closingYear}?`);
   if(!confirmed) return;
   state.loading = true; render();
-  const { error } = await sb.from("ts_commission_owner_opening_balance").upsert({ year: nextYear, amount: balance }, { onConflict: "year" });
+  const [{ error: ownerError }, { error: rajeshError }] = await Promise.all([
+    sb.from("ts_commission_owner_opening_balance").upsert({ year: nextYear, amount: ownerResult.balance }, { onConflict: "year" }),
+    sb.from("ts_commission_rajesh_opening_balance").upsert({ year: nextYear, amount: rajeshResult.balance }, { onConflict: "year" })
+  ]);
   state.loading = false;
-  if(error){ toast("Could not close the year. Try again."); return; }
-  toast(`${closingYear} closed. ${nextYear} opens with SAR ${balance.toFixed(2)} carried forward.`);
+  if(ownerError || rajeshError){ toast("Could not close the year. Try again."); return; }
+  toast(`${closingYear} closed. ${nextYear} opens with balances carried forward.`);
   await loadCommissionTracker(nextYear);
 }
 
@@ -6423,7 +6498,13 @@ function renderCommissionTracker(){
         <button class="btn btn-outline btn-sm" id="editCommissionCollectionBtn" style="flex:1;">✎ Edit Collection</button>
         <button class="btn btn-outline btn-sm" id="editCommissionLossBtn" style="flex:1;">➖ Project Loss</button>
       </div>
-      <div class="meta" style="margin-top:6px;">Opening balance carried in: SAR ${fmt(state.commissionOpeningBalance)}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding:6px 8px;background:#EAF1FC;border-radius:6px;">
+        <span class="meta" style="margin:0;">Opening balance (${state.commissionYear}): <b style="color:#0F3D6E;">SAR ${fmt(state.commissionOpeningBalance)}</b></span>
+        <span style="display:flex;gap:6px;">
+          <button id="editRajeshOpeningBalanceBtn" style="border:none;background:none;color:var(--blue);cursor:pointer;font-size:11px;">✎ Edit</button>
+          <button id="carryForwardRajeshBalanceBtn" style="border:none;background:none;color:var(--blue);cursor:pointer;font-size:11px;">↪ From ${state.commissionYear-1}</button>
+        </span>
+      </div>
       <div style="text-align:right;font-weight:800;font-size:13px;color:#1B5A96;margin-top:4px;">Total Earned: SAR ${fmt(rajeshTotal)}</div>
       <div style="text-align:right;font-weight:800;font-size:13px;color:#1C8A4E;">Total Paid: SAR ${fmt(rajeshPaidTotal)}</div>
       <div style="text-align:right;font-weight:800;font-size:14px;color:${(rajeshTotal-rajeshPaidTotal)>0?"var(--absent)":"var(--present)"};">Balance Owed: SAR ${fmt(rajeshTotal-rajeshPaidTotal)}</div>
@@ -8852,6 +8933,8 @@ function handleDelegatedClick(e){
   if(el("commissionYearPrevBtn")){ loadCommissionTracker(state.commissionYear - 1); return; }
   if(el("commissionYearNextBtn")){ loadCommissionTracker(state.commissionYear + 1); return; }
   if(el("closeCommissionYearBtn")){ closeCommissionYear(); return; }
+  if(el("editRajeshOpeningBalanceBtn")){ editRajeshOpeningBalance(); return; }
+  if(el("carryForwardRajeshBalanceBtn")){ carryForwardRajeshBalance(); return; }
   const addCommissionLossEl = e.target.closest("[data-add-commission-loss]");
   if(addCommissionLossEl){ addCommissionProjectLoss(addCommissionLossEl.getAttribute("data-add-commission-loss")); return; }
   const deleteCommissionLossEl = e.target.closest("[data-delete-commission-loss]");
