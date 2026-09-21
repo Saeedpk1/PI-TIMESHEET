@@ -2406,6 +2406,24 @@ async function deleteVacation(id){
 }
 
 /* ---------------- Renewals & document expiry ---------------- */
+function fmtDDMMYYYY(dateStr){
+  if(!dateStr) return "-";
+  const [y,m,d] = dateStr.split("-");
+  if(!y || !m || !d) return dateStr;
+  return `${d}-${m}-${y}`;
+}
+
+function vacationStats(start, end){
+  // Duration of the vacation itself, and how many days have passed
+  // since the employee returned (end date) up to today.
+  const startD = new Date(start + "T00:00:00");
+  const endD = new Date(end + "T00:00:00");
+  const today = new Date(todayLocalISO() + "T00:00:00");
+  const durationDays = Math.round((endD - startD) / 86400000) + 1;
+  const daysSinceReturn = Math.round((today - endD) / 86400000);
+  return { durationDays, daysSinceReturn };
+}
+
 function daysUntil(dateStr){
   if(!dateStr) return null;
   const target = new Date(dateStr + "T00:00:00");
@@ -5686,12 +5704,29 @@ function renderEmployeeDirectory(){
 
     ${(() => {
       const empVacations = state.directoryVacations.filter(v => v.employee_id === emp.id);
-      const vacationRows = empVacations.length
-        ? empVacations.map(v => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid rgba(0,0,0,0.06);">
-            <span style="font-size:12px;opacity:0.85;">🌴 ${v.start_date} → ${v.end_date}</span>
-          </div>`).join("")
-        : `<div style="padding:8px 0;font-size:12px;opacity:0.7;">No vacation on record.</div>`;
+      let vacationRows;
+      if(empVacations.length){
+        vacationRows = empVacations.map((v,idx) => {
+          const { durationDays, daysSinceReturn } = vacationStats(v.start_date, v.end_date);
+          const isFuture = v.start_date > todayLocalISO();
+          let badge = "";
+          if(idx === 0 && !isFuture){
+            const overdue = daysSinceReturn > 365;
+            const dueSoon = daysSinceReturn >= 300 && daysSinceReturn <= 365;
+            const bg = overdue ? "#FDECEA" : (dueSoon ? "#FDF3E6" : "#EAF6ED");
+            const fg = overdue ? "var(--absent)" : (dueSoon ? "#C4791F" : "var(--present)");
+            const label = overdue ? "Overdue for vacation" : (dueSoon ? "Due soon" : "On track");
+            badge = `<span style="background:${bg};color:${fg};font-size:9px;font-weight:800;padding:2px 6px;border-radius:999px;margin-left:6px;">${label}</span>`;
+          }
+          return `
+          <div style="padding:8px 0;border-top:1px solid rgba(0,0,0,0.06);">
+            <div style="font-size:12px;opacity:0.85;">🌴 ${fmtDDMMYYYY(v.start_date)} → ${fmtDDMMYYYY(v.end_date)} • ${durationDays} day(s)${badge}</div>
+            ${idx === 0 ? `<div style="font-size:10.5px;opacity:0.65;margin-top:2px;">${isFuture ? "Upcoming" : `${daysSinceReturn} day(s) since returned`}</div>` : ""}
+          </div>`;
+        }).join("");
+      }else{
+        vacationRows = `<div style="padding:8px 0;font-size:12px;opacity:0.7;">No vacation on record.</div>`;
+      }
       return section("🌴 VACATION HISTORY", "#6B4FC4", "#F3EAFB", vacationRows);
     })()}
 
@@ -6448,15 +6483,29 @@ function renderVacationManager(){
   const upcoming = state.managerVacations.filter(v => v.end_date >= today);
   const past = state.managerVacations.filter(v => v.end_date < today);
 
-  const rowHtml = v => `
+  const rowHtml = v => {
+    const { durationDays, daysSinceReturn } = vacationStats(v.start_date, v.end_date);
+    const isFuture = v.start_date > todayLocalISO();
+    let badge = "";
+    if(!isFuture){
+      const overdue = daysSinceReturn > 365;
+      const dueSoon = daysSinceReturn >= 300 && daysSinceReturn <= 365;
+      const bg = overdue ? "#FDECEA" : (dueSoon ? "#FDF3E6" : "#EAF6ED");
+      const fg = overdue ? "var(--absent)" : (dueSoon ? "#C4791F" : "var(--present)");
+      const label = overdue ? "Overdue for vacation" : (dueSoon ? "Due soon" : "On track");
+      badge = `<span style="background:${bg};color:${fg};font-size:9px;font-weight:800;padding:2px 6px;border-radius:999px;margin-left:6px;">${label}</span>`;
+    }
+    return `
     <div class="emp-list-item li-approved">
       <div style="flex:1;min-width:0;">
         <div class="name">${v.employee_name}</div>
-        <div class="sub">${v.start_date} → ${v.end_date}</div>
+        <div class="sub">${fmtDDMMYYYY(v.start_date)} → ${fmtDDMMYYYY(v.end_date)} • ${durationDays} day(s) vacation</div>
+        <div class="sub">${isFuture ? "Upcoming" : `${daysSinceReturn} day(s) since returned`}${badge}</div>
       </div>
       <button class="link-btn" data-edit-vacation="${v.id}" style="color:var(--blue) !important;margin-right:8px;">✎ Edit</button>
       <button class="link-btn" data-delete-vacation="${v.id}" style="color:var(--absent) !important;">🗑 Remove</button>
     </div>`;
+  };
 
   return `
     <button class="back-link-glow" id="${state.vacationManagerReturnView === "hr" ? "backToHrBtn" : "backToDailyReportBtn"}" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
