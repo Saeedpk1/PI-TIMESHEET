@@ -510,6 +510,7 @@ let state = {
   commissionProjectLoss: [], // rows from ts_commission_project_loss
   commissionPayments: [], // rows from ts_commission_payments
   commissionOpeningBalance: 0,
+  commissionOwnerOpeningBalance: 0,
   commissionCollectionOverrides: {},
   ceoTimesheetSummaryMonth: "",
   ceoTimesheetSummaryRows: [],
@@ -2757,13 +2758,14 @@ async function loadCommissionTracker(year){
   state.loading = true; render();
   const yearStart = `${state.commissionYear}-01-01`;
   const yearEnd = `${state.commissionYear}-12-31`;
-  const [{ data: payments }, { data: rates }, { data: losses }, { data: paidOut }, { data: settings }, { data: overrides }] = await Promise.all([
+  const [{ data: payments }, { data: rates }, { data: losses }, { data: paidOut }, { data: settings }, { data: overrides }, { data: ownerOpening }] = await Promise.all([
     sb.from("ts_financial_payments").select("invoice_no, project, company, amount, payment_date, report_date").gte("report_date", yearStart).lte("report_date", yearEnd).order("report_date", { ascending: true }),
     sb.from("ts_commission_owner_rates").select("*").gte("month", `${state.commissionYear}-01`).lte("month", `${state.commissionYear}-12`),
     sb.from("ts_commission_project_loss").select("*").gte("month", `${state.commissionYear}-01`).lte("month", `${state.commissionYear}-12`).order("created_at"),
     sb.from("ts_commission_payments").select("*").order("payment_date", { ascending: false }),
     sb.from("ts_commission_settings").select("*").maybeSingle(),
-    sb.from("ts_commission_collection_override").select("*").gte("month", `${state.commissionYear}-01`).lte("month", `${state.commissionYear}-12`)
+    sb.from("ts_commission_collection_override").select("*").gte("month", `${state.commissionYear}-01`).lte("month", `${state.commissionYear}-12`),
+    sb.from("ts_commission_owner_opening_balance").select("*").eq("year", state.commissionYear).maybeSingle()
   ]);
   state.commissionMonthlyPayments = payments || [];
   const rateMap = {};
@@ -2775,8 +2777,88 @@ async function loadCommissionTracker(year){
   const overrideMap = {};
   (overrides || []).forEach(o => { overrideMap[o.month] = Number(o.amount); });
   state.commissionCollectionOverrides = overrideMap;
+  state.commissionOwnerOpeningBalance = ownerOpening ? Number(ownerOpening.amount) || 0 : 0;
   state.loading = false;
   render();
+}
+
+// Computes a given year's Owner commission balance (earned minus
+// paid) independently, without disturbing whatever year is currently
+// loaded -- used to carry a balance forward into a new year.
+async function computeOwnerBalanceForYear(year){
+  const yearStart = `${year}-01-01`;
+  const yearEnd = `${year}-12-31`;
+  const [{ data: payments }, { data: rates }, { data: overrides }, { data: ownerOpening }, { data: allOwnerPaid }] = await Promise.all([
+    sb.from("ts_financial_payments").select("invoice_no, project, company, amount, payment_date, report_date").gte("report_date", yearStart).lte("report_date", yearEnd),
+    sb.from("ts_commission_owner_rates").select("*").gte("month", `${year}-01`).lte("month", `${year}-12`),
+    sb.from("ts_commission_collection_override").select("*").gte("month", `${year}-01`).lte("month", `${year}-12`),
+    sb.from("ts_commission_owner_opening_balance").select("*").eq("year", year).maybeSingle(),
+    sb.from("ts_commission_payments").select("*").eq("recipient", "owner")
+  ]);
+  const rateMap = {}; (rates||[]).forEach(r=>{ rateMap[r.month] = Number(r.rate); });
+  const overrideMap = {}; (overrides||[]).forEach(o=>{ overrideMap[o.month] = Number(o.amount); });
+  const months = Array.from({length:12}, (_,i) => `${year}-${String(i+1).padStart(2,"0")}`);
+  const monthCollection = (mk) => {
+    if(overrideMap[mk] != null) return overrideMap[mk];
+    const inMonth = (payments||[]).filter(v=>v.report_date.slice(0,7)===mk);
+    const latestByKey = {};
+    inMonth.forEach(v=>{ const key=v.invoice_no||`no-number-${v.project}-${v.company}-${v.payment_date}-${v.amount}`; if(!latestByKey[key]||v.report_date>=latestByKey[key].report_date) latestByKey[key]=v; });
+    return Object.values(latestByKey).reduce((s,v)=>s+Number(v.amount||0),0);
+  };
+  const quarters = [months.slice(0,3), months.slice(3,6), months.slice(6,9), months.slice(9,12)];
+  const quarterCommissions = quarters.map(qMonths => qMonths.reduce((s,mk)=>{
+    const rate = rateMap[mk] != null ? rateMap[mk] : 0.10;
+    return s + monthCollection(mk) * rate;
+  }, 0));
+  const openingForThatYear = ownerOpening ? Number(ownerOpening.amount) || 0 : 0;
+  const totalEarned = openingForThatYear + quarterCommissions.reduce((s,c)=>s+c,0);
+  const alloc = allocateOwnerPaymentsToQuarters(quarterCommissions, allOwnerPaid || []);
+  const totalPaid = alloc.reduce((s,q)=>s+q.paid,0);
+  return { totalEarned, totalPaid, balance: totalEarned - totalPaid };
+}
+
+async function carryForwardOwnerBalance(){
+  const prevYear = state.commissionYear - 1;
+  state.loading = true; render();
+  const { balance } = await computeOwnerBalanceForYear(prevYear);
+  state.loading = false; render();
+  const input = prompt(`${prevYear}'s unpaid balance came to SAR ${balance.toFixed(2)}. Use this as ${state.commissionYear}'s opening balance? Edit if needed:`, balance.toFixed(2));
+  if(input === null) return;
+  const amt = Number(input);
+  if(isNaN(amt)){ toast("Enter a valid amount."); return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_commission_owner_opening_balance").upsert({ year: state.commissionYear, amount: amt }, { onConflict: "year" });
+  state.loading = false;
+  toast(error ? "Could not save. Try again." : "Opening balance set.");
+  await loadCommissionTracker(state.commissionYear);
+}
+
+async function closeCommissionYear(){
+  const closingYear = state.commissionYear;
+  const nextYear = closingYear + 1;
+  state.loading = true; render();
+  const { balance } = await computeOwnerBalanceForYear(closingYear);
+  state.loading = false; render();
+  const confirmed = confirm(`Close year ${closingYear}?\n\nThis carries the Owner's unpaid balance (SAR ${balance.toFixed(2)}) forward as ${nextYear}'s opening balance, and switches you to ${nextYear}.\n\nAre you sure you want to close year ${closingYear}?`);
+  if(!confirmed) return;
+  state.loading = true; render();
+  const { error } = await sb.from("ts_commission_owner_opening_balance").upsert({ year: nextYear, amount: balance }, { onConflict: "year" });
+  state.loading = false;
+  if(error){ toast("Could not close the year. Try again."); return; }
+  toast(`${closingYear} closed. ${nextYear} opens with SAR ${balance.toFixed(2)} carried forward.`);
+  await loadCommissionTracker(nextYear);
+}
+
+async function editOwnerOpeningBalance(){
+  const input = prompt(`Opening balance for ${state.commissionYear} (SAR):`, state.commissionOwnerOpeningBalance);
+  if(input === null) return;
+  const amt = Number(input);
+  if(isNaN(amt)){ toast("Enter a valid amount."); return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_commission_owner_opening_balance").upsert({ year: state.commissionYear, amount: amt }, { onConflict: "year" });
+  state.loading = false;
+  toast(error ? "Could not save. Try again." : "Opening balance updated.");
+  await loadCommissionTracker(state.commissionYear);
 }
 
 function commissionCollectionForMonth(monthKey){
@@ -6275,13 +6357,13 @@ function renderCommissionTracker(){
   // that's fully paid, further payments automatically start counting
   // toward Q2, then Q3, and so on -- no manual quarter selection needed.
   const allocation = allocateOwnerPaymentsToQuarters(quarterCommissions, ownerPaid);
-  let ownerYearTotal = 0, ownerYearPaid = 0;
+  let ownerYearTotal = state.commissionOwnerOpeningBalance, ownerYearPaid = 0;
   const ownerRows = quarters.map((q, qi) => {
     const color = quarterColors[qi], textColor = quarterTextColors[qi];
-    const monthRows = q.months.map(mk => {
+    const monthRows = q.months.map((mk, mi) => {
       const o = commissionOwnerForMonth(mk);
       return `
-      <tr style="background:${color};border-bottom:1px solid rgba(255,255,255,0.6);">
+      <tr style="background:${color};border-bottom:1px solid rgba(255,255,255,0.6);${mi===0?`border-top:3px solid ${textColor};`:""}">
         <td style="padding:6px 4px;font-weight:700;color:${textColor};border-right:1px solid rgba(255,255,255,0.6);">${monthLabelShort(mk)}</td>
         <td style="padding:6px 4px;text-align:right;color:${textColor};border-right:1px solid rgba(255,255,255,0.6);">${fmt(o.collection)}</td>
         <td style="padding:6px 4px;text-align:right;font-weight:700;color:${textColor};">${fmt(o.commission)}</td>
@@ -6298,7 +6380,7 @@ function renderCommissionTracker(){
       <td colspan="2" style="padding:6px 4px;font-weight:800;color:${textColor};">${q.label} Total (Collection: ${fmt(qCollection)})</td>
       <td style="padding:6px 4px;text-align:right;font-weight:800;color:${textColor};">${fmt(qCommission)}</td>
     </tr>
-    <tr style="background:${color};">
+    <tr style="background:${color};border-bottom:3px solid ${textColor};">
       <td colspan="2" style="padding:4px 4px;font-size:10px;color:${textColor};">Paid this quarter: ${fmt(qPaidTotal)}${qPaidList.length ? " (" + qPaidList.map(p=>`${fmtDDMMYYYY(p.payment_date)}${p.appliedAmount !== p.amount ? " partial: "+fmt(p.appliedAmount) : ""}${p.isAdvance?" advance":""}`).join(", ") + ")" : ""}</td>
       <td style="padding:4px 4px;text-align:right;font-size:10.5px;font-weight:800;color:${qBalance>0?"var(--absent)":"var(--present)"};">Bal: ${fmt(qBalance)}</td>
     </tr>`;
@@ -6324,6 +6406,7 @@ function renderCommissionTracker(){
         <div style="font-weight:800;font-size:15px;">${state.commissionYear}</div>
         <button class="link-btn" id="commissionYearNextBtn">${state.commissionYear+1} ›</button>
       </div>
+      <button class="btn btn-outline btn-sm" id="closeCommissionYearBtn" style="width:100%;margin-top:10px;color:#B8912A;border-color:#B8912A;">🔒 Close Year ${state.commissionYear} & Start ${state.commissionYear+1}</button>
     </div>
 
     <div class="card" style="margin-top:12px;border:2px solid #1B5A96;">
@@ -6358,7 +6441,14 @@ function renderCommissionTracker(){
           <tbody>${ownerRows}</tbody>
         </table>
       </div>
-      <div style="text-align:right;font-weight:800;font-size:13px;color:#B8912A;margin-top:10px;">Year Total Earned: SAR ${fmt(ownerYearTotal)}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:6px 8px;background:#FDF6E3;border-radius:6px;">
+        <span class="meta" style="margin:0;">Opening balance (${state.commissionYear}): <b style="color:#8A6208;">SAR ${fmt(state.commissionOwnerOpeningBalance)}</b></span>
+        <span style="display:flex;gap:6px;">
+          <button id="editOwnerOpeningBalanceBtn" style="border:none;background:none;color:var(--blue);cursor:pointer;font-size:11px;">✎ Edit</button>
+          <button id="carryForwardOwnerBalanceBtn" style="border:none;background:none;color:var(--blue);cursor:pointer;font-size:11px;">↪ From ${state.commissionYear-1}</button>
+        </span>
+      </div>
+      <div style="text-align:right;font-weight:800;font-size:13px;color:#B8912A;margin-top:8px;">Year Total Earned: SAR ${fmt(ownerYearTotal)}</div>
       <div style="text-align:right;font-weight:800;font-size:13px;color:#1C8A4E;">Year Total Paid: SAR ${fmt(ownerYearPaid)}</div>
       <div style="text-align:right;font-weight:800;font-size:14px;color:${(ownerYearTotal-ownerYearPaid)>0?"var(--absent)":"var(--present)"};">Year Balance Owed: SAR ${fmt(ownerYearTotal-ownerYearPaid)}</div>
       <button class="btn btn-outline btn-sm" data-add-commission-payment="owner" style="width:100%;margin-top:8px;">+ Record Payment to Owner</button>
@@ -8761,6 +8851,7 @@ function handleDelegatedClick(e){
   }
   if(el("commissionYearPrevBtn")){ loadCommissionTracker(state.commissionYear - 1); return; }
   if(el("commissionYearNextBtn")){ loadCommissionTracker(state.commissionYear + 1); return; }
+  if(el("closeCommissionYearBtn")){ closeCommissionYear(); return; }
   const addCommissionLossEl = e.target.closest("[data-add-commission-loss]");
   if(addCommissionLossEl){ addCommissionProjectLoss(addCommissionLossEl.getAttribute("data-add-commission-loss")); return; }
   const deleteCommissionLossEl = e.target.closest("[data-delete-commission-loss]");
@@ -8771,6 +8862,8 @@ function handleDelegatedClick(e){
   if(editCommissionCollectionEl){ saveCommissionCollectionOverride(editCommissionCollectionEl.getAttribute("data-edit-commission-collection")); return; }
   if(el("editCommissionCollectionBtn")){ editCommissionCollectionPrompt(); return; }
   if(el("editCommissionLossBtn")){ editCommissionLossPrompt(); return; }
+  if(el("editOwnerOpeningBalanceBtn")){ editOwnerOpeningBalance(); return; }
+  if(el("carryForwardOwnerBalanceBtn")){ carryForwardOwnerBalance(); return; }
   const addCommissionPaymentEl = e.target.closest("[data-add-commission-payment]");
   if(addCommissionPaymentEl){ addCommissionPayment(addCommissionPaymentEl.getAttribute("data-add-commission-payment")); return; }
   const editCommissionPaymentEl = e.target.closest("[data-edit-commission-payment]");
