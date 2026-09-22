@@ -2865,11 +2865,11 @@ async function computeRajeshBalanceForYear(year){
   const openingForThatYear = rajeshOpening ? Number(rajeshOpening.amount) || 0 : 0;
   const totalEarned = months.reduce((sum, mk) => {
     const collection = monthCollection(mk);
-    const lossDeduction = (losses||[]).filter(l=>l.month===mk).reduce((s,l)=>s+Number(l.amount||0),0);
-    const net = collection - lossDeduction;
-    const afterThreshold = Math.max(net - 200000, 0);
+    const afterThreshold = Math.max(collection - 200000, 0);
     const flatFee = afterThreshold > 0 ? 2000 : 0;
-    return sum + afterThreshold * 0.02 + flatFee;
+    const fullCommission = afterThreshold * 0.02 + flatFee;
+    const lossDeduction = (losses||[]).filter(l=>l.month===mk).reduce((s,l)=>s+Number(l.amount||0)*0.02, 0);
+    return sum + fullCommission - lossDeduction;
   }, openingForThatYear);
   const totalPaid = (allRajeshPaid||[]).reduce((s,p)=>s+Number(p.amount||0),0);
   return { totalEarned, totalPaid, balance: totalEarned - totalPaid };
@@ -2972,12 +2972,18 @@ function commissionCollectionForMonth(monthKey){
 
 function commissionRajeshForMonth(monthKey){
   const collection = commissionCollectionForMonth(monthKey);
-  const lossDeduction = state.commissionProjectLoss.filter(l => l.month === monthKey).reduce((s,l)=>s+Number(l.amount||0),0);
-  const net = collection - lossDeduction;
-  const afterThreshold = Math.max(net - 200000, 0);
+  // Full commission on the full month's collection, with no
+  // deduction applied yet.
+  const afterThreshold = Math.max(collection - 200000, 0);
   const flatFee = afterThreshold > 0 ? 2000 : 0;
-  const commission = afterThreshold * 0.02 + flatFee;
-  return { collection, lossDeduction, net, afterThreshold, flatFee, commission };
+  const fullCommission = afterThreshold * 0.02 + flatFee;
+  // Each loss project's stored "amount" is now its total invoice
+  // value -- the deduction is 2% of that invoice (Rajesh's normal
+  // marginal rate), not the raw invoice amount itself.
+  const lossProjects = state.commissionProjectLoss.filter(l => l.month === monthKey);
+  const lossDeduction = lossProjects.reduce((s,l)=>s + Number(l.amount||0) * 0.02, 0);
+  const commission = fullCommission - lossDeduction;
+  return { collection, lossDeduction, afterThreshold, flatFee, fullCommission, commission };
 }
 
 function commissionOwnerForMonth(monthKey){
@@ -3050,7 +3056,7 @@ async function editCommissionLossPrompt(){
   if(!mk) return;
   const existing = state.commissionProjectLoss.filter(l=>l.month===mk);
   if(existing.length){
-    const names = existing.map((l,i)=>`${i+1} = ${l.project_name} (${l.amount})`).join("\n");
+    const names = existing.map((l,i)=>`${i+1} = ${l.project_name} — invoice ${l.amount} (2% = ${(Number(l.amount)*0.02).toFixed(2)} deducted)`).join("\n");
     const action = (prompt(`This month already has:\n${names}\n\nType a number to remove that one, or "new" to add another:`) || "").trim();
     if(action.toLowerCase() === "new"){
       await addCommissionProjectLoss(mk);
@@ -3079,7 +3085,7 @@ async function saveCommissionCollectionOverride(monthKey){
 async function addCommissionProjectLoss(monthKey){
   const projectName = (prompt(`Project name (in loss) for ${monthKey}:`) || "").trim();
   if(!projectName) return;
-  const amt = Number(prompt("Amount to exclude from Rajesh's commission (SAR):"));
+  const amt = Number(prompt("Total invoice value of this project (SAR) — 2% of this will be deducted from Rajesh's commission:"));
   if(isNaN(amt) || amt <= 0){ toast("Enter a valid amount."); return; }
   state.loading = true; render();
   const { error } = await sb.from("ts_commission_project_loss").insert({ month: monthKey, project_name: projectName, amount: amt });
@@ -6426,7 +6432,7 @@ function renderCommissionTracker(){
     <tr style="border-bottom:1px solid #E3ECF5;background:${mi%2===0?"#fff":"#F7FAFD"};">
       <td style="padding:7px 6px;font-weight:700;${cellB}">${monthLabelShort(mk)}</td>
       <td style="padding:7px 6px;text-align:right;${cellB}">${fmt(r.collection)}</td>
-      <td style="padding:7px 6px;text-align:right;${cellB}"><span style="font-weight:700;">${fmt(r.net)}</span>${lossNote}</td>
+      <td style="padding:7px 6px;text-align:right;${cellB}"><span style="font-weight:700;">${fmt(r.fullCommission)}</span>${lossNote}</td>
       <td style="padding:7px 6px;text-align:right;font-weight:800;color:#1C8A4E;">${fmt(r.commission)}</td>
     </tr>`;
   }).join("");
@@ -6507,7 +6513,7 @@ function renderCommissionTracker(){
       <div style="overflow-x:auto;margin-top:8px;border:1px solid #C9DCF0;border-radius:6px;">
         <table style="width:100%;font-size:10.5px;border-collapse:collapse;table-layout:fixed;">
           <colgroup><col style="width:15%;"><col style="width:27%;"><col style="width:33%;"><col style="width:25%;"></colgroup>
-          <thead><tr style="background:#1B5A96;color:#fff;"><th style="padding:6px 6px;text-align:left;${cellB}border-color:rgba(255,255,255,0.3);">Month</th><th style="padding:6px 6px;text-align:right;${cellB}border-color:rgba(255,255,255,0.3);">Collection</th><th style="padding:6px 6px;text-align:right;${cellB}border-color:rgba(255,255,255,0.3);">Net (after loss)</th><th style="padding:6px 6px;text-align:right;">Commission</th></tr></thead>
+          <thead><tr style="background:#1B5A96;color:#fff;"><th style="padding:6px 6px;text-align:left;${cellB}border-color:rgba(255,255,255,0.3);">Month</th><th style="padding:6px 6px;text-align:right;${cellB}border-color:rgba(255,255,255,0.3);">Collection</th><th style="padding:6px 6px;text-align:right;${cellB}border-color:rgba(255,255,255,0.3);">Full Commission</th><th style="padding:6px 6px;text-align:right;">Commission</th></tr></thead>
           <tbody>${rajeshRows}</tbody>
         </table>
       </div>
