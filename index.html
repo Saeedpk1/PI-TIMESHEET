@@ -3103,6 +3103,20 @@ async function deleteCommissionProjectLoss(id){
   await loadCommissionTracker(state.commissionYear);
 }
 
+async function editCommissionProjectLossEntry(id){
+  const entry = state.commissionProjectLoss.find(l => l.id === id);
+  if(!entry) return;
+  const projectName = (prompt("Project name:", entry.project_name) || "").trim();
+  if(!projectName) return;
+  const amt = Number(prompt("Total invoice value of this project (SAR) — 2% of this will be deducted from Rajesh's commission:", entry.amount));
+  if(isNaN(amt) || amt <= 0){ toast("Enter a valid amount."); return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_commission_project_loss").update({ project_name: projectName, amount: amt }).eq("id", id);
+  state.loading = false;
+  toast(error ? "Could not save. Try again." : "Project loss updated.");
+  await loadCommissionTracker(state.commissionYear);
+}
+
 async function addCommissionPayment(recipient){
   const dateInput = (prompt(`Payment date to ${recipient === "rajesh" ? "Rajesh" : "the Owner"} (YYYY-MM-DD):`, todayLocalISO()) || "").trim();
   if(!dateInput) return;
@@ -6442,7 +6456,7 @@ function renderCommissionTracker(){
   rajeshTotal -= totalLossDeduction;
   const rajeshLossRows = yearLosses.map(l => `
     <tr style="background:#FDF2F2;border-bottom:1px solid #F5D9D9;">
-      <td colspan="2" style="padding:6px 6px;${cellB}font-size:10.5px;color:var(--absent);">📉 ${l.project_name} <span style="opacity:0.75;">— invoice ${fmt(l.amount)}</span> <button data-delete-commission-loss="${l.id}" style="border:none;background:none;color:var(--absent);cursor:pointer;font-size:9.5px;">🗑</button></td>
+      <td colspan="2" style="padding:6px 6px;${cellB}font-size:10.5px;color:var(--absent);">📉 ${l.project_name} <span style="opacity:0.75;">— invoice ${fmt(l.amount)}</span> <button data-edit-commission-loss-entry="${l.id}" style="border:none;background:none;color:var(--blue);cursor:pointer;font-size:9.5px;">✎</button> <button data-delete-commission-loss="${l.id}" style="border:none;background:none;color:var(--absent);cursor:pointer;font-size:9.5px;">🗑</button></td>
       <td style="padding:6px 6px;text-align:right;font-weight:800;font-size:10.5px;color:var(--absent);">-${fmt(Number(l.amount)*0.02)}</td>
     </tr>`).join("");
 
@@ -9022,6 +9036,8 @@ function handleDelegatedClick(e){
   if(addCommissionLossEl){ addCommissionProjectLoss(addCommissionLossEl.getAttribute("data-add-commission-loss")); return; }
   const deleteCommissionLossEl = e.target.closest("[data-delete-commission-loss]");
   if(deleteCommissionLossEl){ deleteCommissionProjectLoss(deleteCommissionLossEl.getAttribute("data-delete-commission-loss")); return; }
+  const editCommissionLossEntryEl = e.target.closest("[data-edit-commission-loss-entry]");
+  if(editCommissionLossEntryEl){ editCommissionProjectLossEntry(editCommissionLossEntryEl.getAttribute("data-edit-commission-loss-entry")); return; }
   const editCommissionRateEl = e.target.closest("[data-edit-commission-rate]");
   if(editCommissionRateEl){ saveCommissionOwnerRate(editCommissionRateEl.getAttribute("data-edit-commission-rate")); return; }
   const editCommissionCollectionEl = e.target.closest("[data-edit-commission-collection]");
