@@ -7044,13 +7044,13 @@ function renderRenewalsScreen(){
 
     <div style="margin-top:14px;">${alertsCard}</div>
 
-    <div class="card" style="cursor:pointer;" id="toggleIqamaSectionBtn">
+    <div class="card" style="cursor:pointer;background:#EFA3A3;border:1px solid #7A1F1F66;" id="toggleIqamaSectionBtn">
       <div class="row-between">
         <div style="display:flex;align-items:center;gap:10px;">
           <span style="font-size:20px;">🪪</span>
-          <h3 style="font-size:14px;margin:0;">Iqama Expiry</h3>
+          <h3 style="font-size:14px;margin:0;color:#7A1F1F;">Iqama Expiry</h3>
         </div>
-        <span style="font-size:16px;font-weight:800;">${iqamaSectionOpenEffective ? "▲" : "▼"}</span>
+        <span style="font-size:16px;font-weight:800;color:#7A1F1F;">${iqamaSectionOpenEffective ? "▲" : "▼"}</span>
       </div>
     </div>
     ${iqamaSectionOpenEffective ? `
@@ -7060,13 +7060,13 @@ function renderRenewalsScreen(){
     </div>
     ` : ""}
 
-    <div class="card" style="margin-top:14px;padding:12px 14px;cursor:pointer;" id="togglePassportRenewalBtn">
+    <div class="card" style="margin-top:14px;padding:12px 14px;cursor:pointer;background:#A8CCEE;border:1px solid #0C3A6666;" id="togglePassportRenewalBtn">
       <div class="row-between">
         <div style="display:flex;align-items:center;gap:10px;">
           <span style="font-size:20px;">📔</span>
-          <div style="font-weight:800;font-size:13.5px;">Passport Renewal</div>
+          <div style="font-weight:800;font-size:13.5px;color:#0C3A66;">Passport Renewal</div>
         </div>
-        <span style="font-size:16px;font-weight:800;">${state.passportRenewalSectionOpen ? "▲" : "▼"}</span>
+        <span style="font-size:16px;font-weight:800;color:#0C3A66;">${state.passportRenewalSectionOpen ? "▲" : "▼"}</span>
       </div>
     </div>
     ${state.passportRenewalSectionOpen ? `
@@ -7076,8 +7076,8 @@ function renderRenewalsScreen(){
     </div>
     ` : ""}
 
-    <div class="card" style="margin-top:14px;">
-      <h3 style="font-size:14px;">🩺 Medical Insurance Renewal</h3>
+    <div class="card" style="margin-top:14px;background:#8FDDC0;border:1px solid #05403566;">
+      <h3 style="font-size:14px;color:#054035;">🩺 Medical Insurance Renewal</h3>
       <div class="meta">One policy for everyone — enter the date once and it applies to every employee automatically.</div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
         <input type="date" id="companyMedicalExpiryInput" value="${state.companyMedicalExpiry}" style="flex:1;">
@@ -7085,13 +7085,13 @@ function renderRenewalsScreen(){
       </div>
     </div>
 
-    <div class="card" style="margin-top:14px;padding:12px 14px;cursor:pointer;" id="toggleVehicleDocsSectionBtn">
+    <div class="card" style="margin-top:14px;padding:12px 14px;cursor:pointer;background:#C9AEE8;border:1px solid #3D2A6666;" id="toggleVehicleDocsSectionBtn">
       <div class="row-between">
         <div style="display:flex;align-items:center;gap:10px;">
           <span style="font-size:20px;">🚗</span>
-          <div style="font-weight:800;font-size:13.5px;">Vehicle Documents</div>
+          <div style="font-weight:800;font-size:13.5px;color:#3D2A66;">Vehicle Documents</div>
         </div>
-        <span style="font-size:16px;font-weight:800;">${state.vehicleDocsSectionOpen ? "▲" : "▼"}</span>
+        <span style="font-size:16px;font-weight:800;color:#3D2A66;">${state.vehicleDocsSectionOpen ? "▲" : "▼"}</span>
       </div>
     </div>
     ${state.vehicleDocsSectionOpen ? `
@@ -7104,8 +7104,8 @@ function renderRenewalsScreen(){
     </div>
     ` : ""}
 
-    <div class="card" style="margin-top:14px;">
-      <h3 style="font-size:14px;">🏢 Company Documents</h3>
+    <div class="card" style="margin-top:14px;background:#F0D488;border:1px solid #6B4E0A66;">
+      <h3 style="font-size:14px;color:#6B4E0A;">🏢 Company Documents</h3>
       <div class="meta">CR (Commercial Registration) and Room Rent / Accommodation expiry.</div>
       <label style="margin-top:10px;">CR Expiry</label>
       <input type="date" id="companyCrExpiryInput" value="${state.companyDocuments?.cr_expiry || ""}">
