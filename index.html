@@ -6425,17 +6425,26 @@ function renderCommissionTracker(){
   const cellB = "border-right:1px solid #E3ECF5;"; // vertical grid line
   const rajeshRows = months.map((mk, mi) => {
     const r = commissionRajeshForMonth(mk);
-    rajeshTotal += r.commission;
-    const lossEntries = state.commissionProjectLoss.filter(l=>l.month===mk);
-    const lossNote = lossEntries.length ? ` <span style="color:var(--absent);font-size:9px;">(-${fmt(r.lossDeduction)})</span>` : "";
+    rajeshTotal += r.fullCommission; // gross total across all months, before any loss deductions
     return `
     <tr style="border-bottom:1px solid #E3ECF5;background:${mi%2===0?"#fff":"#F7FAFD"};">
       <td style="padding:7px 6px;font-weight:700;${cellB}">${monthLabelShort(mk)}</td>
       <td style="padding:7px 6px;text-align:right;${cellB}">${fmt(r.collection)}</td>
-      <td style="padding:7px 6px;text-align:right;${cellB}"><span style="font-weight:700;">${fmt(r.fullCommission)}</span>${lossNote}</td>
-      <td style="padding:7px 6px;text-align:right;font-weight:800;color:#1C8A4E;">${fmt(r.commission)}</td>
+      <td style="padding:7px 6px;text-align:right;font-weight:800;color:#1C8A4E;">${fmt(r.fullCommission)}</td>
     </tr>`;
   }).join("");
+
+  // Loss projects appear once, as their own rows at the very bottom
+  // of this same table -- not repeated per month -- each showing its
+  // total invoice and the 2% coming off the overall total.
+  const yearLosses = months.flatMap(mk => state.commissionProjectLoss.filter(l=>l.month===mk));
+  const totalLossDeduction = yearLosses.reduce((s,l)=>s+Number(l.amount||0)*0.02, 0);
+  rajeshTotal -= totalLossDeduction;
+  const rajeshLossRows = yearLosses.map(l => `
+    <tr style="background:#FDF2F2;border-bottom:1px solid #F5D9D9;">
+      <td colspan="2" style="padding:6px 6px;${cellB}font-size:10.5px;color:var(--absent);">📉 ${l.project_name} <span style="opacity:0.75;">— invoice ${fmt(l.amount)}</span> <button data-delete-commission-loss="${l.id}" style="border:none;background:none;color:var(--absent);cursor:pointer;font-size:9.5px;">🗑</button></td>
+      <td style="padding:6px 6px;text-align:right;font-weight:800;font-size:10.5px;color:var(--absent);">-${fmt(Number(l.amount)*0.02)}</td>
+    </tr>`).join("");
 
   // Owner's section: all 12 months in one table, each quarter tinted
   // a different color, with a totals+balance row after each quarter's
@@ -6512,44 +6521,11 @@ function renderCommissionTracker(){
       <div class="meta">2% of the full collection above SAR 200,000/month, plus a flat SAR 2,000 once that threshold is met. Any projects marked as in-loss are then deducted separately below, at 2% of their invoice value.</div>
       <div style="overflow-x:auto;margin-top:8px;border:1px solid #C9DCF0;border-radius:6px;">
         <table style="width:100%;font-size:10.5px;border-collapse:collapse;table-layout:fixed;">
-          <colgroup><col style="width:15%;"><col style="width:27%;"><col style="width:33%;"><col style="width:25%;"></colgroup>
-          <thead><tr style="background:#1B5A96;color:#fff;"><th style="padding:6px 6px;text-align:left;${cellB}border-color:rgba(255,255,255,0.3);">Month</th><th style="padding:6px 6px;text-align:right;${cellB}border-color:rgba(255,255,255,0.3);">Collection</th><th style="padding:6px 6px;text-align:right;${cellB}border-color:rgba(255,255,255,0.3);">Full Commission</th><th style="padding:6px 6px;text-align:right;">Commission</th></tr></thead>
-          <tbody>${rajeshRows}</tbody>
+          <colgroup><col style="width:20%;"><col style="width:40%;"><col style="width:40%;"></colgroup>
+          <thead><tr style="background:#1B5A96;color:#fff;"><th style="padding:6px 6px;text-align:left;${cellB}border-color:rgba(255,255,255,0.3);">Month</th><th style="padding:6px 6px;text-align:right;${cellB}border-color:rgba(255,255,255,0.3);">Collection</th><th style="padding:6px 6px;text-align:right;">Commission</th></tr></thead>
+          <tbody>${rajeshRows}${rajeshLossRows}</tbody>
         </table>
       </div>
-      ${(() => {
-        const yearLosses = months.flatMap(mk => state.commissionProjectLoss.filter(l=>l.month===mk).map(l=>({ ...l, monthLabel: monthLabelShort(mk) })));
-        if(!yearLosses.length) return "";
-        const totalDeduction = yearLosses.reduce((s,l)=>s+Number(l.amount||0)*0.02, 0);
-        return `
-        <div style="margin-top:10px;">
-          <div style="font-weight:800;font-size:12px;color:var(--absent);">📉 Projects in Loss</div>
-          <div style="overflow-x:auto;margin-top:4px;border:1px solid #F0C2C2;border-radius:6px;">
-            <table style="width:100%;font-size:10px;border-collapse:collapse;table-layout:fixed;">
-              <colgroup><col style="width:16%;"><col style="width:32%;"><col style="width:26%;"><col style="width:26%;"></colgroup>
-              <thead><tr style="background:var(--absent);color:#fff;">
-                <th style="padding:5px 5px;text-align:left;">Month</th>
-                <th style="padding:5px 5px;text-align:left;">Project</th>
-                <th style="padding:5px 5px;text-align:right;">Total Invoice</th>
-                <th style="padding:5px 5px;text-align:right;">2% Deducted</th>
-              </tr></thead>
-              <tbody>
-                ${yearLosses.map((l,i) => `
-                <tr style="background:${i%2===0?"#fff":"#FDF2F2"};border-bottom:1px solid #F5D9D9;">
-                  <td style="padding:5px 5px;">${l.monthLabel}</td>
-                  <td style="padding:5px 5px;">${l.project_name} <button data-delete-commission-loss="${l.id}" style="border:none;background:none;color:var(--absent);cursor:pointer;font-size:9px;">🗑</button></td>
-                  <td style="padding:5px 5px;text-align:right;">${fmt(l.amount)}</td>
-                  <td style="padding:5px 5px;text-align:right;font-weight:700;color:var(--absent);">${fmt(Number(l.amount)*0.02)}</td>
-                </tr>`).join("")}
-                <tr style="background:#FDEAEA;border-top:2px solid var(--absent);">
-                  <td colspan="3" style="padding:6px 5px;font-weight:800;color:var(--absent);">Total deducted from Rajesh's commission</td>
-                  <td style="padding:6px 5px;text-align:right;font-weight:800;color:var(--absent);">${fmt(totalDeduction)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>`;
-      })()}
       <div style="display:flex;gap:8px;margin-top:8px;">
         <button class="btn btn-outline btn-sm" id="editCommissionCollectionBtn" style="flex:1;">✎ Edit Collection</button>
         <button class="btn btn-outline btn-sm" id="editCommissionLossBtn" style="flex:1;">➖ Project Loss</button>
