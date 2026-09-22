@@ -499,6 +499,8 @@ let state = {
   hrSecuritySectionOpen: false,
   biometricSectionOpen: false,
   passportRenewalSectionOpen: false,
+  iqamaSectionOpen: null,
+  vehicleDocsSectionOpen: false,
   ceoMoreSectionOpen: false,
   ceoSecuritySectionOpen: false,
   financialPoSectionOpen: false,
@@ -6961,6 +6963,10 @@ function renderRenewalsScreen(){
   const iqamaAlerts = state.employeesForRenewals
     .map(e => ({ ...e, days: daysUntil(e.iqama_expiry_date) }))
     .filter(e => e.days !== null && e.days <= 15);
+  // Open by default only if something's urgent (under 15 days) --
+  // once the user manually toggles it, their choice is respected
+  // instead of being recalculated every time.
+  const iqamaSectionOpenEffective = state.iqamaSectionOpen === null ? iqamaAlerts.length > 0 : state.iqamaSectionOpen;
   const medicalDays = daysUntil(state.companyMedicalExpiry);
   const medicalAlert = (medicalDays !== null && medicalDays <= 30) ? [{ days: medicalDays }] : [];
   const passportAlerts = state.employeesForRenewals
@@ -7038,11 +7044,21 @@ function renderRenewalsScreen(){
 
     <div style="margin-top:14px;">${alertsCard}</div>
 
-    <div class="card">
-      <h3 style="font-size:14px;">🪪 Iqama Expiry</h3>
+    <div class="card" style="cursor:pointer;" id="toggleIqamaSectionBtn">
+      <div class="row-between">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">🪪</span>
+          <h3 style="font-size:14px;margin:0;">Iqama Expiry</h3>
+        </div>
+        <span style="font-size:16px;font-weight:800;">${iqamaSectionOpenEffective ? "▲" : "▼"}</span>
+      </div>
+    </div>
+    ${iqamaSectionOpenEffective ? `
+    <div class="card" style="margin-top:8px;">
       <div class="meta">Update the date here right after a renewal — the alert clears itself automatically.</div>
       <div style="margin-top:6px;">${iqamaRows}</div>
     </div>
+    ` : ""}
 
     <div class="card" style="margin-top:14px;padding:12px 14px;cursor:pointer;" id="togglePassportRenewalBtn">
       <div class="row-between">
@@ -7069,13 +7085,24 @@ function renderRenewalsScreen(){
       </div>
     </div>
 
-    <div class="card" style="margin-top:14px;">
+    <div class="card" style="margin-top:14px;padding:12px 14px;cursor:pointer;" id="toggleVehicleDocsSectionBtn">
       <div class="row-between">
-        <h3 style="font-size:14px;margin:0;">🚗 Vehicle Documents</h3>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">🚗</span>
+          <div style="font-weight:800;font-size:13.5px;">Vehicle Documents</div>
+        </div>
+        <span style="font-size:16px;font-weight:800;">${state.vehicleDocsSectionOpen ? "▲" : "▼"}</span>
+      </div>
+    </div>
+    ${state.vehicleDocsSectionOpen ? `
+    <div class="card" style="margin-top:8px;">
+      <div class="row-between">
+        <div class="meta" style="margin:0;">Insurance, Istimara, Fahas, and Operation Card expiry per vehicle.</div>
         <button class="link-btn" id="addVehicleBtn" style="color:var(--blue) !important;">+ Add vehicle</button>
       </div>
       <div style="margin-top:6px;">${vehicleRows}</div>
     </div>
+    ` : ""}
 
     <div class="card" style="margin-top:14px;">
       <h3 style="font-size:14px;">🏢 Company Documents</h3>
@@ -8941,6 +8968,14 @@ function handleDelegatedClick(e){
   const savePassportEl = e.target.closest("[data-save-passport]");
   if(savePassportEl){ savePassportExpiry(savePassportEl.getAttribute("data-save-passport")); return; }
   if(el("togglePassportRenewalBtn")){ state.passportRenewalSectionOpen = !state.passportRenewalSectionOpen; render(); return; }
+  if(el("toggleIqamaSectionBtn")){
+    const iqamaAlertsNow = state.employeesForRenewals.map(e => daysUntil(e.iqama_expiry_date)).filter(d => d !== null && d <= 15);
+    const currentlyOpen = state.iqamaSectionOpen === null ? iqamaAlertsNow.length > 0 : state.iqamaSectionOpen;
+    state.iqamaSectionOpen = !currentlyOpen;
+    render();
+    return;
+  }
+  if(el("toggleVehicleDocsSectionBtn")){ state.vehicleDocsSectionOpen = !state.vehicleDocsSectionOpen; render(); return; }
   const autoRenewIqamaEl = e.target.closest("[data-auto-renew-iqama]");
   if(autoRenewIqamaEl){ autoRenewIqama(autoRenewIqamaEl.getAttribute("data-auto-renew-iqama")); return; }
   if(el("saveCompanyMedicalBtn")){ saveCompanyMedicalExpiry(); return; }
