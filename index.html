@@ -3051,6 +3051,12 @@ async function editCommissionCollectionPrompt(){
   await saveCommissionCollectionOverride(mk);
 }
 
+async function addCommissionLossDirect(){
+  const mk = commissionMonthPicker();
+  if(!mk) return;
+  await addCommissionProjectLoss(mk);
+}
+
 async function editCommissionLossPrompt(){
   const mk = commissionMonthPicker();
   if(!mk) return;
@@ -6542,7 +6548,8 @@ function renderCommissionTracker(){
       </div>
       <div style="display:flex;gap:8px;margin-top:8px;">
         <button class="btn btn-outline btn-sm" id="editCommissionCollectionBtn" style="flex:1;">✎ Edit Collection</button>
-        <button class="btn btn-outline btn-sm" id="editCommissionLossBtn" style="flex:1;">➖ Project Loss</button>
+        <button class="btn btn-outline btn-sm" id="addCommissionLossDirectBtn" style="flex:1;">➕ Add Loss Project</button>
+        <button class="btn btn-outline btn-sm" id="editCommissionLossBtn" style="flex:1;">✎ Manage Losses</button>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding:6px 8px;background:#EAF1FC;border-radius:6px;">
         <span class="meta" style="margin:0;">Opening balance (${state.commissionYear}): <b style="color:#0F3D6E;">SAR ${fmt(state.commissionOpeningBalance)}</b></span>
@@ -9043,6 +9050,7 @@ function handleDelegatedClick(e){
   const editCommissionCollectionEl = e.target.closest("[data-edit-commission-collection]");
   if(editCommissionCollectionEl){ saveCommissionCollectionOverride(editCommissionCollectionEl.getAttribute("data-edit-commission-collection")); return; }
   if(el("editCommissionCollectionBtn")){ editCommissionCollectionPrompt(); return; }
+  if(el("addCommissionLossDirectBtn")){ addCommissionLossDirect(); return; }
   if(el("editCommissionLossBtn")){ editCommissionLossPrompt(); return; }
   if(el("editOwnerOpeningBalanceBtn")){ editOwnerOpeningBalance(); return; }
   if(el("carryForwardOwnerBalanceBtn")){ carryForwardOwnerBalance(); return; }
