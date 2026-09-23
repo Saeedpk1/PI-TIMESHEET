@@ -6580,7 +6580,7 @@ function renderCommissionTracker(){
           <button data-edit-commission-loss-entry="${l.id}" style="border:none;background:none;color:var(--blue);cursor:pointer;font-size:11px;padding:2px;flex-shrink:0;">✎</button><button data-delete-commission-loss="${l.id}" style="border:none;background:none;color:var(--absent);cursor:pointer;font-size:11px;padding:2px;flex-shrink:0;">🗑</button>
         </div>
       </td>
-      <td style="padding:6px 6px;text-align:right;font-weight:800;font-size:10.5px;color:var(--absent);">-${fmt(Number(l.amount)*0.02)}</td>
+      <td style="padding:6px 6px;text-align:right;font-weight:800;font-size:10.5px;color:var(--absent);">${fmt(Number(l.amount)*0.02)}</td>
     </tr>`).join("");
 
   // Owner's section: all 12 months in one table, each quarter tinted
@@ -6658,7 +6658,7 @@ function renderCommissionTracker(){
       <div class="meta">2% of the full collection above SAR 200,000/month, plus a flat SAR 2,000 once that threshold is met. Any projects marked as in-loss are then deducted separately below, at 2% of their invoice value.</div>
       <div style="overflow-x:auto;margin-top:8px;border:1px solid #C9DCF0;border-radius:6px;">
         <table style="width:100%;font-size:10.5px;border-collapse:collapse;table-layout:fixed;">
-          <colgroup><col style="width:20%;"><col style="width:40%;"><col style="width:40%;"></colgroup>
+          <colgroup><col style="width:38%;"><col style="width:37%;"><col style="width:25%;"></colgroup>
           <thead><tr style="background:#1B5A96;color:#fff;"><th style="padding:6px 6px;text-align:left;${cellB}border-color:rgba(255,255,255,0.3);">Month</th><th style="padding:6px 6px;text-align:right;${cellB}border-color:rgba(255,255,255,0.3);">Collection</th><th style="padding:6px 6px;text-align:right;">Commission</th></tr></thead>
           <tbody>${rajeshRows}${rajeshLossRows}</tbody>
         </table>
