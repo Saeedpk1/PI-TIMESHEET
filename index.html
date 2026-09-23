@@ -466,6 +466,11 @@ let state = {
   todayVacations: [],
   vacationFormEmployeeId: "",
   vacationFormEmployees: [],
+  quoteEmployees: [],
+  quoteSelectedIds: [],
+  quoteDays: "",
+  quoteExtraCharges: "",
+  quotePrice: "",
   vacationManagerReturnView: "daily-report-form",
   vacationFormStart: "",
   vacationFormEnd: "",
@@ -4091,6 +4096,18 @@ async function loadAllEmployeesForVacationForm(){
   render();
 }
 
+async function loadProjectQuoteScreen(){
+  state.loading = true; render();
+  const { data } = await sb.from("ts_employees").select("id, name, short_name, expenses_per_day").eq("active", true).order("name");
+  state.quoteEmployees = (data || []).filter(e => Number(e.expenses_per_day) > 0);
+  state.quoteSelectedIds = [];
+  state.quoteDays = "";
+  state.quoteExtraCharges = "";
+  state.quotePrice = "";
+  state.loading = false;
+  render();
+}
+
 async function loadDailyReportsForDate(date){
   const { data } = await sb.from("ts_daily_reports")
     .select("*, ts_projects:project_id(name)")
@@ -5748,6 +5765,7 @@ function render(){
   else if(state.view === "vehicle-documents") body = renderVehicleDocumentsScreen();
   else if(state.view === "financial-report") body = renderFinancialReport();
   else if(state.view === "commission-tracker") body = renderCommissionTracker();
+  else if(state.view === "project-quote") body = renderProjectQuoteScreen();
   else if(state.view === "project-summary") body = renderProjectSummary();
   else if(state.view === "send-announcement") body = renderSendAnnouncement();
   else if(state.view === "send-hr-todo") body = renderSendHrTodo();
@@ -6062,6 +6080,7 @@ function renderRajeshDashboard(){
     <div class="hr-tile-grid-2col">
       <div class="hr-tile" id="openFinancialReportBtn" style="background:linear-gradient(135deg,#3E5D78,#2E4864);"><span class="icon">💰</span><span class="label">Financial<br>Report</span></div>
       <div class="hr-tile" id="openProjectSummaryBtn" style="background:linear-gradient(135deg,#3E5D78,#2E4864);"><span class="icon">📊</span><span class="label">Project<br>Summary</span></div>
+      <div class="hr-tile" id="openProjectQuoteBtn" style="background:linear-gradient(135deg,#3E5D78,#2E4864);"><span class="icon">📐</span><span class="label">Project<br>Quote</span></div>
     </div>
 
     <div class="hr-section-label" style="color:#E8A33D;">✅ Approvals</div>
@@ -6432,6 +6451,89 @@ function renderProjectSummary(){
     <button class="btn btn-sm" id="toggleProjectSummaryArchiveBtn" style="width:100%;margin-bottom:12px;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff;border:none;font-weight:800;">${showingArchived ? "📋 View Current Projects" : "📜 View History (completed/archived)"}</button>
     ${canEdit ? `<div class="field-note" style="margin-bottom:10px;">${showingArchived ? "Tap ↩ to bring a project back to the current list." : "PO Value combines each unit's fixed PO plus any manpower claim value accrued so far. Expenses come from Daily Progress Reports; Invoices come from the Financial Report. Tap a project's name to see its invoice list. Tap ✎ to set starting date or adjust opening Expenses/Invoices. Tap 📥 to save the accrued manpower claim as an actual invoice at month-end. Tap 🗄 to hide a project from Project Summary — it stays fully available in Daily Reports and Timesheets."}</div>` : `<div class="field-note" style="margin-bottom:10px;">Tap a project's name to see its invoice list.</div>`}
     ${state.projectSummaryRows.length ? table : `<div class="empty-state"><div class="ic">📊</div>${showingArchived ? "No projects in History." : "No active projects found."}</div>`}
+  `;
+}
+
+function renderProjectQuoteScreen(){
+  const fmt = n => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
+  const backId = state.user.role === "ceo" ? "backToCeoHomeBtn" : (state.user.role === "supervisor" ? "backToSupervisorHomeBtn" : "backToHrBtn");
+
+  const selectedEmployees = state.quoteEmployees.filter(e => state.quoteSelectedIds.includes(e.id));
+  const dailyLaborCost = selectedEmployees.reduce((s,e)=>s+Number(e.expenses_per_day||0),0);
+  const days = Number(state.quoteDays) || 0;
+  const totalLaborCost = dailyLaborCost * days;
+  const extraCharges = Number(state.quoteExtraCharges) || 0;
+  const totalCost = totalLaborCost + extraCharges;
+  const quotedPrice = Number(state.quotePrice) || 0;
+  const profit = quotedPrice - totalCost;
+  const marginPct = quotedPrice > 0 ? (profit / quotedPrice) * 100 : null;
+
+  const employeeOptions = state.quoteEmployees.map(e => `
+    <label style="display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid var(--line);font-size:12.5px;">
+      <input type="checkbox" data-quote-employee-toggle="${e.id}" ${state.quoteSelectedIds.includes(e.id)?"checked":""} style="width:18px;height:18px;">
+      <span style="flex:1;">${e.short_name || e.name}</span>
+      <span style="color:var(--muted);font-size:11px;">${fmt(e.expenses_per_day)}/day</span>
+    </label>`).join("");
+
+  return `
+    <button class="link-btn" id="${backId}" style="margin-bottom:14px;">‹ Back</button>
+    <div class="card">
+      <h3>📐 Project Quote Calculator</h3>
+      <div class="meta">Estimate labor cost from each employee's existing daily expense rate, add any extra charges, and compare against your quoted price to see the projected profit. Nothing here is saved — it's a live calculator only.</div>
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <label>Estimated Duration (days)</label>
+      <input type="number" id="quoteDaysInput" value="${state.quoteDays}" placeholder="e.g. 30" min="0">
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <div class="row-between">
+        <h3 style="font-size:14px;margin:0;">👷 Employees Working on This Project</h3>
+        <span class="meta" style="margin:0;">${selectedEmployees.length} selected</span>
+      </div>
+      <div class="meta" style="margin-top:4px;">Tap to select who will work on this project — their existing daily expense rate is used automatically.</div>
+      <div style="margin-top:6px;max-height:280px;overflow-y:auto;">${employeeOptions || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>No employees with a daily expense rate on file.</div>`}</div>
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <label>Extra Charges (SAR)</label>
+      <div class="meta" style="margin-top:-4px;margin-bottom:6px;">Room rent, travel, or any other one-off cost not already covered by employees' daily expenses.</div>
+      <input type="number" id="quoteExtraChargesInput" value="${state.quoteExtraCharges}" placeholder="0" min="0">
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <label>Quoted Price to Client (SAR)</label>
+      <input type="number" id="quotePriceInput" value="${state.quotePrice}" placeholder="0" min="0">
+    </div>
+
+    <div class="card" style="margin-top:12px;border:2px solid #1B5A96;background:#F5F9FE;">
+      <h3 style="font-size:14px;color:#1B5A96;">📊 Estimate</h3>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed #C9DCF0;">
+        <span class="meta" style="margin:0;">Daily labor cost (${selectedEmployees.length} people)</span>
+        <span style="font-weight:700;">SAR ${fmt(dailyLaborCost)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed #C9DCF0;">
+        <span class="meta" style="margin:0;">× ${days} days = Total Labor Cost</span>
+        <span style="font-weight:700;">SAR ${fmt(totalLaborCost)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed #C9DCF0;">
+        <span class="meta" style="margin:0;">+ Extra Charges</span>
+        <span style="font-weight:700;">SAR ${fmt(extraCharges)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:2px solid #1B5A96;">
+        <span style="font-weight:800;font-size:13px;color:#1B5A96;">Total Cost</span>
+        <span style="font-weight:800;font-size:13px;color:#1B5A96;">SAR ${fmt(totalCost)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:7px 0;">
+        <span class="meta" style="margin:0;">Quoted Price</span>
+        <span style="font-weight:700;">SAR ${fmt(quotedPrice)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;background:${profit>=0?"#E1F5EE":"#FDECEA"};border-radius:8px;padding-left:8px;padding-right:8px;margin-top:4px;">
+        <span style="font-weight:800;font-size:14px;color:${profit>=0?"var(--present)":"var(--absent)"};">Projected ${profit>=0?"Profit":"Loss"}</span>
+        <span style="font-weight:800;font-size:14px;color:${profit>=0?"var(--present)":"var(--absent)"};">SAR ${fmt(Math.abs(profit))}${marginPct !== null ? ` (${marginPct.toFixed(1)}%)` : ""}</span>
+      </div>
+    </div>
   `;
 }
 
@@ -7563,6 +7665,7 @@ function renderHrView(){
       ${hrTileLight("👁", "View<br>Report", "viewFinancialReportOnlyBtn", "#0C3A66", "#A8CCEE")}
       ${hrTileLight("📊", "Project<br>Summary", "openProjectSummaryBtn", "#0C3A66", "#A8CCEE")}
       ${hrTileLight("💵", "Commission<br>Tracker", "openCommissionTrackerBtn", "#0C3A66", "#A8CCEE")}
+      ${hrTileLight("📐", "Project<br>Quote", "openProjectQuoteBtn", "#0C3A66", "#A8CCEE")}
     </div>
 
     <div class="hr-section-label" style="color:#6B4FC4;">💰 Payroll & Salary</div>
@@ -8045,6 +8148,13 @@ function renderCeoHome(){
         <div class="body">
           <div class="title">Commission Tracker</div>
           <div class="desc">Rajesh's and your own commission, calculated monthly</div>
+        </div>
+      </div>
+      <div class="ceo-tile ceo-tile-more" id="openProjectQuoteBtn">
+        <div class="icon">📐</div>
+        <div class="body">
+          <div class="title">Project Quote Calculator</div>
+          <div class="desc">Estimate labor cost, extras and profit for a new project</div>
         </div>
       </div>
       <div class="ceo-tile ceo-tile-more" id="openSendAnnouncementBtn">
@@ -9034,6 +9144,19 @@ function handleDelegatedClick(e){
     loadCommissionTracker(new Date().getFullYear());
     return;
   }
+  if(el("openProjectQuoteBtn")){
+    state.view = "project-quote";
+    loadProjectQuoteScreen();
+    return;
+  }
+  const quoteEmployeeToggleEl = e.target.closest("[data-quote-employee-toggle]");
+  if(quoteEmployeeToggleEl){
+    const id = quoteEmployeeToggleEl.getAttribute("data-quote-employee-toggle");
+    if(state.quoteSelectedIds.includes(id)) state.quoteSelectedIds = state.quoteSelectedIds.filter(x=>x!==id);
+    else state.quoteSelectedIds = [...state.quoteSelectedIds, id];
+    render();
+    return;
+  }
   if(el("commissionYearPrevBtn")){ loadCommissionTracker(state.commissionYear - 1); return; }
   if(el("commissionYearNextBtn")){ loadCommissionTracker(state.commissionYear + 1); return; }
   if(el("closeCommissionYearBtn")){ closeCommissionYear(); return; }
@@ -9450,6 +9573,30 @@ function handleDelegatedChange(e){
   if(e.target.id === "vacationEmployeeSelect"){ state.vacationFormEmployeeId = e.target.value; return; }
   if(e.target.id === "vacationStartInput"){ state.vacationFormStart = e.target.value; return; }
   if(e.target.id === "vacationEndInput"){ state.vacationFormEnd = e.target.value; return; }
+  if(e.target.id === "quoteDaysInput"){
+    state.quoteDays = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    render();
+    const freshInput = document.getElementById("quoteDaysInput");
+    if(freshInput){ freshInput.focus(); freshInput.setSelectionRange(cursorPos, cursorPos); }
+    return;
+  }
+  if(e.target.id === "quoteExtraChargesInput"){
+    state.quoteExtraCharges = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    render();
+    const freshInput = document.getElementById("quoteExtraChargesInput");
+    if(freshInput){ freshInput.focus(); freshInput.setSelectionRange(cursorPos, cursorPos); }
+    return;
+  }
+  if(e.target.id === "quotePriceInput"){
+    state.quotePrice = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    render();
+    const freshInput = document.getElementById("quotePriceInput");
+    if(freshInput){ freshInput.focus(); freshInput.setSelectionRange(cursorPos, cursorPos); }
+    return;
+  }
   if(e.target.id === "dailyReportDateInput"){
     const newDate = e.target.value;
     if(!newDate) return;
