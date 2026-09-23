@@ -3058,27 +3058,12 @@ async function editCommissionCollectionPrompt(){
 }
 
 async function addCommissionLossDirect(){
-  const mk = commissionMonthPicker();
-  if(!mk) return;
-  await addCommissionProjectLoss(mk);
-}
-
-async function editCommissionLossPrompt(){
-  const mk = commissionMonthPicker();
-  if(!mk) return;
-  const existing = state.commissionProjectLoss.filter(l=>l.month===mk);
-  if(existing.length){
-    const names = existing.map((l,i)=>`${i+1} = ${l.project_name} — invoice ${l.amount} (2% = ${(Number(l.amount)*0.02).toFixed(2)} deducted)`).join("\n");
-    const action = (prompt(`This month already has:\n${names}\n\nType a number to remove that one, or "new" to add another:`) || "").trim();
-    if(action.toLowerCase() === "new"){
-      await addCommissionProjectLoss(mk);
-    }else{
-      const idx = Number(action);
-      if(idx >= 1 && idx <= existing.length) await deleteCommissionProjectLoss(existing[idx-1].id);
-    }
-  }else{
-    await addCommissionProjectLoss(mk);
-  }
+  // No month needed -- losses are deducted once from the year total.
+  // The month is filled in silently (current month if viewing this
+  // year, otherwise December) just so the entry belongs to the right year.
+  const now = new Date();
+  const m = state.commissionYear === now.getFullYear() ? now.getMonth() + 1 : 12;
+  await addCommissionProjectLoss(`${state.commissionYear}-${String(m).padStart(2,"0")}`);
 }
 
 async function saveCommissionCollectionOverride(monthKey){
@@ -3095,7 +3080,7 @@ async function saveCommissionCollectionOverride(monthKey){
 }
 
 async function addCommissionProjectLoss(monthKey){
-  const projectName = (prompt(`Project name (in loss) for ${monthKey}:`) || "").trim();
+  const projectName = (prompt("Project name (in loss):") || "").trim();
   if(!projectName) return;
   const amt = Number(prompt("Total invoice value of this project (SAR) — 2% of this will be deducted from Rajesh's commission:"));
   if(isNaN(amt) || amt <= 0){ toast("Enter a valid amount."); return; }
@@ -6666,7 +6651,6 @@ function renderCommissionTracker(){
       <div style="display:flex;gap:8px;margin-top:8px;">
         <button class="btn btn-outline btn-sm" id="editCommissionCollectionBtn" style="flex:1;">✎ Edit Collection</button>
         <button class="btn btn-outline btn-sm" id="addCommissionLossDirectBtn" style="flex:1;">➕ Add Loss Project</button>
-        <button class="btn btn-outline btn-sm" id="editCommissionLossBtn" style="flex:1;">✎ Manage Losses</button>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding:6px 8px;background:#EAF1FC;border-radius:6px;">
         <span class="meta" style="margin:0;">Opening balance (${state.commissionYear}): <b style="color:#0F3D6E;">SAR ${fmt(state.commissionOpeningBalance)}</b></span>
@@ -9190,7 +9174,6 @@ function handleDelegatedClick(e){
   if(editCommissionCollectionEl){ saveCommissionCollectionOverride(editCommissionCollectionEl.getAttribute("data-edit-commission-collection")); return; }
   if(el("editCommissionCollectionBtn")){ editCommissionCollectionPrompt(); return; }
   if(el("addCommissionLossDirectBtn")){ addCommissionLossDirect(); return; }
-  if(el("editCommissionLossBtn")){ editCommissionLossPrompt(); return; }
   if(el("editOwnerOpeningBalanceBtn")){ editOwnerOpeningBalance(); return; }
   if(el("carryForwardOwnerBalanceBtn")){ carryForwardOwnerBalance(); return; }
   const addCommissionPaymentEl = e.target.closest("[data-add-commission-payment]");
