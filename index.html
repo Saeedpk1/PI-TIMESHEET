@@ -471,6 +471,7 @@ let state = {
   quoteDays: "",
   quoteExtraCharges: "",
   quotePrice: "",
+  quoteEmployeeSectionOpen: false,
   vacationManagerReturnView: "daily-report-form",
   vacationFormStart: "",
   vacationFormEnd: "",
@@ -4104,6 +4105,7 @@ async function loadProjectQuoteScreen(){
   state.quoteDays = "";
   state.quoteExtraCharges = "";
   state.quotePrice = "";
+  state.quoteEmployeeSectionOpen = false;
   state.loading = false;
   render();
 }
@@ -6482,29 +6484,36 @@ function renderProjectQuoteScreen(){
       <div class="meta">Estimate labor cost from each employee's existing daily expense rate, add any extra charges, and compare against your quoted price to see the projected profit. Nothing here is saved — it's a live calculator only.</div>
     </div>
 
-    <div class="card" style="margin-top:12px;">
-      <label>Estimated Duration (days)</label>
-      <input type="number" id="quoteDaysInput" value="${state.quoteDays}" placeholder="e.g. 30" min="0">
+    <div class="card" style="margin-top:12px;background:#8FDDC0;border:1px solid #05403566;">
+      <label style="color:#054035;">💰 Quoted Price to Client (SAR)</label>
+      <input type="number" id="quotePriceInput" value="${state.quotePrice}" placeholder="0" min="0" style="background:#fff;">
     </div>
 
-    <div class="card" style="margin-top:12px;">
+    <div class="card" style="margin-top:12px;background:#A8CCEE;border:1px solid #0C3A6666;">
+      <label style="color:#0C3A66;">📅 Days Required to Finish</label>
+      <input type="number" id="quoteDaysInput" value="${state.quoteDays}" placeholder="e.g. 30" min="0" style="background:#fff;">
+    </div>
+
+    <div class="card" style="margin-top:12px;padding:12px 14px;cursor:pointer;background:#C9AEE8;border:1px solid #3D2A6666;" id="toggleQuoteEmployeeSectionBtn">
       <div class="row-between">
-        <h3 style="font-size:14px;margin:0;">👷 Employees Working on This Project</h3>
-        <span class="meta" style="margin:0;">${selectedEmployees.length} selected</span>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">👷</span>
+          <div style="font-weight:800;font-size:13.5px;color:#3D2A66;">Select Employees (${selectedEmployees.length} selected)</div>
+        </div>
+        <span style="font-size:16px;font-weight:800;color:#3D2A66;">${state.quoteEmployeeSectionOpen ? "▲" : "▼"}</span>
       </div>
-      <div class="meta" style="margin-top:4px;">Tap to select who will work on this project — their existing daily expense rate is used automatically.</div>
+    </div>
+    ${state.quoteEmployeeSectionOpen ? `
+    <div class="card" style="margin-top:8px;">
+      <div class="meta">Tap to select who will work on this project — their existing daily expense rate is used automatically.</div>
       <div style="margin-top:6px;max-height:280px;overflow-y:auto;">${employeeOptions || `<div class="empty-state" style="padding:10px;"><div class="ic">👷</div>No employees with a daily expense rate on file.</div>`}</div>
     </div>
+    ` : ""}
 
-    <div class="card" style="margin-top:12px;">
-      <label>Extra Charges (SAR)</label>
+    <div class="card" style="margin-top:12px;background:#F0D488;border:1px solid #6B4E0A66;">
+      <label style="color:#6B4E0A;">🧳 Extra Charges (SAR)</label>
       <div class="meta" style="margin-top:-4px;margin-bottom:6px;">Room rent, travel, or any other one-off cost not already covered by employees' daily expenses.</div>
-      <input type="number" id="quoteExtraChargesInput" value="${state.quoteExtraCharges}" placeholder="0" min="0">
-    </div>
-
-    <div class="card" style="margin-top:12px;">
-      <label>Quoted Price to Client (SAR)</label>
-      <input type="number" id="quotePriceInput" value="${state.quotePrice}" placeholder="0" min="0">
+      <input type="number" id="quoteExtraChargesInput" value="${state.quoteExtraCharges}" placeholder="0" min="0" style="background:#fff;">
     </div>
 
     <div class="card" style="margin-top:12px;border:2px solid #1B5A96;background:#F5F9FE;">
@@ -9149,6 +9158,7 @@ function handleDelegatedClick(e){
     loadProjectQuoteScreen();
     return;
   }
+  if(el("toggleQuoteEmployeeSectionBtn")){ state.quoteEmployeeSectionOpen = !state.quoteEmployeeSectionOpen; render(); return; }
   const quoteEmployeeToggleEl = e.target.closest("[data-quote-employee-toggle]");
   if(quoteEmployeeToggleEl){
     const id = quoteEmployeeToggleEl.getAttribute("data-quote-employee-toggle");
