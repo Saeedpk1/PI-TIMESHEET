@@ -3058,12 +3058,27 @@ async function editCommissionCollectionPrompt(){
 }
 
 async function addCommissionLossDirect(){
-  // No month needed -- losses are deducted once from the year total.
-  // The month is filled in silently (current month if viewing this
-  // year, otherwise December) just so the entry belongs to the right year.
-  const now = new Date();
-  const m = state.commissionYear === now.getFullYear() ? now.getMonth() + 1 : 12;
-  await addCommissionProjectLoss(`${state.commissionYear}-${String(m).padStart(2,"0")}`);
+  const mk = commissionMonthPicker();
+  if(!mk) return;
+  await addCommissionProjectLoss(mk);
+}
+
+async function editCommissionLossPrompt(){
+  const mk = commissionMonthPicker();
+  if(!mk) return;
+  const existing = state.commissionProjectLoss.filter(l=>l.month===mk);
+  if(existing.length){
+    const names = existing.map((l,i)=>`${i+1} = ${l.project_name} — invoice ${l.amount} (2% = ${(Number(l.amount)*0.02).toFixed(2)} deducted)`).join("\n");
+    const action = (prompt(`This month already has:\n${names}\n\nType a number to remove that one, or "new" to add another:`) || "").trim();
+    if(action.toLowerCase() === "new"){
+      await addCommissionProjectLoss(mk);
+    }else{
+      const idx = Number(action);
+      if(idx >= 1 && idx <= existing.length) await deleteCommissionProjectLoss(existing[idx-1].id);
+    }
+  }else{
+    await addCommissionProjectLoss(mk);
+  }
 }
 
 async function saveCommissionCollectionOverride(monthKey){
@@ -3080,7 +3095,7 @@ async function saveCommissionCollectionOverride(monthKey){
 }
 
 async function addCommissionProjectLoss(monthKey){
-  const projectName = (prompt("Project name (in loss):") || "").trim();
+  const projectName = (prompt(`Project name (in loss) for ${monthKey}:`) || "").trim();
   if(!projectName) return;
   const amt = Number(prompt("Total invoice value of this project (SAR) — 2% of this will be deducted from Rajesh's commission:"));
   if(isNaN(amt) || amt <= 0){ toast("Enter a valid amount."); return; }
@@ -6401,24 +6416,24 @@ function renderProjectSummary(){
       `<span style="font-weight:700;">${fmt(p.poValue)}</span>`,
       `<span style="color:#B33232;">${fmt(p.expenses)}</span>`,
       `<span style="color:#146C38;">${fmt(p.invoicesTotal)}</span>`,
-      `<span style="display:inline-block;background:${balanceBg};color:${balanceColor};font-weight:800;padding:3px 8px;border-radius:999px;">${fmt(p.balance)}</span>`,
-      `<span style="display:inline-block;background:${marginBg};color:${marginColor};font-weight:800;padding:3px 8px;border-radius:999px;">${marginText}</span>`,
+      `<span style="display:inline-block;background:${balanceBg};color:${balanceColor};font-weight:800;padding:2px 6px;border-radius:6px;">${fmt(p.balance)}</span>`,
+      `<span style="display:inline-block;background:${marginBg};color:${marginColor};font-weight:800;padding:2px 6px;border-radius:6px;">${marginText}</span>`,
       canEdit ? `<div style="display:flex;gap:9px;justify-content:flex-end;">${!showingArchived ? `<button data-edit-project-opening="${p.id}" style="border:none;background:none;padding:2px;font-size:15px;cursor:pointer;color:var(--blue);">✎</button>` : ""}${claimBtn}${actionBtn}</div>` : ""
     ].filter((_,i)=>i<headers.length).map((c,i) => ({ content: c, accent: i===0 ? accent : null, tint }));
   });
 
   const table = `
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:4px;">
-    <table class="fin-table" style="font-size:10.5px;width:auto;min-width:100%;table-layout:auto;border:2px solid #0F3556;box-shadow:0 3px 12px rgba(15,53,86,0.15);">
+    <table class="fin-table" style="font-size:9.5px;width:auto;min-width:100%;table-layout:auto;border-collapse:collapse;border:1px solid #C9DCF0;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(15,53,86,0.1);">
       <colgroup>${headers.map((h,i)=>widths[i]?`<col style="width:${widths[i]};">`:'<col>').join("")}</colgroup>
-      <thead><tr>${headers.map((h,i)=>`<th style="background:linear-gradient(135deg,#0F3556,#1B5A96);color:#fff;padding:7px 8px;text-align:${i===0?"left":"right"};font-size:9.5px;letter-spacing:0.3px;white-space:nowrap;">${h}</th>`).join("")}</tr></thead>
+      <thead><tr>${headers.map((h,i)=>`<th style="background:linear-gradient(135deg,#0F3556,#1B5A96);color:#fff;padding:5px 7px;text-align:${i===0?"left":"right"};font-size:8.5px;font-weight:700;letter-spacing:0.2px;white-space:nowrap;border-right:1px solid rgba(255,255,255,0.15);">${h}</th>`).join("")}</tr></thead>
       <tbody>
         ${state.projectSummaryRows.map((p,ri) => `
-          <tr style="background:${rows[ri][0].tint};">${rows[ri].map((c,i)=>`<td style="padding:7px 8px;text-align:${i===0?"left":"right"};vertical-align:middle;white-space:nowrap;${i===0?`border-left:4px solid ${c.accent};`:""}">${c.content}</td>`).join("")}</tr>
+          <tr style="background:${rows[ri][0].tint};border-bottom:1px solid #E3ECF5;">${rows[ri].map((c,i)=>`<td style="padding:5px 7px;text-align:${i===0?"left":"right"};vertical-align:middle;white-space:nowrap;border-right:1px solid #E3ECF5;${i===0?`border-left:3px solid ${c.accent};`:""}">${c.content}</td>`).join("")}</tr>
           ${state.expandedProjectSummaryId === p.id ? `
-          <tr><td colspan="${headers.length}" style="padding:8px 12px;background:#fff;border-left:4px solid ${accentForName(p.name)};white-space:normal;">
+          <tr><td colspan="${headers.length}" style="padding:7px 10px;background:#fff;border-left:3px solid ${accentForName(p.name)};border-bottom:1px solid #E3ECF5;white-space:normal;">
             ${p.invoices.length ? p.invoices.map((v,i) => `
-              <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:4px 0;border-top:1px dashed var(--line);gap:10px;">
+              <div style="display:flex;justify-content:space-between;font-size:9.5px;padding:3px 0;border-top:1px dashed var(--line);gap:10px;">
                 <span>${i+1}. ${v.description || "-"}${v.invoice_no ? " · " + v.invoice_no : ""}</span>
                 <span style="font-weight:700;color:#146C38;white-space:nowrap;">${fmt(v.amount_no_vat)}</span>
               </div>`).join("") : `<div class="meta">No invoices raised yet.</div>`}
@@ -6651,6 +6666,7 @@ function renderCommissionTracker(){
       <div style="display:flex;gap:8px;margin-top:8px;">
         <button class="btn btn-outline btn-sm" id="editCommissionCollectionBtn" style="flex:1;">✎ Edit Collection</button>
         <button class="btn btn-outline btn-sm" id="addCommissionLossDirectBtn" style="flex:1;">➕ Add Loss Project</button>
+        <button class="btn btn-outline btn-sm" id="editCommissionLossBtn" style="flex:1;">✎ Manage Losses</button>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding:6px 8px;background:#EAF1FC;border-radius:6px;">
         <span class="meta" style="margin:0;">Opening balance (${state.commissionYear}): <b style="color:#0F3D6E;">SAR ${fmt(state.commissionOpeningBalance)}</b></span>
@@ -9174,6 +9190,7 @@ function handleDelegatedClick(e){
   if(editCommissionCollectionEl){ saveCommissionCollectionOverride(editCommissionCollectionEl.getAttribute("data-edit-commission-collection")); return; }
   if(el("editCommissionCollectionBtn")){ editCommissionCollectionPrompt(); return; }
   if(el("addCommissionLossDirectBtn")){ addCommissionLossDirect(); return; }
+  if(el("editCommissionLossBtn")){ editCommissionLossPrompt(); return; }
   if(el("editOwnerOpeningBalanceBtn")){ editOwnerOpeningBalance(); return; }
   if(el("carryForwardOwnerBalanceBtn")){ carryForwardOwnerBalance(); return; }
   const addCommissionPaymentEl = e.target.closest("[data-add-commission-payment]");
