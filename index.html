@@ -6589,13 +6589,6 @@ function renderMonthlyProfitScreen(){
       </div>
     </div>
 
-    <div class="card" style="margin-top:12px;border:2px solid ${profit>=0?"#1C8A4E":"#C43B3B"};background:${profit>=0?"#E1F5EE":"#FDECEA"};">
-      <div class="row-between">
-        <span style="font-weight:800;font-size:14px;color:${profit>=0?"var(--present)":"var(--absent)"};">${profit>=0?"Profit":"Loss"}</span>
-        <span style="font-weight:800;font-size:16px;color:${profit>=0?"var(--present)":"var(--absent)"};">SAR ${fmt(Math.abs(profit))}${marginPct!==null?` (${marginPct.toFixed(1)}%)`:""}</span>
-      </div>
-    </div>
-
     <div class="card" style="margin-top:12px;background:#A8CCEE;border:1px solid #0C3A6666;">
       <h3 style="font-size:14px;color:#0C3A66;">⏳ Pending Collection</h3>
       <div class="meta">How much of this month's invoiced amount hasn't been collected yet.</div>
