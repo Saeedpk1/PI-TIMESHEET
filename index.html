@@ -4104,10 +4104,10 @@ async function loadAllEmployeesForVacationForm(){
 const MONTHLY_EXPENSE_CATEGORIES = [
   { key: "fuel", label: "Fuel", icon: "⛽" },
   { key: "gov_fee", label: "Gov Fee (Mob/Elec/Exit)", icon: "🏛️" },
-  { key: "rent", label: "Rent", icon: "🏠" },
-  { key: "tickets", label: "Tickets", icon: "✈️" },
-  { key: "m_insurance", label: "Medical Insurance", icon: "🩺" },
-  { key: "instalment", label: "Instalment", icon: "💳" },
+  { key: "rent", label: "Rent", icon: "🏠", includedInOH: true },
+  { key: "tickets", label: "Tickets", icon: "✈️", includedInOH: true },
+  { key: "m_insurance", label: "Medical Insurance", icon: "🩺", includedInOH: true },
+  { key: "instalment", label: "Instalment", icon: "💳", includedInOH: true },
   { key: "v_insurance", label: "Vehicle Insurance", icon: "🚗" },
   { key: "materials", label: "Materials", icon: "🧱" },
   { key: "gosi", label: "GOSI", icon: "🏢" },
@@ -6532,12 +6532,15 @@ function renderMonthlyProfitScreen(){
   const catRows = MONTHLY_EXPENSE_CATEGORIES.map(c => {
     const amt = state.monthlyProfitExpenses[c.key] || 0;
     return `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed var(--line);">
-      <span style="font-size:12.5px;">${c.icon} ${c.label}</span>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed var(--line);${c.includedInOH?"opacity:0.65;":""}">
+      <span style="font-size:12.5px;">${c.icon} ${c.label}${c.includedInOH ? ` <span style="font-size:9px;font-weight:700;color:#6B4FC4;background:#F3EAFB;padding:1px 5px;border-radius:4px;">included in OH</span>` : ""}</span>
       <button data-edit-monthly-expense="${c.key}" style="border:none;background:none;color:var(--blue);cursor:pointer;font-weight:700;font-size:12.5px;">${fmt(amt)} ✎</button>
     </div>`;
   }).join("");
-  const manualTotal = MONTHLY_EXPENSE_CATEGORIES.reduce((s,c)=>s+(state.monthlyProfitExpenses[c.key]||0),0);
+  // Categories marked "included in OH" are shown for reference only --
+  // their amounts are already baked into the Salaries+OH figure from
+  // Daily Reports, so counting them again here would double them up.
+  const manualTotal = MONTHLY_EXPENSE_CATEGORIES.filter(c=>!c.includedInOH).reduce((s,c)=>s+(state.monthlyProfitExpenses[c.key]||0),0);
   const totalExpenses = manualTotal + state.monthlyProfitSalariesOH;
   const profit = state.monthlyProfitRevenue - totalExpenses;
   const marginPct = state.monthlyProfitRevenue > 0 ? (profit / state.monthlyProfitRevenue) * 100 : null;
@@ -6547,7 +6550,8 @@ function renderMonthlyProfitScreen(){
     <button class="link-btn" id="${backId}" style="margin-bottom:14px;">‹ Back</button>
     <div class="card">
       <h3>📈 Monthly Profit</h3>
-      <div class="meta">Company-wide revenue vs. expenses for the month. Salaries+OH is calculated automatically from Daily Reports; every other category is entered manually.</div>
+      <div class="meta">Company-wide revenue vs. expenses for the month. Salaries+OH is calculated automatically from Daily Reports. Categories marked "included in OH" (Rent, Tickets, Medical Insurance, Instalment) are shown for reference only — their cost is already part of Salaries+OH, so they're kept out of the total below to avoid double-counting.</div>
+      <div class="meta" style="margin-top:2px;">Every other category is entered manually.</div>
       <div class="row-between" style="margin-top:8px;">
         <button class="link-btn" id="monthlyProfitPrevBtn">‹ Prev</button>
         <div style="font-weight:800;font-size:14px;">${monthLabel}</div>
