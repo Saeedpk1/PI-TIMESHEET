@@ -474,6 +474,7 @@ let state = {
   quoteEmployeeSectionOpen: false,
   monthlyProfitMonth: new Date().toISOString().slice(0,7),
   monthlyProfitRevenue: 0,
+  monthlyProfitCollected: 0,
   monthlyProfitSalariesOH: 0,
   monthlyProfitExpenses: {},
   vacationManagerReturnView: "daily-report-form",
@@ -4108,10 +4109,6 @@ const MONTHLY_EXPENSE_CATEGORIES = [
   { key: "tickets", label: "Tickets", icon: "✈️", includedInOH: true },
   { key: "m_insurance", label: "Medical Insurance", icon: "🩺", includedInOH: true },
   { key: "instalment", label: "Instalment", icon: "💳", includedInOH: true },
-  { key: "v_insurance", label: "Vehicle Insurance", icon: "🚗" },
-  { key: "materials", label: "Materials", icon: "🧱" },
-  { key: "gosi", label: "GOSI", icon: "🏢" },
-  { key: "saudi_salaries", label: "Saudi Salaries", icon: "🇸🇦" },
   { key: "other", label: "Other Expense", icon: "📎" }
 ];
 
@@ -4121,21 +4118,34 @@ async function loadMonthlyProfitScreen(month){
   const mStart = `${state.monthlyProfitMonth}-01`;
   const mEndDate = new Date(mStart+"T00:00:00"); mEndDate.setMonth(mEndDate.getMonth()+1); mEndDate.setDate(0);
   const mEnd = fmtDate(mEndDate.getFullYear(), mEndDate.getMonth(), mEndDate.getDate());
-  const [{ data: payments }, { data: reports }, { data: employees }, { data: expenseRows }] = await Promise.all([
+  const [{ data: invoices }, { data: payments }, { data: reports }, { data: employees }, { data: expenseRows }] = await Promise.all([
+    sb.from("ts_financial_invoices").select("invoice_no, amount_no_vat, report_date").gte("report_date", mStart).lte("report_date", mEnd),
     sb.from("ts_financial_payments").select("invoice_no, project, company, amount, payment_date, report_date").gte("report_date", mStart).lte("report_date", mEnd),
     sb.from("ts_daily_reports").select("report_date, team_member_ids").gte("report_date", mStart).lte("report_date", mEnd),
     sb.from("ts_employees").select("id, expenses_per_day"),
     sb.from("ts_monthly_expenses").select("*").eq("month", state.monthlyProfitMonth)
   ]);
-  // Revenue: same dedup logic as Financial Report -- an invoice's
-  // payment carried forward via Copy Previous Day counts once, using
-  // its latest saved version.
+  // Revenue: based on invoices raised (not payments received), same
+  // dedup logic as Financial Report's "Invoiced" figure -- an invoice
+  // carried forward via Copy Previous Day counts once, using its
+  // latest saved version. Uses amount_no_vat since VAT collected isn't
+  // actual company revenue.
   const latestByKey = {};
-  (payments||[]).forEach(v => {
-    const key = v.invoice_no || `no-number-${v.project}-${v.company}-${v.payment_date}-${v.amount}`;
+  (invoices||[]).forEach(v => {
+    const key = v.invoice_no || `no-number-${v.report_date}-${v.amount_no_vat}`;
     if(!latestByKey[key] || v.report_date >= latestByKey[key].report_date) latestByKey[key] = v;
   });
-  state.monthlyProfitRevenue = Object.values(latestByKey).reduce((s,v)=>s+Number(v.amount||0),0);
+  state.monthlyProfitRevenue = Object.values(latestByKey).reduce((s,v)=>s+Number(v.amount_no_vat||0),0);
+
+  // Collected: same dedup logic, from actual payments received --
+  // used only to show what's still pending against this month's
+  // invoiced total, not for the profit calculation itself.
+  const latestPaidByKey = {};
+  (payments||[]).forEach(v => {
+    const key = v.invoice_no || `no-number-${v.project}-${v.company}-${v.payment_date}-${v.amount}`;
+    if(!latestPaidByKey[key] || v.report_date >= latestPaidByKey[key].report_date) latestPaidByKey[key] = v;
+  });
+  state.monthlyProfitCollected = Object.values(latestPaidByKey).reduce((s,v)=>s+Number(v.amount||0),0);
 
   // Salaries+OH: for each day in the month, every distinct employee
   // who appears in that day's team (across all projects) counts once
@@ -6550,7 +6560,7 @@ function renderMonthlyProfitScreen(){
     <button class="link-btn" id="${backId}" style="margin-bottom:14px;">‹ Back</button>
     <div class="card">
       <h3>📈 Monthly Profit</h3>
-      <div class="meta">Company-wide revenue vs. expenses for the month. Salaries+OH is calculated automatically from Daily Reports. Categories marked "included in OH" (Rent, Tickets, Medical Insurance, Instalment) are shown for reference only — their cost is already part of Salaries+OH, so they're kept out of the total below to avoid double-counting.</div>
+      <div class="meta">Company-wide revenue vs. expenses for the month. Revenue is based on invoices raised (not payments actually received). Salaries+OH is calculated automatically from Daily Reports. Categories marked "included in OH" (Rent, Tickets, Medical Insurance, Instalment) are shown for reference only — their cost is already part of Salaries+OH, so they're kept out of the total below to avoid double-counting.</div>
       <div class="meta" style="margin-top:2px;">Every other category is entered manually.</div>
       <div class="row-between" style="margin-top:8px;">
         <button class="link-btn" id="monthlyProfitPrevBtn">‹ Prev</button>
@@ -6561,7 +6571,7 @@ function renderMonthlyProfitScreen(){
 
     <div class="card" style="margin-top:12px;background:#8FDDC0;border:1px solid #05403566;">
       <div class="row-between">
-        <span style="font-weight:800;color:#054035;">💰 Revenue (Collection)</span>
+        <span style="font-weight:800;color:#054035;">💰 Revenue (Invoiced)</span>
         <span style="font-weight:800;font-size:14px;color:#054035;">SAR ${fmt(state.monthlyProfitRevenue)}</span>
       </div>
     </div>
@@ -6583,6 +6593,23 @@ function renderMonthlyProfitScreen(){
       <div class="row-between">
         <span style="font-weight:800;font-size:14px;color:${profit>=0?"var(--present)":"var(--absent)"};">${profit>=0?"Profit":"Loss"}</span>
         <span style="font-weight:800;font-size:16px;color:${profit>=0?"var(--present)":"var(--absent)"};">SAR ${fmt(Math.abs(profit))}${marginPct!==null?` (${marginPct.toFixed(1)}%)`:""}</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px;background:#A8CCEE;border:1px solid #0C3A6666;">
+      <h3 style="font-size:14px;color:#0C3A66;">⏳ Pending Collection</h3>
+      <div class="meta">How much of this month's invoiced amount hasn't been collected yet.</div>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed #7FA8D0;margin-top:6px;">
+        <span style="font-size:12.5px;color:#0C3A66;">Invoiced</span>
+        <span style="font-weight:700;color:#0C3A66;">SAR ${fmt(state.monthlyProfitRevenue)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed #7FA8D0;">
+        <span style="font-size:12.5px;color:#0C3A66;">Collected</span>
+        <span style="font-weight:700;color:#0C3A66;">SAR ${fmt(state.monthlyProfitCollected)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding-top:8px;margin-top:2px;">
+        <span style="font-weight:800;color:#0C3A66;">Pending Collection</span>
+        <span style="font-weight:800;font-size:14px;color:#0C3A66;">SAR ${fmt(state.monthlyProfitRevenue - state.monthlyProfitCollected)}</span>
       </div>
     </div>
   `;
