@@ -472,6 +472,10 @@ let state = {
   quoteExtraCharges: "",
   quotePrice: "",
   quoteEmployeeSectionOpen: false,
+  monthlyProfitMonth: new Date().toISOString().slice(0,7),
+  monthlyProfitRevenue: 0,
+  monthlyProfitSalariesOH: 0,
+  monthlyProfitExpenses: {},
   vacationManagerReturnView: "daily-report-form",
   vacationFormStart: "",
   vacationFormEnd: "",
@@ -4097,6 +4101,79 @@ async function loadAllEmployeesForVacationForm(){
   render();
 }
 
+const MONTHLY_EXPENSE_CATEGORIES = [
+  { key: "fuel", label: "Fuel", icon: "⛽" },
+  { key: "gov_fee", label: "Gov Fee (Mob/Elec/Exit)", icon: "🏛️" },
+  { key: "rent", label: "Rent", icon: "🏠" },
+  { key: "tickets", label: "Tickets", icon: "✈️" },
+  { key: "m_insurance", label: "Medical Insurance", icon: "🩺" },
+  { key: "instalment", label: "Instalment", icon: "💳" },
+  { key: "v_insurance", label: "Vehicle Insurance", icon: "🚗" },
+  { key: "materials", label: "Materials", icon: "🧱" },
+  { key: "gosi", label: "GOSI", icon: "🏢" }
+];
+
+async function loadMonthlyProfitScreen(month){
+  state.monthlyProfitMonth = month || state.monthlyProfitMonth;
+  state.loading = true; render();
+  const mStart = `${state.monthlyProfitMonth}-01`;
+  const mEndDate = new Date(mStart+"T00:00:00"); mEndDate.setMonth(mEndDate.getMonth()+1); mEndDate.setDate(0);
+  const mEnd = fmtDate(mEndDate.getFullYear(), mEndDate.getMonth(), mEndDate.getDate());
+  const [{ data: payments }, { data: reports }, { data: employees }, { data: expenseRows }] = await Promise.all([
+    sb.from("ts_financial_payments").select("invoice_no, project, company, amount, payment_date, report_date").gte("report_date", mStart).lte("report_date", mEnd),
+    sb.from("ts_daily_reports").select("report_date, team_member_ids").gte("report_date", mStart).lte("report_date", mEnd),
+    sb.from("ts_employees").select("id, expenses_per_day"),
+    sb.from("ts_monthly_expenses").select("*").eq("month", state.monthlyProfitMonth)
+  ]);
+  // Revenue: same dedup logic as Financial Report -- an invoice's
+  // payment carried forward via Copy Previous Day counts once, using
+  // its latest saved version.
+  const latestByKey = {};
+  (payments||[]).forEach(v => {
+    const key = v.invoice_no || `no-number-${v.project}-${v.company}-${v.payment_date}-${v.amount}`;
+    if(!latestByKey[key] || v.report_date >= latestByKey[key].report_date) latestByKey[key] = v;
+  });
+  state.monthlyProfitRevenue = Object.values(latestByKey).reduce((s,v)=>s+Number(v.amount||0),0);
+
+  // Salaries+OH: for each day in the month, every distinct employee
+  // who appears in that day's team (across all projects) counts once
+  // at their daily expense rate -- being listed under two projects
+  // the same day shouldn't double their cost.
+  const rateById = {};
+  (employees||[]).forEach(e => { rateById[e.id] = Number(e.expenses_per_day) || 0; });
+  const employeeIdsByDate = {};
+  (reports||[]).forEach(r => {
+    if(!employeeIdsByDate[r.report_date]) employeeIdsByDate[r.report_date] = new Set();
+    (r.team_member_ids||[]).forEach(id => employeeIdsByDate[r.report_date].add(id));
+  });
+  let salariesOH = 0;
+  Object.values(employeeIdsByDate).forEach(idSet => {
+    idSet.forEach(id => { salariesOH += rateById[id] || 0; });
+  });
+  state.monthlyProfitSalariesOH = salariesOH;
+
+  const expenseMap = {};
+  (expenseRows||[]).forEach(row => { expenseMap[row.category] = Number(row.amount) || 0; });
+  state.monthlyProfitExpenses = expenseMap;
+
+  state.loading = false;
+  render();
+}
+
+async function saveMonthlyExpense(category){
+  const catDef = MONTHLY_EXPENSE_CATEGORIES.find(c=>c.key===category);
+  const current = state.monthlyProfitExpenses[category] || 0;
+  const input = prompt(`${catDef ? catDef.label : category} for ${state.monthlyProfitMonth} (SAR):`, current);
+  if(input === null) return;
+  const amt = Number(input);
+  if(isNaN(amt) || amt < 0){ toast("Enter a valid amount."); return; }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_monthly_expenses").upsert({ month: state.monthlyProfitMonth, category, amount: amt }, { onConflict: "month,category" });
+  state.loading = false;
+  toast(error ? "Could not save. Try again." : "Saved.");
+  await loadMonthlyProfitScreen(state.monthlyProfitMonth);
+}
+
 async function loadProjectQuoteScreen(){
   state.loading = true; render();
   const { data } = await sb.from("ts_employees").select("id, name, short_name, expenses_per_day").eq("active", true).order("name");
@@ -5768,6 +5845,7 @@ function render(){
   else if(state.view === "financial-report") body = renderFinancialReport();
   else if(state.view === "commission-tracker") body = renderCommissionTracker();
   else if(state.view === "project-quote") body = renderProjectQuoteScreen();
+  else if(state.view === "monthly-profit") body = renderMonthlyProfitScreen();
   else if(state.view === "project-summary") body = renderProjectSummary();
   else if(state.view === "send-announcement") body = renderSendAnnouncement();
   else if(state.view === "send-hr-todo") body = renderSendHrTodo();
@@ -6443,6 +6521,64 @@ function renderProjectSummary(){
     <button class="btn btn-sm" id="toggleProjectSummaryArchiveBtn" style="width:100%;margin-bottom:12px;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff;border:none;font-weight:800;">${showingArchived ? "📋 View Current Projects" : "📜 View History (completed/archived)"}</button>
     ${canEdit ? `<div class="field-note" style="margin-bottom:10px;">${showingArchived ? "Tap ↩ to bring a project back to the current list." : "PO Value combines each unit's fixed PO plus any manpower claim value accrued so far. Expenses come from Daily Progress Reports; Invoices come from the Financial Report. Tap a project's name to see its invoice list. Tap ✎ to set starting date or adjust opening Expenses/Invoices. Tap 📥 to save the accrued manpower claim as an actual invoice at month-end. Tap 🗄 to hide a project from Project Summary — it stays fully available in Daily Reports and Timesheets."}</div>` : `<div class="field-note" style="margin-bottom:10px;">Tap a project's name to see its invoice list.</div>`}
     ${state.projectSummaryRows.length ? table : `<div class="empty-state"><div class="ic">📊</div>${showingArchived ? "No projects in History." : "No active projects found."}</div>`}
+  `;
+}
+
+function renderMonthlyProfitScreen(){
+  const fmt = n => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
+  const backId = state.user.role === "ceo" ? "backToCeoHomeBtn" : "backToHrBtn";
+  const catRows = MONTHLY_EXPENSE_CATEGORIES.map(c => {
+    const amt = state.monthlyProfitExpenses[c.key] || 0;
+    return `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed var(--line);">
+      <span style="font-size:12.5px;">${c.icon} ${c.label}</span>
+      <button data-edit-monthly-expense="${c.key}" style="border:none;background:none;color:var(--blue);cursor:pointer;font-weight:700;font-size:12.5px;">${fmt(amt)} ✎</button>
+    </div>`;
+  }).join("");
+  const manualTotal = MONTHLY_EXPENSE_CATEGORIES.reduce((s,c)=>s+(state.monthlyProfitExpenses[c.key]||0),0);
+  const totalExpenses = manualTotal + state.monthlyProfitSalariesOH;
+  const profit = state.monthlyProfitRevenue - totalExpenses;
+  const marginPct = state.monthlyProfitRevenue > 0 ? (profit / state.monthlyProfitRevenue) * 100 : null;
+  const monthLabel = new Date(state.monthlyProfitMonth+"-01T00:00:00").toLocaleDateString(undefined,{month:"long",year:"numeric"});
+
+  return `
+    <button class="link-btn" id="${backId}" style="margin-bottom:14px;">‹ Back</button>
+    <div class="card">
+      <h3>📈 Monthly Profit</h3>
+      <div class="meta">Company-wide revenue vs. expenses for the month. Salaries+OH is calculated automatically from Daily Reports; every other category is entered manually.</div>
+      <div class="row-between" style="margin-top:8px;">
+        <button class="link-btn" id="monthlyProfitPrevBtn">‹ Prev</button>
+        <div style="font-weight:800;font-size:14px;">${monthLabel}</div>
+        <button class="link-btn" id="monthlyProfitNextBtn">Next ›</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px;background:#8FDDC0;border:1px solid #05403566;">
+      <div class="row-between">
+        <span style="font-weight:800;color:#054035;">💰 Revenue (Collection)</span>
+        <span style="font-weight:800;font-size:14px;color:#054035;">SAR ${fmt(state.monthlyProfitRevenue)}</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <h3 style="font-size:14px;">📤 Expenses</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed var(--line);background:#F3EAFB;padding-left:6px;padding-right:6px;border-radius:4px;">
+        <span style="font-size:12.5px;font-weight:700;color:#3D2A66;">👷 Salaries + OH (from Daily Reports)</span>
+        <span style="font-weight:800;font-size:12.5px;color:#3D2A66;">${fmt(state.monthlyProfitSalariesOH)}</span>
+      </div>
+      ${catRows}
+      <div style="display:flex;justify-content:space-between;padding-top:8px;margin-top:4px;border-top:2px solid #333;">
+        <span style="font-weight:800;">Total Expenses</span>
+        <span style="font-weight:800;">SAR ${fmt(totalExpenses)}</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px;border:2px solid ${profit>=0?"#1C8A4E":"#C43B3B"};background:${profit>=0?"#E1F5EE":"#FDECEA"};">
+      <div class="row-between">
+        <span style="font-weight:800;font-size:14px;color:${profit>=0?"var(--present)":"var(--absent)"};">${profit>=0?"Profit":"Loss"}</span>
+        <span style="font-weight:800;font-size:16px;color:${profit>=0?"var(--present)":"var(--absent)"};">SAR ${fmt(Math.abs(profit))}${marginPct!==null?` (${marginPct.toFixed(1)}%)`:""}</span>
+      </div>
+    </div>
   `;
 }
 
@@ -7671,6 +7807,7 @@ function renderHrView(){
       ${hrTileLight("📊", "Project<br>Summary", "openProjectSummaryBtn", "#0C3A66", "#A8CCEE")}
       ${hrTileLight("💵", "Commission<br>Tracker", "openCommissionTrackerBtn", "#0C3A66", "#A8CCEE")}
       ${hrTileLight("📐", "Project<br>Quote", "openProjectQuoteBtn", "#0C3A66", "#A8CCEE")}
+      ${hrTileLight("📈", "Monthly<br>Profit", "openMonthlyProfitBtn", "#0C3A66", "#A8CCEE")}
     </div>
 
     <div class="hr-section-label" style="color:#6B4FC4;">💰 Payroll & Salary</div>
@@ -8160,6 +8297,13 @@ function renderCeoHome(){
         <div class="body">
           <div class="title">Project Quote Calculator</div>
           <div class="desc">Estimate labor cost, extras and profit for a new project</div>
+        </div>
+      </div>
+      <div class="ceo-tile ceo-tile-more" id="openMonthlyProfitBtn">
+        <div class="icon">📈</div>
+        <div class="body">
+          <div class="title">Monthly Profit</div>
+          <div class="desc">Company-wide revenue vs. all expenses for the month</div>
         </div>
       </div>
       <div class="ceo-tile ceo-tile-more" id="openSendAnnouncementBtn">
@@ -9154,6 +9298,23 @@ function handleDelegatedClick(e){
     loadProjectQuoteScreen();
     return;
   }
+  if(el("openMonthlyProfitBtn")){
+    state.view = "monthly-profit";
+    loadMonthlyProfitScreen(new Date().toISOString().slice(0,7));
+    return;
+  }
+  if(el("monthlyProfitPrevBtn")){
+    const d = new Date(state.monthlyProfitMonth+"-01T00:00:00"); d.setMonth(d.getMonth()-1);
+    loadMonthlyProfitScreen(d.toISOString().slice(0,7));
+    return;
+  }
+  if(el("monthlyProfitNextBtn")){
+    const d = new Date(state.monthlyProfitMonth+"-01T00:00:00"); d.setMonth(d.getMonth()+1);
+    loadMonthlyProfitScreen(d.toISOString().slice(0,7));
+    return;
+  }
+  const editMonthlyExpenseEl = e.target.closest("[data-edit-monthly-expense]");
+  if(editMonthlyExpenseEl){ saveMonthlyExpense(editMonthlyExpenseEl.getAttribute("data-edit-monthly-expense")); return; }
   if(el("toggleQuoteEmployeeSectionBtn")){ state.quoteEmployeeSectionOpen = !state.quoteEmployeeSectionOpen; render(); return; }
   const quoteEmployeeToggleEl = e.target.closest("[data-quote-employee-toggle]");
   if(quoteEmployeeToggleEl){
