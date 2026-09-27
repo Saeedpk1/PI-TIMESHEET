@@ -4507,7 +4507,7 @@ async function generatePurchasesExcel(){
   render();
 }
 
-async function buildPurchasesPdf(items, filename, titleText){
+async function buildPurchasesPdf(items, filename, titleText, mode){
   if(!items.length){ toast("No purchases to export."); return; }
   state.loading = true; render();
   try{
@@ -4552,8 +4552,18 @@ async function buildPurchasesPdf(items, filename, titleText){
     });
 
     stampFooters(doc);
-    doc.save(filename);
-    toast("PDF downloaded.");
+    if(mode === "preview"){
+      // Opens the PDF in a new tab using the browser's own PDF
+      // viewer, so the person can look it over and use its built-in
+      // print button, rather than forcing a file download first.
+      const blobUrl = doc.output("bloburl");
+      const win = window.open(blobUrl, "_blank");
+      if(!win){ toast("Please allow pop-ups to preview and print."); }
+      else toast("Opened for preview — use your browser's print button.");
+    }else{
+      doc.save(filename);
+      toast("PDF downloaded.");
+    }
   }catch(e){
     console.error("Purchases PDF error:", e);
     toast("PDF error: " + (e && e.message ? e.message : "unknown"));
@@ -4562,14 +4572,14 @@ async function buildPurchasesPdf(items, filename, titleText){
   render();
 }
 
-async function generatePurchasesPdf(){
-  await buildPurchasesPdf(state.hrPurchases, `Purchases_${state.hrMonth}.pdf`, `Purchases / Expenses — ${monthLabel(state.monthDate)}`);
+async function generatePurchasesPdf(mode){
+  await buildPurchasesPdf(state.hrPurchases, `Purchases_${state.hrMonth}.pdf`, `Purchases / Expenses — ${monthLabel(state.monthDate)}`, mode);
 }
 
-async function generateMyPurchaseBatchPdf(batchId){
+async function generateMyPurchaseBatchPdf(batchId, mode){
   const items = state.myPurchases.filter(p => (p.batch_id || `single-${p.id}`) === batchId);
   const dateLabel = items.length ? formatDateDMY(items[0].purchase_date) : "";
-  await buildPurchasesPdf(items, `My_Purchases_${dateLabel.replace(/-/g,"")}.pdf`, `My Submitted Expenses — ${dateLabel}`);
+  await buildPurchasesPdf(items, `My_Purchases_${dateLabel.replace(/-/g,"")}.pdf`, `My Submitted Expenses — ${dateLabel}`, mode);
 }
 
 /* ---------------- HR flow ---------------- */
@@ -9081,6 +9091,7 @@ function renderHrPurchasesList(){
     </div>
     ${supervisorSections || `<div class="empty-state"><div class="ic">🧾</div>Nothing submitted yet.</div>`}
     <button class="btn btn-outline" id="exportPurchasesExcelBtn" style="margin-top:14px;">📊 Export as Excel</button>
+    <button class="btn btn-outline" id="previewPrintPurchasesBtn" style="margin-top:8px;">👁 Preview & Print</button>
     <button class="btn btn-primary" id="exportPurchasesPdfBtn" style="margin-top:8px;background:linear-gradient(135deg,#0F3556,#1B5A96);">📄 Export as PDF (v2)</button>
   `;
 }
@@ -9205,6 +9216,7 @@ function handleDelegatedClick(e){
   const downloadMyBatchEl = e.target.closest("[data-download-my-purchase-batch]");
   if(downloadMyBatchEl){ generateMyPurchaseBatchPdf(downloadMyBatchEl.getAttribute("data-download-my-purchase-batch")); return; }
   if(el("exportPurchasesExcelBtn")){ generatePurchasesExcel(); return; }
+  if(el("previewPrintPurchasesBtn")){ generatePurchasesPdf("preview"); return; }
   if(el("exportPurchasesPdfBtn")){ generatePurchasesPdf(); return; }
   const reviewHrTsEl = e.target.closest("[data-review-hr-timesheet]");
   if(reviewHrTsEl){ openHrTimesheetReview(reviewHrTsEl.getAttribute("data-review-hr-timesheet")); return; }
