@@ -4507,8 +4507,58 @@ async function generatePurchasesExcel(){
   render();
 }
 
+function previewAndPrintPurchases(items, titleText){
+  if(!items.length){ toast("No purchases to export."); return; }
+  const rows = items.map((p,i) => `
+    <tr>
+      <td>${i+1}</td>
+      <td>${formatDateDMY(p.purchase_date)}</td>
+      <td>${p.item_description||"-"}</td>
+      <td>${p.ts_projects?.name || "-"}</td>
+      <td>${p.bill_no || "-"}</td>
+      <td style="text-align:right;">${Number(p.amount).toFixed(2)}</td>
+      <td style="text-align:right;">${Number(p.vat_amount).toFixed(2)}</td>
+      <td style="text-align:right;font-weight:bold;">${Number(p.total_amount).toFixed(2)}</td>
+    </tr>`).join("");
+  const totalAmount = items.reduce((s,p)=>s+(Number(p.amount)||0),0);
+  const totalVat = items.reduce((s,p)=>s+(Number(p.vat_amount)||0),0);
+  const totalAll = items.reduce((s,p)=>s+(Number(p.total_amount)||0),0);
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${titleText}</title>
+    <style>
+      body{font-family:Arial,Helvetica,sans-serif;padding:24px;color:#111;}
+      h2{color:#0F3556;margin-bottom:4px;}
+      table{width:100%;border-collapse:collapse;font-size:11px;margin-top:14px;}
+      th,td{border:1px solid #999;padding:6px 8px;}
+      th{background:#1B5A96;color:#fff;text-align:left;}
+      tfoot td{font-weight:bold;background:#F3EAFB;}
+      @media print { body{padding:0;} }
+    </style>
+    </head>
+    <body>
+      <h2>${titleText}</h2>
+      <table>
+        <thead><tr><th>No.</th><th>Date</th><th>Description</th><th>Project</th><th>Bill No</th><th>Amount</th><th>VAT</th><th>Total</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><td colspan="5" style="text-align:right;">TOTAL</td><td style="text-align:right;">${totalAmount.toFixed(2)}</td><td style="text-align:right;">${totalVat.toFixed(2)}</td><td style="text-align:right;">${totalAll.toFixed(2)}</td></tr></tfoot>
+      </table>
+      <scr${""}ipt>window.onload = function(){ window.print(); };</scr${""}ipt>
+    </body></html>`;
+  const win = window.open("", "_blank");
+  if(!win){ toast("Please allow pop-ups to preview and print."); return; }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+}
+
 async function buildPurchasesPdf(items, filename, titleText, mode){
   if(!items.length){ toast("No purchases to export."); return; }
+  if(mode === "preview"){
+    // A print-friendly HTML page opens far more reliably across
+    // desktop and mobile browsers than trying to control a PDF
+    // viewer's print button, which many mobile browsers don't show.
+    previewAndPrintPurchases(items, titleText);
+    return;
+  }
   state.loading = true; render();
   try{
     const { jsPDF } = window.jspdf;
@@ -4552,18 +4602,8 @@ async function buildPurchasesPdf(items, filename, titleText, mode){
     });
 
     stampFooters(doc);
-    if(mode === "preview"){
-      // Opens the PDF in a new tab using the browser's own PDF
-      // viewer, so the person can look it over and use its built-in
-      // print button, rather than forcing a file download first.
-      const blobUrl = doc.output("bloburl");
-      const win = window.open(blobUrl, "_blank");
-      if(!win){ toast("Please allow pop-ups to preview and print."); }
-      else toast("Opened for preview — use your browser's print button.");
-    }else{
-      doc.save(filename);
-      toast("PDF downloaded.");
-    }
+    doc.save(filename);
+    toast("PDF downloaded.");
   }catch(e){
     console.error("Purchases PDF error:", e);
     toast("PDF error: " + (e && e.message ? e.message : "unknown"));
