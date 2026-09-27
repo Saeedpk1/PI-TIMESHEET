@@ -4365,7 +4365,7 @@ async function savePurchase(){
 async function submitAllDraftsToHr(){
   const drafts = state.myPurchases.filter(p => p.status === "draft");
   if(!drafts.length){ toast("Nothing to submit — save at least one item first."); return; }
-  if(!confirm(`Submit ${drafts.length} item${drafts.length===1?"":"s"} to HR? You won't be able to edit them after this.`)) return;
+  if(!confirm(`Submit ${drafts.length} item${drafts.length===1?"":"s"} to HR?`)) return;
 
   const batchId = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
   state.loading = true; render();
@@ -4448,6 +4448,22 @@ async function deletePurchaseBatchHr(batchId, itemCount){
   }
   state.loading = false;
   toast(error ? "Could not remove. Try again." : "Submission removed.");
+  await loadHrPurchases();
+  render();
+}
+
+async function returnPurchaseBatchToDraft(batchId){
+  if(!confirm("Send this submission back for correction? It will return to their drafts to fix and resubmit.")) return;
+  state.loading = true; render();
+  let error;
+  if(batchId.startsWith("single-")){
+    const itemId = batchId.replace("single-", "");
+    ({ error } = await sb.from("ts_purchases").update({ status: "draft" }).eq("id", itemId));
+  }else{
+    ({ error } = await sb.from("ts_purchases").update({ status: "draft" }).eq("batch_id", batchId));
+  }
+  state.loading = false;
+  toast(error ? "Could not send back. Try again." : "Sent back for correction.");
   await loadHrPurchases();
   render();
 }
@@ -8964,6 +8980,7 @@ function renderPurchaseForm(){
         <td style="font-size:9px;">${projectName(p.project_id)}</td>
         <td style="font-size:9px;">${p.bill_no || "-"}</td>
         <td style="font-size:9px;text-align:right;font-weight:700;">${Number(p.total_amount).toFixed(2)}</td>
+        <td style="white-space:nowrap;"><button class="icon-sq icon-sq-edit" data-edit-purchase-draft="${p.id}" title="Edit">✎</button></td>
       </tr>`).join("");
     return `
     <button class="btn btn-outline" data-toggle-sent-batch="${b.batchId}" style="margin-top:8px;text-align:left;display:flex;justify-content:space-between;align-items:center;border-color:#1B7A6B;color:#125C4F;">
@@ -8973,7 +8990,7 @@ function renderPurchaseForm(){
     ${expanded ? `
     <div class="card" style="margin-top:6px;padding:6px 4px 2px;overflow-x:auto;">
       <table class="grid" style="min-width:360px;">
-        <thead><tr><th style="font-size:8px;">Description</th><th style="font-size:8px;">Project</th><th style="font-size:8px;">Bill No</th><th style="font-size:8px;">Total</th></tr></thead>
+        <thead><tr><th style="font-size:8px;">Description</th><th style="font-size:8px;">Project</th><th style="font-size:8px;">Bill No</th><th style="font-size:8px;">Total</th><th></th></tr></thead>
         <tbody>${itemRows}</tbody>
       </table>
       <button class="link-btn" data-download-my-purchase-batch="${b.batchId}" style="margin:8px 0 4px;">⬇ Download PDF</button>
@@ -9109,6 +9126,7 @@ function renderHrPurchasesList(){
           <tbody>${itemRows}</tbody>
         </table>
         <button class="link-btn" data-delete-purchase-batch="${b.batchId}" data-batch-count="${b.items.length}" style="color:var(--absent) !important;margin:8px 0 4px;">🗑 Remove this submission</button>
+        <button class="link-btn" data-return-purchase-batch="${b.batchId}" style="color:var(--blue) !important;margin:8px 0 4px 16px;">↩ Send back for correction</button>
       </div>` : ""}
     </div>`;
   };
@@ -9253,6 +9271,8 @@ function handleDelegatedClick(e){
     deletePurchaseBatchHr(deleteBatchEl.getAttribute("data-delete-purchase-batch"), Number(deleteBatchEl.getAttribute("data-batch-count")) || 0);
     return;
   }
+  const returnBatchEl = e.target.closest("[data-return-purchase-batch]");
+  if(returnBatchEl){ returnPurchaseBatchToDraft(returnBatchEl.getAttribute("data-return-purchase-batch")); return; }
   const downloadMyBatchEl = e.target.closest("[data-download-my-purchase-batch]");
   if(downloadMyBatchEl){ generateMyPurchaseBatchPdf(downloadMyBatchEl.getAttribute("data-download-my-purchase-batch")); return; }
   if(el("exportPurchasesExcelBtn")){ generatePurchasesExcel(); return; }
