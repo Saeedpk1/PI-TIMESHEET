@@ -4537,7 +4537,13 @@ async function generateBlankTimesheetTemplate(type){
     const ws = wb.addWorksheet(sheetName.slice(0,31));
     ws.pageSetup = { orientation: "portrait" };
 
-    const FRIDAY_FILL = "FFD99694";
+    // Two shades so Fridays from the earlier calendar month (e.g. Aug)
+    // stay visually distinct from Fridays in the later one (e.g. Sep)
+    // when a single sheet spans both -- the regular monthly sheet
+    // never crosses a month boundary, so it only ever uses the first.
+    const FRIDAY_FILL_EARLIER = "FFD99694"; // matches the original template's rose shade
+    const FRIDAY_FILL_LATER = "FFA8CCEE"; // app's blue accent
+    const firstMonthKey = startDate.getMonth();
     const thin = { style: "thin" };
     const medium = { style: "medium" };
     const boxBorder = { top: thin, left: thin, bottom: thin, right: thin };
@@ -4589,9 +4595,10 @@ async function generateBlankTimesheetTemplate(type){
       dateCell.numberFormat = "dd-mm-yyyy";
       const dayCell = ws.getCell(r,2);
       dayCell.value = DAY_ABBR[d.getDay()];
+      const fridayFill = d.getMonth() === firstMonthKey ? FRIDAY_FILL_EARLIER : FRIDAY_FILL_LATER;
       [1,2,3,4,5,6].forEach(c => {
         const cell = ws.getCell(r,c);
-        if(isFriday) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FRIDAY_FILL } };
+        if(isFriday) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fridayFill } };
         if(c >= 3) cell.border = boxBorder;
       });
       ws.getRow(r).height = 18;
