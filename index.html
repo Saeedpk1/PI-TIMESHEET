@@ -4493,6 +4493,144 @@ async function returnPurchaseBatchToDraft(batchId){
   render();
 }
 
+async function generateBlankTimesheetTemplate(type){
+  // type: "regular" (calendar month) or "qidiya" (26th of the
+  // previous month through the 25th of the selected month).
+  state.loading = true; render();
+  try{
+    const refDate = state.monthDate || new Date();
+    const year = refDate.getFullYear();
+    const month = refDate.getMonth(); // 0-based
+
+    const MONTH_FULL = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
+    const MONTH_ABBR = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+    const DAY_ABBR = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+
+    let startDate, endDate, projectName;
+    if(type === "qidiya"){
+      startDate = new Date(year, month - 1, 26);
+      endDate = new Date(year, month, 25);
+      projectName = "QIDIYA";
+    }else{
+      startDate = new Date(year, month, 1);
+      endDate = new Date(year, month + 1, 0); // last day of the month
+      projectName = "";
+    }
+    const monthText = MONTH_FULL[month];
+    const fileMonthTag = `${MONTH_ABBR[month]}-${String(year).slice(2)}`;
+
+    const days = [];
+    for(let d = new Date(startDate); d <= endDate; d.setDate(d.getDate()+1)){
+      days.push(new Date(d));
+    }
+
+    const wb = new ExcelJS.Workbook();
+    const sheetName = type === "qidiya" ? `${fileMonthTag}-Q` : fileMonthTag;
+    const ws = wb.addWorksheet(sheetName.slice(0,31));
+    ws.pageSetup = { orientation: "portrait" };
+
+    const FRIDAY_FILL = "FFD99694";
+    const thin = { style: "thin" };
+    const medium = { style: "medium" };
+    const boxBorder = { top: thin, left: thin, bottom: thin, right: thin };
+
+    ws.getColumn(1).width = 10.71;
+    ws.getColumn(2).width = 13.14;
+    ws.getColumn(3).width = 18.29;
+    ws.getColumn(4).width = 12.86;
+    ws.getColumn(5).width = 13.71;
+    ws.getColumn(6).width = 29.71;
+
+    ws.mergeCells(2,1,2,6);
+    ws.getCell(2,1).value = "TIME SHEET ";
+
+    ws.mergeCells(5,1,5,2);
+    ws.getCell(5,1).value = "Employee Name";
+    ws.getCell(5,1).font = { bold: true };
+    ws.mergeCells(5,3,5,4);
+    ws.getCell(5,5).value = "EMP  ID ";
+    [1,2,3,4,5,6].forEach(c => { ws.getCell(5,c).border = boxBorder; });
+
+    ws.mergeCells(6,1,6,2);
+    ws.getCell(6,1).value = "Position";
+    ws.getCell(6,1).font = { bold: true };
+    ws.getCell(6,1).border = { top: thin, left: thin, bottom: thin };
+
+    ws.getCell(7,1).value = "MONTH     ";
+    ws.getCell(7,1).font = { bold: true };
+    ws.getCell(7,2).value = monthText;
+    ws.getCell(7,2).font = { bold: true };
+    ws.getCell(7,3).value = "Project Name ";
+    ws.getCell(7,4).value = projectName;
+    ws.getCell(7,5).value = "Location ";
+    [3,4,5,6].forEach(c => { ws.getCell(7,c).border = boxBorder; });
+
+    const headerRow = 8;
+    ["Date","Day","Unit No/Project","Regular Hrs","Over Time"," Supervisor Signature"].forEach((h,i) => {
+      const cell = ws.getCell(headerRow, i+1);
+      cell.value = h;
+      cell.font = { bold: true };
+    });
+    ws.getRow(headerRow).height = 15.75;
+
+    let r = headerRow + 1;
+    days.forEach(d => {
+      const isFriday = d.getDay() === 5;
+      const dateCell = ws.getCell(r,1);
+      dateCell.value = d;
+      dateCell.numberFormat = "dd-mm-yyyy";
+      const dayCell = ws.getCell(r,2);
+      dayCell.value = DAY_ABBR[d.getDay()];
+      [1,2,3,4,5,6].forEach(c => {
+        const cell = ws.getCell(r,c);
+        if(isFriday) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FRIDAY_FILL } };
+        if(c >= 3) cell.border = boxBorder;
+      });
+      ws.getRow(r).height = 18;
+      r++;
+    });
+
+    r++; // blank spacer row
+    ws.mergeCells(r,1,r,2);
+    ws.getCell(r,1).value = "Total";
+    ws.getCell(r,1).font = { bold: true };
+    r++;
+
+    ws.mergeCells(r,1,r,2);
+    ws.getCell(r,1).value = "PI Employee Signature";
+    ws.mergeCells(r,3,r,4);
+    ws.getCell(r,3).value = "Supervisor Signature";
+    ws.mergeCells(r,5,r,6);
+    ws.getCell(r,5).value = "Manager Signature";
+    [1,2,3,4,5,6].forEach(c => { ws.getCell(r,c).font = { bold: true }; });
+    const sigLabelRow = r;
+    r++;
+    ws.mergeCells(r,1,r+1,2);
+    ws.mergeCells(r,3,r+1,4);
+    ws.mergeCells(r,5,r+1,6);
+    [1,3,5].forEach(c => { ws.getCell(r,c).border = boxBorder; });
+    ws.getCell(sigLabelRow,1).border = { top: medium, left: medium, bottom: medium };
+    ws.getCell(sigLabelRow,5).border = { top: medium, right: medium, bottom: medium };
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${sheetName}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast("Blank timesheet downloaded.");
+  }catch(e){
+    console.error("Blank timesheet error:", e);
+    toast("Error: " + (e && e.message ? e.message : "unknown"));
+  }
+  state.loading = false;
+  render();
+}
+
 async function generatePurchasesExcel(){
   state.loading = true; render();
   try{
@@ -6260,6 +6398,12 @@ function renderRajeshDashboard(){
       <div class="hr-tile" id="openCombinedReportsBtn" style="background:linear-gradient(135deg,#B8A05C,#957F42);"><span class="icon">👁</span><span class="label">View Daily<br>Reports</span></div>
     </div>
 
+    <div class="hr-section-label" style="color:#3E5D78;">📄 Blank Timesheet</div>
+    <div class="hr-tile-grid-2col">
+      <div class="hr-tile" id="downloadBlankTimesheetBtn" style="background:linear-gradient(135deg,#3E5D78,#2E4864);"><span class="icon">📄</span><span class="label">Monthly<br>(${monthLabel(state.monthDate)})</span></div>
+      <div class="hr-tile" id="downloadQidiyaTimesheetBtn" style="background:linear-gradient(135deg,#3E5D78,#2E4864);"><span class="icon">📄</span><span class="label">Qidiya<br>(26 – 25)</span></div>
+    </div>
+
     <div class="hr-section-label" style="color:var(--navy);">💰 Finance</div>
     <div class="hr-tile-grid-2col">
       <div class="hr-tile" id="openFinancialReportBtn" style="background:linear-gradient(135deg,#3E5D78,#2E4864);"><span class="icon">💰</span><span class="label">Financial<br>Report</span></div>
@@ -7952,6 +8096,12 @@ function renderHrView(){
       ${hrTileLight("📋", "Add Daily<br>Report", "openDailyReportBtn", "#6B4E0A", "#F0D488")}
       ${hrTileLight("👁", "View Daily<br>Reports", "openCombinedReportsBtn", "#6B4E0A", "#F0D488")}
       ${hrTileLight("📊", "Attendance<br>by Project", "exportAttendanceByProjectBtn", "#6B4E0A", "#F0D488")}
+    </div>
+
+    <div class="hr-section-label" style="color:#0C3A66;">📄 Blank Timesheet</div>
+    <div class="hr-tile-grid">
+      ${hrTileLight("📄", `Monthly<br>${monthLabel(state.monthDate)}`, "downloadBlankTimesheetBtn", "#0C3A66", "#A8CCEE")}
+      ${hrTileLight("📄", "Qidiya<br>(26 – 25)", "downloadQidiyaTimesheetBtn", "#0C3A66", "#A8CCEE")}
     </div>
 
     <div class="hr-section-label" style="color:#1B5A96;">💰 Finance</div>
@@ -9721,6 +9871,8 @@ function handleDelegatedClick(e){
     return;
   }
   if(el("saveMyProfileBtn")){ saveMyProfile(); return; }
+  if(el("downloadBlankTimesheetBtn")){ generateBlankTimesheetTemplate("regular"); return; }
+  if(el("downloadQidiyaTimesheetBtn")){ generateBlankTimesheetTemplate("qidiya"); return; }
   if(el("openDailyReportBtn")){
     resetDailyReportDraft();
     state.dailyReportDate = todayLocalISO();
