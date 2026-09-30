@@ -636,7 +636,11 @@ function normalizeProjectName(name){
 }
 
 async function addProject(){
-  const name = (state.newProjectName || "").trim();
+  // Always stored in upper case -- this is the established
+  // convention ("AL RAJHI", "QIDIYA", etc.) and, critically, stops
+  // the same project from ever getting a second, case-variant record
+  // (e.g. "al rajhi" vs "AL RAJHI") depending on who typed it in.
+  const name = (state.newProjectName || "").trim().toUpperCase();
   if(!name){ toast("Enter a project name."); return; }
   const normalized = normalizeProjectName(name);
   const similar = state.projects.find(p => normalizeProjectName(p.name) === normalized && p.name !== name);
@@ -653,6 +657,32 @@ async function addProject(){
   }
   state.newProjectName = "";
   toast("Project added.");
+  await loadProjects();
+  render();
+}
+
+async function editProjectName(id){
+  const proj = state.projects.find(p => p.id === id);
+  if(!proj) return;
+  const input = prompt("Project name:", proj.name);
+  if(input === null) return;
+  const name = input.trim().toUpperCase();
+  if(!name){ toast("Enter a project name."); return; }
+  if(name === proj.name){ return; }
+  const normalized = normalizeProjectName(name);
+  const similar = state.projects.find(p => p.id !== id && normalizeProjectName(p.name) === normalized && p.name !== name);
+  if(similar){
+    const proceed = confirm(`This looks very similar to the existing project "${similar.name}". Renaming to "${name}" will make it a SEPARATE project from "${similar.name}".\n\nTap OK to rename anyway, or Cancel to leave it as is.`);
+    if(!proceed) return;
+  }
+  state.loading = true; render();
+  const { error } = await sb.from("ts_projects").update({ name }).eq("id", id);
+  state.loading = false;
+  if(error){
+    toast(error.code === "23505" ? "A project with that name already exists." : "Could not rename project.");
+    return;
+  }
+  toast("Project renamed.");
   await loadProjects();
   render();
 }
@@ -4500,162 +4530,263 @@ async function returnPurchaseBatchToDraft(batchId){
   render();
 }
 
-async function generateBlankTimesheetTemplate(type){
+function computeBlankTimesheetRange(type){
   // type: "regular" (calendar month) or "qidiya" (26th of the
-  // previous month through the 25th of the selected month).
-  state.loading = true; render();
-  try{
-    const [selY, selM] = (state.blankTimesheetMonth || new Date().toISOString().slice(0,7)).split("-").map(Number);
-    const refDate = new Date(selY, selM - 1, 1);
-    const year = refDate.getFullYear();
-    const month = refDate.getMonth(); // 0-based
+  // previous month through the 25th of the selected month). Shared
+  // by both the Excel and PDF builders so the date logic only lives
+  // in one place.
+  const [selY, selM] = (state.blankTimesheetMonth || new Date().toISOString().slice(0,7)).split("-").map(Number);
+  const refDate = new Date(selY, selM - 1, 1);
+  const year = refDate.getFullYear();
+  const month = refDate.getMonth(); // 0-based
 
-    const MONTH_FULL = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
-    const MONTH_ABBR = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
-    const DAY_ABBR = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+  const MONTH_FULL = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
+  const MONTH_ABBR = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+  const DAY_ABBR = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 
-    // Built entirely in UTC and kept there throughout -- ExcelJS
-    // serializes a Date's UTC components into the file, so a
-    // locally-constructed date (e.g. in a browser running in Saudi
-    // Arabia, UTC+3) would otherwise land on the wrong calendar day
-    // once written out.
-    let startDate, endDate, projectName;
-    if(type === "qidiya"){
-      startDate = new Date(Date.UTC(year, month - 1, 26));
-      endDate = new Date(Date.UTC(year, month, 25));
-      projectName = "QIDIYA";
-    }else{
-      startDate = new Date(Date.UTC(year, month, 1));
-      endDate = new Date(Date.UTC(year, month + 1, 0)); // last day of the month
-      projectName = "";
-    }
-    const monthText = MONTH_FULL[month];
-    const fileMonthTag = `${MONTH_ABBR[month]}-${String(year).slice(2)}`;
+  // Built entirely in UTC and kept there throughout -- both ExcelJS
+  // and jsPDF would otherwise read a locally-constructed date's UTC
+  // components when formatting/serializing it, so a browser running
+  // in Saudi Arabia (UTC+3) would land on the wrong calendar day.
+  let startDate, endDate, projectName;
+  if(type === "qidiya"){
+    startDate = new Date(Date.UTC(year, month - 1, 26));
+    endDate = new Date(Date.UTC(year, month, 25));
+    projectName = "QIDIYA";
+  }else{
+    startDate = new Date(Date.UTC(year, month, 1));
+    endDate = new Date(Date.UTC(year, month + 1, 0)); // last day of the month
+    projectName = "";
+  }
+  const monthText = MONTH_FULL[month];
+  const fileMonthTag = `${MONTH_ABBR[month]}-${String(year).slice(2)}`;
+  const fileBaseName = type === "qidiya" ? `${fileMonthTag}-Q` : fileMonthTag;
 
-    const days = [];
-    for(let t = startDate.getTime(); t <= endDate.getTime(); t += 86400000){
-      days.push(new Date(t));
-    }
+  const days = [];
+  for(let t = startDate.getTime(); t <= endDate.getTime(); t += 86400000){
+    days.push(new Date(t));
+  }
 
-    const wb = new ExcelJS.Workbook();
-    const sheetName = type === "qidiya" ? `${fileMonthTag}-Q` : fileMonthTag;
-    const ws = wb.addWorksheet(sheetName.slice(0,31));
-    ws.pageSetup = { orientation: "portrait" };
+  return { days, monthText, projectName, fileBaseName, firstMonthKey: startDate.getUTCMonth(), DAY_ABBR };
+}
 
-    // Two shades so Fridays from the earlier calendar month (e.g. Aug)
-    // stay visually distinct from Fridays in the later one (e.g. Sep)
-    // when a single sheet spans both -- the regular monthly sheet
-    // never crosses a month boundary, so it only ever uses the first.
-    const FRIDAY_FILL_EARLIER = "FFD99694"; // matches the original template's rose shade
-    const FRIDAY_FILL_LATER = "FFA8CCEE"; // app's blue accent
-    const firstMonthKey = startDate.getUTCMonth();
-    const NAVY = "FF0F3556";
-    const WHITE = "FFFFFFFF";
-    const medium = { style: "medium" };
-    const thick = { style: "thick" };
-    const boxBorder = { top: medium, left: medium, bottom: medium, right: medium };
+function ddmmyyyy(d){
+  const dd = String(d.getUTCDate()).padStart(2,"0");
+  const mm = String(d.getUTCMonth()+1).padStart(2,"0");
+  return `${dd}-${mm}-${d.getUTCFullYear()}`;
+}
 
-    ws.getColumn(1).width = 10.71;
-    ws.getColumn(2).width = 13.14;
-    ws.getColumn(3).width = 18.29;
-    ws.getColumn(4).width = 12.86;
-    ws.getColumn(5).width = 13.71;
-    ws.getColumn(6).width = 29.71;
+async function buildBlankTimesheetExcelBlob(type){
+  const { days, monthText, projectName, fileBaseName, firstMonthKey, DAY_ABBR } = computeBlankTimesheetRange(type);
 
-    ws.mergeCells(2,1,2,6);
-    const titleCell = ws.getCell(2,1);
-    titleCell.value = "TIME SHEET";
-    titleCell.font = { bold: true, size: 16 };
-    titleCell.alignment = { horizontal: "center", vertical: "middle" };
-    ws.getRow(2).height = 26;
-    [1,2,3,4,5,6].forEach(c => { ws.getCell(2,c).border = { bottom: thick }; });
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet(fileBaseName.slice(0,31));
+  ws.pageSetup = { orientation: "portrait" };
 
-    ws.mergeCells(5,1,5,2);
-    ws.getCell(5,1).value = "Employee Name";
-    ws.getCell(5,1).font = { bold: true };
-    ws.mergeCells(5,3,5,4);
-    ws.getCell(5,5).value = "EMP  ID ";
-    ws.getCell(5,5).font = { bold: true };
-    [1,2,3,4,5,6].forEach(c => { ws.getCell(5,c).border = boxBorder; });
+  // Two shades so Fridays from the earlier calendar month (e.g. Aug)
+  // stay visually distinct from Fridays in the later one (e.g. Sep)
+  // when a single sheet spans both -- the regular monthly sheet
+  // never crosses a month boundary, so it only ever uses the first.
+  const FRIDAY_FILL_EARLIER = "FFD99694"; // matches the original template's rose shade
+  const FRIDAY_FILL_LATER = "FFA8CCEE"; // app's blue accent
+  const NAVY = "FF0F3556";
+  const WHITE = "FFFFFFFF";
+  const medium = { style: "medium" };
+  const thick = { style: "thick" };
+  const boxBorder = { top: thick, left: thick, bottom: thick, right: thick };
 
-    ws.mergeCells(6,1,6,2);
-    ws.getCell(6,1).value = "Position";
-    ws.getCell(6,1).font = { bold: true };
-    ws.getCell(6,1).border = { top: medium, left: medium, bottom: medium };
+  ws.getColumn(1).width = 10.71;
+  ws.getColumn(2).width = 13.14;
+  ws.getColumn(3).width = 18.29;
+  ws.getColumn(4).width = 12.86;
+  ws.getColumn(5).width = 13.71;
+  ws.getColumn(6).width = 29.71;
 
-    ws.getCell(7,1).value = "MONTH     ";
-    ws.getCell(7,1).font = { bold: true };
-    ws.getCell(7,2).value = monthText;
-    ws.getCell(7,2).font = { bold: true };
-    ws.getCell(7,3).value = "Project Name ";
-    ws.getCell(7,3).font = { bold: true };
-    ws.getCell(7,4).value = projectName;
-    ws.getCell(7,5).value = "Location ";
-    ws.getCell(7,5).font = { bold: true };
-    [3,4,5,6].forEach(c => { ws.getCell(7,c).border = boxBorder; });
+  ws.mergeCells(2,1,2,6);
+  const titleCell = ws.getCell(2,1);
+  titleCell.value = "TIME SHEET";
+  titleCell.font = { bold: true, size: 16 };
+  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+  ws.getRow(2).height = 26;
+  [1,2,3,4,5,6].forEach(c => { ws.getCell(2,c).border = { bottom: thick }; });
 
-    const headerRow = 8;
-    ["Date","Day","Unit No/Project","Regular Hrs","Over Time"," Supervisor Signature"].forEach((h,i) => {
-      const cell = ws.getCell(headerRow, i+1);
-      cell.value = h;
-      cell.font = { bold: true, color: { argb: WHITE } };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
-      cell.alignment = { horizontal: "center", vertical: "middle" };
+  ws.mergeCells(5,1,5,2);
+  ws.getCell(5,1).value = "Employee Name";
+  ws.getCell(5,1).font = { bold: true };
+  ws.mergeCells(5,3,5,4);
+  ws.getCell(5,5).value = "EMP  ID ";
+  ws.getCell(5,5).font = { bold: true };
+  [1,2,3,4,5,6].forEach(c => { ws.getCell(5,c).border = boxBorder; });
+
+  ws.mergeCells(6,1,6,2);
+  ws.getCell(6,1).value = "Position";
+  ws.getCell(6,1).font = { bold: true };
+  ws.getCell(6,1).border = { top: medium, left: medium, bottom: medium };
+
+  ws.getCell(7,1).value = "MONTH     ";
+  ws.getCell(7,1).font = { bold: true };
+  ws.getCell(7,2).value = monthText;
+  ws.getCell(7,2).font = { bold: true };
+  ws.getCell(7,3).value = "Project Name ";
+  ws.getCell(7,3).font = { bold: true };
+  ws.getCell(7,4).value = projectName;
+  ws.getCell(7,5).value = "Location ";
+  ws.getCell(7,5).font = { bold: true };
+  [3,4,5,6].forEach(c => { ws.getCell(7,c).border = boxBorder; });
+
+  const headerRow = 8;
+  ["Date","Day","Unit No/Project","Regular Hrs","Over Time"," Supervisor Signature"].forEach((h,i) => {
+    const cell = ws.getCell(headerRow, i+1);
+    cell.value = h;
+    cell.font = { bold: true, color: { argb: WHITE } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.border = boxBorder;
+  });
+  ws.getRow(headerRow).height = 18;
+
+  let r = headerRow + 1;
+  days.forEach(d => {
+    const isFriday = d.getUTCDay() === 5;
+    const dateCell = ws.getCell(r,1);
+    // Written as plain text in the exact dd-mm-yyyy shape, rather
+    // than a real Excel date with a number format -- Excel's format
+    // codes for dates are locale-dependent, so the same numberFormat
+    // string can display differently depending on the computer that
+    // opens the file. Text guarantees it always reads dd-mm-yyyy.
+    dateCell.value = ddmmyyyy(d);
+    dateCell.alignment = { horizontal: "center" };
+    const dayCell = ws.getCell(r,2);
+    dayCell.value = DAY_ABBR[d.getUTCDay()];
+    dayCell.alignment = { horizontal: "center" };
+    const fridayFill = d.getUTCMonth() === firstMonthKey ? FRIDAY_FILL_EARLIER : FRIDAY_FILL_LATER;
+    [1,2,3,4,5,6].forEach(c => {
+      const cell = ws.getCell(r,c);
+      if(isFriday) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fridayFill } };
       cell.border = boxBorder;
     });
-    ws.getRow(headerRow).height = 18;
-
-    let r = headerRow + 1;
-    days.forEach(d => {
-      const isFriday = d.getUTCDay() === 5;
-      const dateCell = ws.getCell(r,1);
-      dateCell.value = d;
-      dateCell.numberFormat = "dd-mm-yyyy";
-      const dayCell = ws.getCell(r,2);
-      dayCell.value = DAY_ABBR[d.getUTCDay()];
-      const fridayFill = d.getUTCMonth() === firstMonthKey ? FRIDAY_FILL_EARLIER : FRIDAY_FILL_LATER;
-      [1,2,3,4,5,6].forEach(c => {
-        const cell = ws.getCell(r,c);
-        if(isFriday) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fridayFill } };
-        cell.border = boxBorder;
-      });
-      ws.getRow(r).height = 18;
-      r++;
-    });
-
-    r++; // blank spacer row
-    ws.mergeCells(r,1,r,2);
-    ws.getCell(r,1).value = "Total";
-    ws.getCell(r,1).font = { bold: true };
+    ws.getRow(r).height = 18;
     r++;
+  });
 
-    ws.mergeCells(r,1,r,2);
-    ws.getCell(r,1).value = "PI Employee Signature";
-    ws.mergeCells(r,3,r,4);
-    ws.getCell(r,3).value = "Supervisor Signature";
-    ws.mergeCells(r,5,r,6);
-    ws.getCell(r,5).value = "Manager Signature";
-    [1,2,3,4,5,6].forEach(c => { ws.getCell(r,c).font = { bold: true }; ws.getCell(r,c).alignment = { horizontal: "center" }; });
-    const sigLabelRow = r;
-    r++;
-    ws.mergeCells(r,1,r+1,2);
-    ws.mergeCells(r,3,r+1,4);
-    ws.mergeCells(r,5,r+1,6);
-    [1,3,5].forEach(c => { ws.getCell(r,c).border = boxBorder; });
-    ws.getCell(sigLabelRow,1).border = { top: thick, left: thick, bottom: medium };
-    ws.getCell(sigLabelRow,5).border = { top: thick, right: thick, bottom: medium };
+  r++; // blank spacer row
+  ws.mergeCells(r,1,r,2);
+  ws.getCell(r,1).value = "Total";
+  ws.getCell(r,1).font = { bold: true };
+  r++;
 
-    const buf = await wb.xlsx.writeBuffer();
-    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${sheetName}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast("Blank timesheet downloaded.");
+  ws.mergeCells(r,1,r,2);
+  ws.getCell(r,1).value = "PI Employee Signature";
+  ws.mergeCells(r,3,r,4);
+  ws.getCell(r,3).value = "Supervisor Signature";
+  ws.mergeCells(r,5,r,6);
+  ws.getCell(r,5).value = "Manager Signature";
+  [1,2,3,4,5,6].forEach(c => { ws.getCell(r,c).font = { bold: true }; ws.getCell(r,c).alignment = { horizontal: "center" }; });
+  const sigLabelRow = r;
+  r++;
+  ws.mergeCells(r,1,r+1,2);
+  ws.mergeCells(r,3,r+1,4);
+  ws.mergeCells(r,5,r+1,6);
+  [1,3,5].forEach(c => { ws.getCell(r,c).border = boxBorder; });
+  ws.getCell(sigLabelRow,1).border = { top: thick, left: thick, bottom: medium };
+  ws.getCell(sigLabelRow,5).border = { top: thick, right: thick, bottom: medium };
+
+  const buf = await wb.xlsx.writeBuffer();
+  return { blob: new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), filename: `${fileBaseName}.xlsx` };
+}
+
+function buildBlankTimesheetPdfBlob(type){
+  const { days, monthText, projectName, fileBaseName, firstMonthKey, DAY_ABBR } = computeBlankTimesheetRange(type);
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  if(typeof doc.autoTable !== "function") throw new Error("PDF table library not loaded yet — please wait a moment and try again.");
+
+  const NAVY = [15,53,86];
+  const FRIDAY_EARLIER = [217,150,148];
+  const FRIDAY_LATER = [168,204,238];
+
+  doc.setFont("helvetica","bold"); doc.setFontSize(16); doc.setTextColor(0,0,0);
+  doc.text("TIME SHEET", 297.5, 44, { align: "center" });
+  doc.setDrawColor(0,0,0); doc.setLineWidth(1.5);
+  doc.line(40, 54, 555, 54);
+
+  doc.setFontSize(10); doc.setFont("helvetica","bold");
+  doc.text("Employee Name:", 40, 76);
+  doc.text("EMP ID:", 320, 76);
+  doc.text("Position:", 40, 94);
+  doc.text(`MONTH: ${monthText}`, 40, 112);
+  doc.text(`Project Name: ${projectName}`, 250, 112);
+  doc.text("Location:", 440, 112);
+  doc.setDrawColor(0,0,0); doc.setLineWidth(1);
+  doc.rect(40, 64, 515, 58);
+
+  const body = days.map(d => [ddmmyyyy(d), DAY_ABBR[d.getUTCDay()], "", "", "", ""]);
+
+  doc.autoTable({
+    startY: 130,
+    head: [["Date","Day","Unit No/Project","Regular Hrs","Over Time","Supervisor Signature"]],
+    body,
+    styles: { fontSize: 8.5, cellPadding: 4, lineWidth: 1, lineColor: [0,0,0], textColor: [0,0,0] },
+    headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", halign: "center" },
+    columnStyles: { 0: { halign: "center" }, 1: { halign: "center" } },
+    didParseCell: (data) => {
+      if(data.section === "body"){
+        const d = days[data.row.index];
+        if(d.getUTCDay() === 5){
+          data.cell.styles.fillColor = d.getUTCMonth() === firstMonthKey ? FRIDAY_EARLIER : FRIDAY_LATER;
+        }
+      }
+    }
+  });
+
+  let y = doc.lastAutoTable.finalY + 26;
+  doc.setFont("helvetica","bold"); doc.setFontSize(10);
+  doc.text("Total", 40, y);
+  y += 20;
+  const boxW = 165, boxH = 46;
+  doc.setLineWidth(1.5);
+  doc.rect(40, y, boxW, boxH);
+  doc.rect(215, y, boxW, boxH);
+  doc.rect(390, y, boxW, boxH);
+  doc.text("PI Employee Signature", 40, y - 4);
+  doc.text("Supervisor Signature", 215, y - 4);
+  doc.text("Manager Signature", 390, y - 4);
+
+  return { blob: doc.output("blob"), filename: `${fileBaseName}.pdf` };
+}
+
+async function shareOrDownloadBlob(blob, filename, mimeType){
+  try{
+    const file = new File([blob], filename, { type: mimeType });
+    if(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })){
+      await navigator.share({ files: [file], title: filename });
+      return true;
+    }
+  }catch(e){
+    // A cancelled share sheet throws too -- treat that as "handled",
+    // not as a reason to fall back to forcing a download on top of it.
+    if(e && e.name === "AbortError") return true;
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  return false;
+}
+
+async function shareBlankTimesheet(type, format){
+  state.loading = true; render();
+  try{
+    const { blob, filename } = format === "pdf"
+      ? buildBlankTimesheetPdfBlob(type)
+      : await buildBlankTimesheetExcelBlob(type);
+    const mimeType = format === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    const shared = await shareOrDownloadBlob(blob, filename, mimeType);
+    toast(shared ? "Timesheet shared." : "Timesheet downloaded.");
   }catch(e){
     console.error("Blank timesheet error:", e);
     toast("Error: " + (e && e.message ? e.message : "unknown"));
@@ -6767,7 +6898,7 @@ function renderProjectSummary(){
       fmtAcct(p.invoicesTotal),
       `<span style="font-weight:700;">${fmtAcct(p.balance)}</span>`,
       `<span style="font-weight:700;">${marginText}</span>`,
-      canEdit ? `<div style="display:flex;gap:8px;justify-content:flex-end;">${!showingArchived ? `<button data-edit-project-opening="${p.id}" style="border:none;background:none;padding:2px;font-size:14px;cursor:pointer;color:#333;">✎</button>` : ""}${claimBtn}${actionBtn}</div>` : ""
+      canEdit ? `<div style="display:flex;gap:8px;justify-content:flex-end;">${!showingArchived ? `<button data-edit-project-name="${p.id}" title="Rename" style="border:none;background:none;padding:2px;font-size:14px;cursor:pointer;color:#333;">🏷️</button><button data-edit-project-opening="${p.id}" style="border:none;background:none;padding:2px;font-size:14px;cursor:pointer;color:#333;">✎</button>` : ""}${claimBtn}${actionBtn}</div>` : ""
     ].filter((_,i)=>i<headers.length).map(c => ({ content: c }));
   });
 
@@ -6891,22 +7022,28 @@ function renderBlankTimesheetScreen(){
       <input type="month" id="blankTimesheetMonthInput" value="${state.blankTimesheetMonth}" style="background:#fff;">
     </div>
 
-    <div class="mgr-card" id="downloadBlankTimesheetBtn" style="border-left-color:#1C8A4E;">
+    <div class="mgr-card" style="border-left-color:#1C8A4E;cursor:default;">
       <div class="mgr-card-icon" style="background:linear-gradient(135deg,#1C8A4E,#2FAE6B);">📄</div>
       <div class="mgr-card-body">
         <div class="mgr-card-title">Monthly Timesheet</div>
         <div class="mgr-card-desc">Full calendar month ${blankTimesheetLabel(state.blankTimesheetMonth)}</div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-outline btn-sm" data-share-timesheet="regular" data-format="excel" style="flex:1;">📊 Excel</button>
+          <button class="btn btn-outline btn-sm" data-share-timesheet="regular" data-format="pdf" style="flex:1;">📄 PDF</button>
+        </div>
       </div>
-      <div class="mgr-card-chevron">⬇</div>
     </div>
 
-    <div class="mgr-card" id="downloadQidiyaTimesheetBtn" style="border-left-color:#6B4FC4;">
+    <div class="mgr-card" style="border-left-color:#6B4FC4;cursor:default;">
       <div class="mgr-card-icon" style="background:linear-gradient(135deg,#6B4FC4,#9B7FE0);">📄</div>
       <div class="mgr-card-body">
         <div class="mgr-card-title">Qidiya Timesheet</div>
         <div class="mgr-card-desc">26th of the previous month through the 25th</div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-outline btn-sm" data-share-timesheet="qidiya" data-format="excel" style="flex:1;">📊 Excel</button>
+          <button class="btn btn-outline btn-sm" data-share-timesheet="qidiya" data-format="pdf" style="flex:1;">📄 PDF</button>
+        </div>
       </div>
-      <div class="mgr-card-chevron">⬇</div>
     </div>
   `;
 }
@@ -9815,6 +9952,8 @@ function handleDelegatedClick(e){
   if(raiseInvoiceClaimEl){ raiseInvoiceFromClaim(raiseInvoiceClaimEl.getAttribute("data-raise-invoice-claim")); return; }
   const editProjectOpeningEl = e.target.closest("[data-edit-project-opening]");
   if(editProjectOpeningEl){ editProjectOpeningBalance(editProjectOpeningEl.getAttribute("data-edit-project-opening")); return; }
+  const editProjectNameEl = e.target.closest("[data-edit-project-name]");
+  if(editProjectNameEl){ editProjectName(editProjectNameEl.getAttribute("data-edit-project-name")); return; }
   const toggleProjectInvoicesEl = e.target.closest("[data-toggle-project-invoices]");
   if(toggleProjectInvoicesEl){
     const id = toggleProjectInvoicesEl.getAttribute("data-toggle-project-invoices");
@@ -9938,8 +10077,11 @@ function handleDelegatedClick(e){
   }
   if(el("saveMyProfileBtn")){ saveMyProfile(); return; }
   if(el("openBlankTimesheetScreenBtn")){ state.view = "blank-timesheet"; render(); return; }
-  if(el("downloadBlankTimesheetBtn")){ generateBlankTimesheetTemplate("regular"); return; }
-  if(el("downloadQidiyaTimesheetBtn")){ generateBlankTimesheetTemplate("qidiya"); return; }
+  const shareTimesheetEl = e.target.closest("[data-share-timesheet]");
+  if(shareTimesheetEl){
+    shareBlankTimesheet(shareTimesheetEl.getAttribute("data-share-timesheet"), shareTimesheetEl.getAttribute("data-format"));
+    return;
+  }
   if(el("openDailyReportBtn")){
     resetDailyReportDraft();
     state.dailyReportDate = todayLocalISO();
