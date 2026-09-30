@@ -1156,7 +1156,9 @@ async function submitSetupPassword(){
   const { error: signInError } = await sb.auth.signInWithPassword({ email, password: match.iqama_number });
   if(signInError){
     state.loading = false;
-    state.error = "Could not set up your password right now. Try again, or contact your admin.";
+    // TEMPORARY: shows the real underlying error for troubleshooting.
+    // Revert this to the generic message once the setup issue is fixed.
+    state.error = "Could not set up your password right now. (" + (signInError.message || signInError.status || "unknown error") + ")";
     render();
     return;
   }
