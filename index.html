@@ -4514,22 +4514,27 @@ async function generateBlankTimesheetTemplate(type){
     const MONTH_ABBR = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
     const DAY_ABBR = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 
+    // Built entirely in UTC and kept there throughout -- ExcelJS
+    // serializes a Date's UTC components into the file, so a
+    // locally-constructed date (e.g. in a browser running in Saudi
+    // Arabia, UTC+3) would otherwise land on the wrong calendar day
+    // once written out.
     let startDate, endDate, projectName;
     if(type === "qidiya"){
-      startDate = new Date(year, month - 1, 26);
-      endDate = new Date(year, month, 25);
+      startDate = new Date(Date.UTC(year, month - 1, 26));
+      endDate = new Date(Date.UTC(year, month, 25));
       projectName = "QIDIYA";
     }else{
-      startDate = new Date(year, month, 1);
-      endDate = new Date(year, month + 1, 0); // last day of the month
+      startDate = new Date(Date.UTC(year, month, 1));
+      endDate = new Date(Date.UTC(year, month + 1, 0)); // last day of the month
       projectName = "";
     }
     const monthText = MONTH_FULL[month];
     const fileMonthTag = `${MONTH_ABBR[month]}-${String(year).slice(2)}`;
 
     const days = [];
-    for(let d = new Date(startDate); d <= endDate; d.setDate(d.getDate()+1)){
-      days.push(new Date(d));
+    for(let t = startDate.getTime(); t <= endDate.getTime(); t += 86400000){
+      days.push(new Date(t));
     }
 
     const wb = new ExcelJS.Workbook();
@@ -4543,10 +4548,12 @@ async function generateBlankTimesheetTemplate(type){
     // never crosses a month boundary, so it only ever uses the first.
     const FRIDAY_FILL_EARLIER = "FFD99694"; // matches the original template's rose shade
     const FRIDAY_FILL_LATER = "FFA8CCEE"; // app's blue accent
-    const firstMonthKey = startDate.getMonth();
-    const thin = { style: "thin" };
+    const firstMonthKey = startDate.getUTCMonth();
+    const NAVY = "FF0F3556";
+    const WHITE = "FFFFFFFF";
     const medium = { style: "medium" };
-    const boxBorder = { top: thin, left: thin, bottom: thin, right: thin };
+    const thick = { style: "thick" };
+    const boxBorder = { top: medium, left: medium, bottom: medium, right: medium };
 
     ws.getColumn(1).width = 10.71;
     ws.getColumn(2).width = 13.14;
@@ -4556,50 +4563,61 @@ async function generateBlankTimesheetTemplate(type){
     ws.getColumn(6).width = 29.71;
 
     ws.mergeCells(2,1,2,6);
-    ws.getCell(2,1).value = "TIME SHEET ";
+    const titleCell = ws.getCell(2,1);
+    titleCell.value = "TIME SHEET";
+    titleCell.font = { bold: true, size: 16 };
+    titleCell.alignment = { horizontal: "center", vertical: "middle" };
+    ws.getRow(2).height = 26;
+    [1,2,3,4,5,6].forEach(c => { ws.getCell(2,c).border = { bottom: thick }; });
 
     ws.mergeCells(5,1,5,2);
     ws.getCell(5,1).value = "Employee Name";
     ws.getCell(5,1).font = { bold: true };
     ws.mergeCells(5,3,5,4);
     ws.getCell(5,5).value = "EMP  ID ";
+    ws.getCell(5,5).font = { bold: true };
     [1,2,3,4,5,6].forEach(c => { ws.getCell(5,c).border = boxBorder; });
 
     ws.mergeCells(6,1,6,2);
     ws.getCell(6,1).value = "Position";
     ws.getCell(6,1).font = { bold: true };
-    ws.getCell(6,1).border = { top: thin, left: thin, bottom: thin };
+    ws.getCell(6,1).border = { top: medium, left: medium, bottom: medium };
 
     ws.getCell(7,1).value = "MONTH     ";
     ws.getCell(7,1).font = { bold: true };
     ws.getCell(7,2).value = monthText;
     ws.getCell(7,2).font = { bold: true };
     ws.getCell(7,3).value = "Project Name ";
+    ws.getCell(7,3).font = { bold: true };
     ws.getCell(7,4).value = projectName;
     ws.getCell(7,5).value = "Location ";
+    ws.getCell(7,5).font = { bold: true };
     [3,4,5,6].forEach(c => { ws.getCell(7,c).border = boxBorder; });
 
     const headerRow = 8;
     ["Date","Day","Unit No/Project","Regular Hrs","Over Time"," Supervisor Signature"].forEach((h,i) => {
       const cell = ws.getCell(headerRow, i+1);
       cell.value = h;
-      cell.font = { bold: true };
+      cell.font = { bold: true, color: { argb: WHITE } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = boxBorder;
     });
-    ws.getRow(headerRow).height = 15.75;
+    ws.getRow(headerRow).height = 18;
 
     let r = headerRow + 1;
     days.forEach(d => {
-      const isFriday = d.getDay() === 5;
+      const isFriday = d.getUTCDay() === 5;
       const dateCell = ws.getCell(r,1);
       dateCell.value = d;
       dateCell.numberFormat = "dd-mm-yyyy";
       const dayCell = ws.getCell(r,2);
-      dayCell.value = DAY_ABBR[d.getDay()];
-      const fridayFill = d.getMonth() === firstMonthKey ? FRIDAY_FILL_EARLIER : FRIDAY_FILL_LATER;
+      dayCell.value = DAY_ABBR[d.getUTCDay()];
+      const fridayFill = d.getUTCMonth() === firstMonthKey ? FRIDAY_FILL_EARLIER : FRIDAY_FILL_LATER;
       [1,2,3,4,5,6].forEach(c => {
         const cell = ws.getCell(r,c);
         if(isFriday) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fridayFill } };
-        if(c >= 3) cell.border = boxBorder;
+        cell.border = boxBorder;
       });
       ws.getRow(r).height = 18;
       r++;
@@ -4617,15 +4635,15 @@ async function generateBlankTimesheetTemplate(type){
     ws.getCell(r,3).value = "Supervisor Signature";
     ws.mergeCells(r,5,r,6);
     ws.getCell(r,5).value = "Manager Signature";
-    [1,2,3,4,5,6].forEach(c => { ws.getCell(r,c).font = { bold: true }; });
+    [1,2,3,4,5,6].forEach(c => { ws.getCell(r,c).font = { bold: true }; ws.getCell(r,c).alignment = { horizontal: "center" }; });
     const sigLabelRow = r;
     r++;
     ws.mergeCells(r,1,r+1,2);
     ws.mergeCells(r,3,r+1,4);
     ws.mergeCells(r,5,r+1,6);
     [1,3,5].forEach(c => { ws.getCell(r,c).border = boxBorder; });
-    ws.getCell(sigLabelRow,1).border = { top: medium, left: medium, bottom: medium };
-    ws.getCell(sigLabelRow,5).border = { top: medium, right: medium, bottom: medium };
+    ws.getCell(sigLabelRow,1).border = { top: thick, left: thick, bottom: medium };
+    ws.getCell(sigLabelRow,5).border = { top: thick, right: thick, bottom: medium };
 
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -6082,6 +6100,7 @@ function render(){
   else if(state.view === "supervisor-signature") body = renderSignaturePad();
   else if(state.view === "hr") body = renderHrView();
   else if(state.view === "manager-home") body = renderManagerHome();
+  else if(state.view === "blank-timesheet") body = renderBlankTimesheetScreen();
   else if(state.view === "hr-projects") body = renderProjectsManager();
   else if(state.view === "leave-form") body = renderLeaveForm();
   else if(state.view === "supervisor-leave-list") body = renderSupervisorLeaveList();
@@ -6414,13 +6433,8 @@ function renderRajeshDashboard(){
     </div>
 
     <div class="hr-section-label" style="color:#3E5D78;">📄 Blank Timesheet</div>
-    <div class="card" style="padding:12px;margin-bottom:10px;">
-      <label style="margin-top:0;font-size:11.5px;">Month</label>
-      <input type="month" id="blankTimesheetMonthInput" value="${state.blankTimesheetMonth}">
-    </div>
     <div class="hr-tile-grid-2col">
-      <div class="hr-tile" id="downloadBlankTimesheetBtn" style="background:linear-gradient(135deg,#3E5D78,#2E4864);"><span class="icon">📄</span><span class="label">Monthly<br>${blankTimesheetLabel(state.blankTimesheetMonth)}</span></div>
-      <div class="hr-tile" id="downloadQidiyaTimesheetBtn" style="background:linear-gradient(135deg,#3E5D78,#2E4864);"><span class="icon">📄</span><span class="label">Qidiya<br>(26 – 25)</span></div>
+      <div class="hr-tile" id="openBlankTimesheetScreenBtn" style="background:linear-gradient(135deg,#3E5D78,#2E4864);"><span class="icon">📄</span><span class="label">Blank<br>Timesheet</span></div>
     </div>
 
     <div class="hr-section-label" style="color:var(--navy);">💰 Finance</div>
@@ -6859,6 +6873,40 @@ function renderMonthlyProfitScreen(){
         <span style="font-weight:800;color:#0C3A66;">Pending Collection</span>
         <span style="font-weight:800;font-size:14px;color:#0C3A66;">SAR ${fmt(state.monthlyProfitRevenue - state.monthlyProfitCollected)}</span>
       </div>
+    </div>
+  `;
+}
+
+function renderBlankTimesheetScreen(){
+  const backId = state.user.role === "ceo" ? "backToCeoHomeBtn" : (state.user.role === "hr" ? "backToHrBtn" : (state.user.role === "manager" ? "backToManagerHomeBtn" : "backToSupervisorHomeBtn"));
+  return `
+    <button class="link-btn" id="${backId}" style="margin-bottom:14px;">‹ Back</button>
+    <div class="card">
+      <h3>📄 Blank Timesheet</h3>
+      <div class="meta">A ready-to-print timesheet, left blank for the site/supervisor to fill in and sign. Pick a month, then choose which format you need.</div>
+    </div>
+
+    <div class="card" style="margin-top:12px;background:#A8CCEE;border:1px solid #0C3A6666;">
+      <label style="margin-top:0;color:#0C3A66;">📅 Month</label>
+      <input type="month" id="blankTimesheetMonthInput" value="${state.blankTimesheetMonth}" style="background:#fff;">
+    </div>
+
+    <div class="mgr-card" id="downloadBlankTimesheetBtn" style="border-left-color:#1C8A4E;">
+      <div class="mgr-card-icon" style="background:linear-gradient(135deg,#1C8A4E,#2FAE6B);">📄</div>
+      <div class="mgr-card-body">
+        <div class="mgr-card-title">Monthly Timesheet</div>
+        <div class="mgr-card-desc">Full calendar month ${blankTimesheetLabel(state.blankTimesheetMonth)}</div>
+      </div>
+      <div class="mgr-card-chevron">⬇</div>
+    </div>
+
+    <div class="mgr-card" id="downloadQidiyaTimesheetBtn" style="border-left-color:#6B4FC4;">
+      <div class="mgr-card-icon" style="background:linear-gradient(135deg,#6B4FC4,#9B7FE0);">📄</div>
+      <div class="mgr-card-body">
+        <div class="mgr-card-title">Qidiya Timesheet</div>
+        <div class="mgr-card-desc">26th of the previous month through the 25th</div>
+      </div>
+      <div class="mgr-card-chevron">⬇</div>
     </div>
   `;
 }
@@ -8118,13 +8166,8 @@ function renderHrView(){
     </div>
 
     <div class="hr-section-label" style="color:#0C3A66;">📄 Blank Timesheet</div>
-    <div class="card" style="padding:12px;margin-bottom:10px;">
-      <label style="margin-top:0;font-size:11.5px;">Month</label>
-      <input type="month" id="blankTimesheetMonthInput" value="${state.blankTimesheetMonth}">
-    </div>
     <div class="hr-tile-grid">
-      ${hrTileLight("📄", `Monthly<br>${blankTimesheetLabel(state.blankTimesheetMonth)}`, "downloadBlankTimesheetBtn", "#0C3A66", "#A8CCEE")}
-      ${hrTileLight("📄", "Qidiya<br>(26 – 25)", "downloadQidiyaTimesheetBtn", "#0C3A66", "#A8CCEE")}
+      ${hrTileLight("📄", "Blank<br>Timesheet", "openBlankTimesheetScreenBtn", "#0C3A66", "#A8CCEE")}
     </div>
 
     <div class="hr-section-label" style="color:#1B5A96;">💰 Finance</div>
@@ -9894,6 +9937,7 @@ function handleDelegatedClick(e){
     return;
   }
   if(el("saveMyProfileBtn")){ saveMyProfile(); return; }
+  if(el("openBlankTimesheetScreenBtn")){ state.view = "blank-timesheet"; render(); return; }
   if(el("downloadBlankTimesheetBtn")){ generateBlankTimesheetTemplate("regular"); return; }
   if(el("downloadQidiyaTimesheetBtn")){ generateBlankTimesheetTemplate("qidiya"); return; }
   if(el("openDailyReportBtn")){
