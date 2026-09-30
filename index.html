@@ -309,6 +309,31 @@
 
   .hr-section-label{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin:12px 2px 5px;display:flex;align-items:center;gap:6px;}
   .hr-tile-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+  .mgr-section-label{font-size:11px;letter-spacing:1px;text-transform:uppercase;font-weight:800;color:var(--blue);margin:16px 2px 8px;}
+  .mgr-card{
+    display:flex; align-items:center; gap:14px;
+    background:#fff;
+    border:1px solid var(--line);
+    border-left:4px solid var(--blue);
+    border-radius:14px;
+    padding:15px 16px;
+    margin-bottom:10px;
+    cursor:pointer;
+    box-shadow:0 2px 8px rgba(15,53,86,0.06);
+    transition:transform .12s, box-shadow .12s;
+  }
+  .mgr-card:active{transform:scale(0.98);box-shadow:0 1px 4px rgba(15,53,86,0.1);}
+  .mgr-card-icon{
+    width:46px;height:46px;border-radius:12px;flex-shrink:0;
+    background:linear-gradient(135deg,var(--blue),#3E86C4);
+    display:flex;align-items:center;justify-content:center;
+    font-size:21px;
+    box-shadow:0 3px 8px rgba(27,90,150,0.3);
+  }
+  .mgr-card-body{flex:1;min-width:0;}
+  .mgr-card-title{font-weight:800;font-size:14.5px;color:var(--navy);}
+  .mgr-card-desc{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.35;}
+  .mgr-card-chevron{font-size:22px;font-weight:800;color:#B8D4EC;flex-shrink:0;}
   .hr-tile-grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
   .hr-list-row{display:flex;align-items:center;justify-content:space-between;border-left:3px solid transparent;border-radius:0 10px 10px 0;padding:11px 12px;margin-bottom:6px;cursor:pointer;}
   .hr-list-row .left{display:flex;align-items:center;gap:10px;}
@@ -7846,30 +7871,39 @@ function hrTileLight(icon, label, id, color, tint){
   </div>`;
 }
 
-function renderManagerHome(){
+function managerFeatureCard(icon, title, desc, id){
   return `
-    <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:18px;position:relative;overflow:hidden;margin-bottom:14px;">
-      <div style="position:absolute;top:-10px;right:-8px;font-size:64px;opacity:0.12;">🗂️</div>
-      <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#BFDCF5;font-weight:700;position:relative;">Professional Installation Co.</div>
-      <div style="font-size:19px;font-weight:800;color:#fff;margin-top:4px;position:relative;">مرحباً، ${state.user.name}</div>
-      <div style="font-size:12.5px;color:#BFDCF5;margin-top:2px;position:relative;">${monthLabel(state.monthDate)}</div>
+    <div class="mgr-card" id="${id}">
+      <div class="mgr-card-icon">${icon}</div>
+      <div class="mgr-card-body">
+        <div class="mgr-card-title">${title}</div>
+        <div class="mgr-card-desc">${desc}</div>
+      </div>
+      <div class="mgr-card-chevron">›</div>
+    </div>`;
+}
+
+function renderManagerHome(){
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : (hour < 17 ? "Good afternoon" : "Good evening");
+  return `
+    <div style="background:linear-gradient(135deg,var(--navy) 0%,var(--blue) 55%,#3E86C4 100%);border-radius:18px;padding:22px 20px;position:relative;overflow:hidden;margin-bottom:18px;box-shadow:0 6px 20px rgba(15,53,86,0.25);">
+      <div style="position:absolute;top:-18px;right:-14px;font-size:96px;opacity:0.10;transform:rotate(-8deg);">🧭</div>
+      <div style="position:absolute;bottom:-30px;left:-10px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.06);"></div>
+      <div style="font-size:10.5px;letter-spacing:2px;text-transform:uppercase;color:#BFDCF5;font-weight:700;position:relative;">Professional Installation Co.</div>
+      <div style="font-size:21px;font-weight:800;color:#fff;margin-top:6px;position:relative;">${greeting}, ${state.user.name}</div>
+      <div style="font-size:12.5px;color:#D6E9FA;margin-top:3px;position:relative;">${monthLabel(state.monthDate)}</div>
     </div>
 
-    <div class="hr-section-label" style="color:#B8912A;">📋 Daily Reports</div>
-    <div class="hr-tile-grid">
-      ${hrTileLight("👁", "View Daily<br>Reports", "openCombinedReportsBtn", "#6B4E0A", "#F0D488")}
-    </div>
+    <div class="mgr-section-label">📋 Operations</div>
+    ${managerFeatureCard("👁", "Daily Reports", "Today's site activity from every supervisor", "openCombinedReportsBtn")}
 
-    <div class="hr-section-label" style="color:#1B5A96;">💰 Finance</div>
-    <div class="hr-tile-grid">
-      ${hrTileLight("💰", "Financial<br>Report", "openFinancialReportBtn", "#0C3A66", "#A8CCEE")}
-      ${hrTileLight("📐", "Project<br>Quote", "openProjectQuoteBtn", "#0C3A66", "#A8CCEE")}
-    </div>
+    <div class="mgr-section-label">💰 Finance</div>
+    ${managerFeatureCard("💰", "Financial Report", "Balance, loans, invoices, and PO tracker", "openFinancialReportBtn")}
+    ${managerFeatureCard("📐", "Project Quote", "Estimate labor cost, extras and profit for a new project", "openProjectQuoteBtn")}
 
-    <div class="hr-section-label" style="color:#7A1F1F;">👤 Directory</div>
-    <div class="hr-tile-grid">
-      ${hrTileLight("👤", "Employee<br>Directory", "openEmployeeDirectoryBtn", "#7A1F1F", "#EFA3A3")}
-    </div>
+    <div class="mgr-section-label">👤 People</div>
+    ${managerFeatureCard("👤", "Employee Directory", "Browse the team and their details", "openEmployeeDirectoryBtn")}
   `;
 }
 
