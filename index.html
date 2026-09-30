@@ -1196,7 +1196,7 @@ async function completeLogin(match, plaintextPassword){
   await loadProjects();
   await loadLatestAnnouncementForUser();
   if(match.role === "ceo") await loadLatestHrTodoForOwner();
-  state.view = match.role === "employee" ? "employee" : (match.role === "supervisor" ? "supervisor" : (match.role === "ceo" ? "ceo-home" : "hr"));
+  state.view = match.role === "employee" ? "employee" : (match.role === "supervisor" ? "supervisor" : (match.role === "ceo" ? "ceo-home" : (match.role === "manager" ? "manager-home" : "hr")));
   if(state.view === "employee") await loadEmployeeMonth();
   if(state.view === "supervisor") await loadSupervisorList();
   if(state.view === "hr") await loadHrMonth();
@@ -5903,6 +5903,7 @@ function render(){
   else if(state.view === "supervisor-review") body = renderSupervisorReview();
   else if(state.view === "supervisor-signature") body = renderSignaturePad();
   else if(state.view === "hr") body = renderHrView();
+  else if(state.view === "manager-home") body = renderManagerHome();
   else if(state.view === "hr-projects") body = renderProjectsManager();
   else if(state.view === "leave-form") body = renderLeaveForm();
   else if(state.view === "supervisor-leave-list") body = renderSupervisorLeaveList();
@@ -6283,7 +6284,7 @@ function renderCeoContactForm(){
 
 function renderEmployeeDirectory(){
   if(state.loading && !state.employeeDirectory.length){
-    const backId = state.user.role === "ceo" ? "backToCeoHomeBtn" : (state.user.role === "hr" ? "backToHrBtn" : "backToSupervisorHomeBtn");
+    const backId = state.user.role === "ceo" ? "backToCeoHomeBtn" : (state.user.role === "hr" ? "backToHrBtn" : (state.user.role === "manager" ? "backToManagerHomeBtn" : "backToSupervisorHomeBtn"));
     return `
     <button class="link-btn" id="${backId}" style="margin-bottom:14px;">‹ Back</button>
     <div class="empty-state"><div class="ic">👤</div><span class="spinner" style="margin-right:8px;"></span>Loading employee directory…</div>
@@ -6294,7 +6295,7 @@ function renderEmployeeDirectory(){
   const options = nonSaudiList.map(e => `<option value="${e.id}" ${e.id===state.selectedDirectoryEmployeeId?"selected":""}>${e.name}</option>`).join("");
   const isHrUser = state.user.role === "hr";
   const isCeoUser = state.user.role === "ceo";
-  const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (isHrUser ? "backToHrBtn" : "backToSupervisorHomeBtn");
+  const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (isHrUser ? "backToHrBtn" : (state.user.role === "manager" ? "backToManagerHomeBtn" : "backToSupervisorHomeBtn"));
 
   const row = (icon, label, value, dateForStatus) => {
     let statusBadge = "";
@@ -6540,7 +6541,7 @@ function renderSendHrTodo(){
 function renderProjectSummary(){
   const isHrUser = state.user.role === "hr";
   const isCeoUser = state.user.role === "ceo";
-  const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (isHrUser ? "backToHrBtn" : "backToSupervisorHomeBtn");
+  const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (isHrUser ? "backToHrBtn" : (state.user.role === "manager" ? "backToManagerHomeBtn" : "backToSupervisorHomeBtn"));
   const canEdit = isHrUser;
   const showingArchived = state.projectSummaryShowArchived;
   const fmt = n => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
@@ -6604,7 +6605,7 @@ function renderProjectSummary(){
 
 function renderMonthlyProfitScreen(){
   const fmt = n => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
-  const backId = state.user.role === "ceo" ? "backToCeoHomeBtn" : "backToHrBtn";
+  const backId = state.user.role === "ceo" ? "backToCeoHomeBtn" : (state.user.role === "manager" ? "backToManagerHomeBtn" : "backToHrBtn");
   const catRows = MONTHLY_EXPENSE_CATEGORIES.map(c => {
     const amt = state.monthlyProfitExpenses[c.key] || 0;
     return `
@@ -6676,7 +6677,7 @@ function renderMonthlyProfitScreen(){
 
 function renderProjectQuoteScreen(){
   const fmt = n => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
-  const backId = state.user.role === "ceo" ? "backToCeoHomeBtn" : (state.user.role === "supervisor" ? "backToSupervisorHomeBtn" : "backToHrBtn");
+  const backId = state.user.role === "ceo" ? "backToCeoHomeBtn" : (state.user.role === "supervisor" ? "backToSupervisorHomeBtn" : (state.user.role === "manager" ? "backToManagerHomeBtn" : "backToHrBtn"));
 
   const selectedEmployees = state.quoteEmployees.filter(e => state.quoteSelectedIds.includes(e.id));
   const dailyLaborCost = selectedEmployees.reduce((s,e)=>s+Number(e.expenses_per_day||0),0);
@@ -6766,7 +6767,7 @@ function renderProjectQuoteScreen(){
 
 function renderCommissionTracker(){
   const fmt = n => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
-  const backId = state.user.role === "ceo" ? "backToCeoHomeBtn" : "backToHrBtn";
+  const backId = state.user.role === "ceo" ? "backToCeoHomeBtn" : (state.user.role === "manager" ? "backToManagerHomeBtn" : "backToHrBtn");
   const months = Array.from({length:12}, (_,i) => `${state.commissionYear}-${String(i+1).padStart(2,"0")}`);
   const monthLabelShort = (mk) => new Date(mk+"-01T00:00:00").toLocaleDateString(undefined,{month:"short"});
 
@@ -6929,7 +6930,7 @@ function renderCommissionTracker(){
 function renderFinancialReport(){
   const isHrUser = state.user.role === "hr";
   const isCeoUser = state.user.role === "ceo";
-  const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (isHrUser ? "backToHrBtn" : "backToSupervisorHomeBtn");
+  const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (isHrUser ? "backToHrBtn" : (state.user.role === "manager" ? "backToManagerHomeBtn" : "backToSupervisorHomeBtn"));
   const canEdit = isHrUser && !state.financialViewOnly;
   const fmt = n => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
   const fmtD = d => {
@@ -7243,7 +7244,7 @@ function renderFinancialReport(){
 function renderVehicleDocumentsScreen(){
   const isHrUser = state.user.role === "hr";
   const isCeoUser = state.user.role === "ceo";
-  const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (isHrUser ? "backToHrBtn" : "backToSupervisorHomeBtn");
+  const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (isHrUser ? "backToHrBtn" : (state.user.role === "manager" ? "backToManagerHomeBtn" : "backToSupervisorHomeBtn"));
   const vehicle = state.vehicles.find(v=>v.id===state.selectedVehicleForDocs);
   const search = (state.vehicleDocsSearch || "").trim().toLowerCase();
   const matches = search ? state.vehicles.filter(v => (v.plate_no||"").toLowerCase().includes(search)) : [];
@@ -7843,6 +7844,35 @@ function hrTileLight(icon, label, id, color, tint){
     <span class="icon" style="filter:none;color:${color};">${icon}</span>
     <span class="label" style="color:${color};text-shadow:none;">${label}</span>
   </div>`;
+}
+
+function renderManagerHome(){
+  return `
+    <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:18px;position:relative;overflow:hidden;margin-bottom:14px;">
+      <div style="position:absolute;top:-10px;right:-8px;font-size:64px;opacity:0.12;">🗂️</div>
+      <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#BFDCF5;font-weight:700;position:relative;">Professional Installation Co.</div>
+      <div style="font-size:19px;font-weight:800;color:#fff;margin-top:4px;position:relative;">مرحباً، ${state.user.name}</div>
+      <div style="font-size:12.5px;color:#BFDCF5;margin-top:2px;position:relative;">${monthLabel(state.monthDate)}</div>
+    </div>
+
+    <div class="hr-section-label" style="color:#B8912A;">📋 Daily Reports</div>
+    <div class="hr-tile-grid">
+      ${hrTileLight("👁", "View Daily<br>Reports", "openCombinedReportsBtn", "#6B4E0A", "#F0D488")}
+    </div>
+
+    <div class="hr-section-label" style="color:#1B5A96;">💰 Finance</div>
+    <div class="hr-tile-grid">
+      ${hrTileLight("💰", "Financial<br>Report", "openFinancialReportBtn", "#0C3A66", "#A8CCEE")}
+      ${hrTileLight("📊", "Project<br>Summary", "openProjectSummaryBtn", "#0C3A66", "#A8CCEE")}
+      ${hrTileLight("📐", "Project<br>Quote", "openProjectQuoteBtn", "#0C3A66", "#A8CCEE")}
+    </div>
+
+    <div class="hr-section-label" style="color:#7A1F1F;">🔔 Renewals & Directory</div>
+    <div class="hr-tile-grid">
+      ${hrTileLight("🔔", "Renewals &<br>Expiry", "openRenewalsBtn", "#7A1F1F", "#EFA3A3")}
+      ${hrTileLight("👤", "Employee<br>Directory", "openEmployeeDirectoryBtn", "#7A1F1F", "#EFA3A3")}
+    </div>
+  `;
 }
 
 function renderHrView(){
@@ -8680,7 +8710,7 @@ function renderCombinedReports(){
   ` : `<div class="empty-state"><div class="ic">📋</div>No reports for this day yet.</div>`;
 
   return `
-    <button class="back-link-glow" id="${isCeo ? "backToCeoHomeBtn" : (state.user.role === "supervisor" ? "backToSupervisorHomeBtn" : "backToHrBtn")}" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    <button class="back-link-glow" id="${isCeo ? "backToCeoHomeBtn" : (state.user.role === "supervisor" ? "backToSupervisorHomeBtn" : (state.user.role === "manager" ? "backToManagerHomeBtn" : "backToHrBtn"))}" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);margin-bottom:14px;">
       <div style="font-weight:800;font-size:14.5px;color:var(--navy);">📋 Daily Progress Reports</div>
       <div class="meta" style="color:var(--blue);">Collected from every supervisor</div>
@@ -8721,7 +8751,7 @@ function renderCombinedReports(){
 
 function renderCeoInbox(){
   const isCeoUser = state.user.role === "ceo";
-  const backBtnId = isCeoUser ? "backToCeoHomeBtn" : "backToHrBtn";
+  const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (state.user.role === "manager" ? "backToManagerHomeBtn" : "backToHrBtn");
 
   const rows = state.ceoInboxMessages.map(m => {
     const isPending = m.status === "pending";
@@ -9188,6 +9218,7 @@ function handleDelegatedClick(e){
   const deleteSubBtn = e.target.closest("[data-delete-sub]");
   if(deleteSubBtn){ deleteTimesheetSubmission(deleteSubBtn.getAttribute("data-delete-sub")); return; }
   if(el("backToHrBtn")){ state.view = "hr"; loadHrMonth(); return; }
+  if(el("backToManagerHomeBtn")){ state.view = "manager-home"; render(); return; }
   if(el("backToSupervisorHomeBtn")){ state.view = "supervisor"; loadSupervisorList(); return; }
   if(el("addProjectBtn")){ addProject(); return; }
   const deactivateBtn = e.target.closest("[data-deactivate-project]");
@@ -9344,6 +9375,7 @@ function handleDelegatedClick(e){
   }
   if(el("backToHrOrCeoBtn")){
     if(state.user.role === "ceo"){ state.view = "ceo-home"; loadCeoLeaveRequests(); loadCeoInboxMessages(); }
+    else if(state.user.role === "manager"){ state.view = "manager-home"; render(); }
     else { state.view = "hr"; loadHrMonth(); }
     return;
   }
