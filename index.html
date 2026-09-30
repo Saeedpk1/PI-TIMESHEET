@@ -497,6 +497,7 @@ let state = {
   quoteExtraCharges: "",
   quotePrice: "",
   quoteEmployeeSectionOpen: false,
+  blankTimesheetMonth: new Date().toISOString().slice(0,7),
   monthlyProfitMonth: new Date().toISOString().slice(0,7),
   monthlyProfitRevenue: 0,
   monthlyProfitCollected: 0,
@@ -924,6 +925,12 @@ async function deleteCeoMessage(id){
 
 function monthKey(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0"); }
 function monthLabel(d){ return d.toLocaleDateString("en-GB",{month:"long",year:"numeric"}); }
+function blankTimesheetLabel(ym){
+  const MONTH_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const [y,m] = (ym || "").split("-").map(Number);
+  if(!y || !m) return "";
+  return `(${MONTH_ABBR[m-1]} ${y})`;
+}
 function daysInMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0).getDate(); }
 function pad(n){ return String(n).padStart(2,"0"); }
 function fmtDate(y,m,day){ return `${y}-${pad(m+1)}-${pad(day)}`; }
@@ -4498,7 +4505,8 @@ async function generateBlankTimesheetTemplate(type){
   // previous month through the 25th of the selected month).
   state.loading = true; render();
   try{
-    const refDate = state.monthDate || new Date();
+    const [selY, selM] = (state.blankTimesheetMonth || new Date().toISOString().slice(0,7)).split("-").map(Number);
+    const refDate = new Date(selY, selM - 1, 1);
     const year = refDate.getFullYear();
     const month = refDate.getMonth(); // 0-based
 
@@ -6399,8 +6407,12 @@ function renderRajeshDashboard(){
     </div>
 
     <div class="hr-section-label" style="color:#3E5D78;">📄 Blank Timesheet</div>
+    <div class="card" style="padding:12px;margin-bottom:10px;">
+      <label style="margin-top:0;font-size:11.5px;">Month</label>
+      <input type="month" id="blankTimesheetMonthInput" value="${state.blankTimesheetMonth}">
+    </div>
     <div class="hr-tile-grid-2col">
-      <div class="hr-tile" id="downloadBlankTimesheetBtn" style="background:linear-gradient(135deg,#3E5D78,#2E4864);"><span class="icon">📄</span><span class="label">Monthly<br>(${monthLabel(state.monthDate)})</span></div>
+      <div class="hr-tile" id="downloadBlankTimesheetBtn" style="background:linear-gradient(135deg,#3E5D78,#2E4864);"><span class="icon">📄</span><span class="label">Monthly<br>${blankTimesheetLabel(state.blankTimesheetMonth)}</span></div>
       <div class="hr-tile" id="downloadQidiyaTimesheetBtn" style="background:linear-gradient(135deg,#3E5D78,#2E4864);"><span class="icon">📄</span><span class="label">Qidiya<br>(26 – 25)</span></div>
     </div>
 
@@ -8099,8 +8111,12 @@ function renderHrView(){
     </div>
 
     <div class="hr-section-label" style="color:#0C3A66;">📄 Blank Timesheet</div>
+    <div class="card" style="padding:12px;margin-bottom:10px;">
+      <label style="margin-top:0;font-size:11.5px;">Month</label>
+      <input type="month" id="blankTimesheetMonthInput" value="${state.blankTimesheetMonth}">
+    </div>
     <div class="hr-tile-grid">
-      ${hrTileLight("📄", `Monthly<br>${monthLabel(state.monthDate)}`, "downloadBlankTimesheetBtn", "#0C3A66", "#A8CCEE")}
+      ${hrTileLight("📄", `Monthly<br>${blankTimesheetLabel(state.blankTimesheetMonth)}`, "downloadBlankTimesheetBtn", "#0C3A66", "#A8CCEE")}
       ${hrTileLight("📄", "Qidiya<br>(26 – 25)", "downloadQidiyaTimesheetBtn", "#0C3A66", "#A8CCEE")}
     </div>
 
@@ -10050,6 +10066,7 @@ function handleDelegatedChange(e){
   if(e.target.id === "vacationEmployeeSelect"){ state.vacationFormEmployeeId = e.target.value; return; }
   if(e.target.id === "vacationStartInput"){ state.vacationFormStart = e.target.value; return; }
   if(e.target.id === "vacationEndInput"){ state.vacationFormEnd = e.target.value; return; }
+  if(e.target.id === "blankTimesheetMonthInput"){ state.blankTimesheetMonth = e.target.value; render(); return; }
   if(e.target.id === "quoteDaysInput"){
     state.quoteDays = e.target.value;
     const cursorPos = e.target.selectionStart;
