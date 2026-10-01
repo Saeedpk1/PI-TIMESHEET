@@ -4662,7 +4662,8 @@ async function buildBlankTimesheetExcelBlob(type){
   ws.mergeCells(6,1,6,2);
   ws.getCell(6,1).value = "Position";
   ws.getCell(6,1).font = { bold: true };
-  ws.getCell(6,1).border = { top: medium, left: medium, bottom: medium };
+  ws.mergeCells(6,3,6,6);
+  [1,2,3,4,5,6].forEach(c => { ws.getCell(6,c).border = boxBorder; });
 
   ws.getCell(7,1).value = "MONTH     ";
   ws.getCell(7,1).font = { bold: true };
@@ -4673,7 +4674,7 @@ async function buildBlankTimesheetExcelBlob(type){
   ws.getCell(7,4).value = projectName;
   ws.getCell(7,5).value = "Location ";
   ws.getCell(7,5).font = { bold: true };
-  [3,4,5,6].forEach(c => { ws.getCell(7,c).border = boxBorder; });
+  [1,2,3,4,5,6].forEach(c => { ws.getCell(7,c).border = boxBorder; });
 
   const headerRow = 8;
   ["Date","Day","Unit No/Project","Regular Hrs","Over Time"," Supervisor Signature"].forEach((h,i) => {
