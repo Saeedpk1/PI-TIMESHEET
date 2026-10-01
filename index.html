@@ -5251,16 +5251,22 @@ async function exportAttendanceByProjectExcel(){
     const monthStart = `${year}-${mm}-01`;
     const monthEnd = `${year}-${mm}-${String(daysInMonthCount).padStart(2,"0")}`;
 
-    const [{ data: employees }, { data: reports }, { data: absenceRows }, { data: vacations }, { data: projects }] = await Promise.all([
+    const [{ data: employees }, { data: reports }, { data: absenceRows }, { data: vacations }, { data: projects }, { data: otSubs }] = await Promise.all([
       sb.from("ts_employees").select("id, name, short_name, salary_group").eq("active", true).not("short_name", "is", null).order("name"),
       sb.from("ts_daily_reports").select("report_date, project_id, team_member_ids").gte("report_date", monthStart).lte("report_date", monthEnd),
       sb.from("ts_daily_absences").select("*").gte("absence_date", monthStart).lte("absence_date", monthEnd),
       sb.from("ts_vacations").select("*").lte("start_date", monthEnd).gte("end_date", monthStart),
-      sb.from("ts_projects").select("id, name")
+      sb.from("ts_projects").select("id, name"),
+      // Same source the salary sheet uses for OT — set directly by HR
+      // once received, not summed from daily entries.
+      sb.from("ts_timesheet_submissions").select("employee_id, approved_ot_hours").eq("month", monthStr)
     ]);
 
     const projectNameById = {};
     (projects || []).forEach(p => { projectNameById[p.id] = p.name; });
+
+    const otHoursByEmp = {};
+    (otSubs || []).forEach(s => { otHoursByEmp[s.employee_id] = Number(s.approved_ot_hours) || 0; });
 
     // date|employeeId -> project name (an employee can't be double-booked on the same day)
     const dayProjectMap = {};
@@ -5286,8 +5292,9 @@ async function exportAttendanceByProjectExcel(){
     const fixedCols = ["NO", "NAME", "COMPANY"];
     const dayHeaders = [];
     for(let d = 1; d <= daysInMonthCount; d++) dayHeaders.push(`${String(d).padStart(2,"0")}-${mm}`);
-    const allHeaders = [...fixedCols, ...dayHeaders];
-    ws.columns = allHeaders.map((h,i) => ({ width: i===0 ? 5 : (i===1 ? 22 : (i===2 ? 10 : 9)) }));
+    const summaryHeaders = ["REG HRS", "OT HRS", "PRESENT", "ABSENT"];
+    const allHeaders = [...fixedCols, ...dayHeaders, ...summaryHeaders];
+    ws.columns = allHeaders.map((h,i) => ({ width: i===0 ? 5 : (i===1 ? 22 : (i===2 ? 10 : (i >= allHeaders.length-2 ? 11 : 9))) }));
 
     ws.mergeCells(1, 1, 1, allHeaders.length);
     const title = ws.getCell(1,1);
@@ -5307,9 +5314,12 @@ async function exportAttendanceByProjectExcel(){
     });
     hr.height = 18;
 
+    const STANDARD_HOURS_PER_DAY = 8;
+    const summaryColStart = fixedCols.length + daysInMonthCount + 1; // 1-based column of "REG HRS"
     (employees || []).forEach((emp, idx) => {
       const row = ws.getRow(3 + idx);
       const rowVals = [idx + 1, emp.short_name || emp.name, emp.salary_group || "PI"];
+      let presentCount = 0, absentCount = 0;
       for(let d = 1; d <= daysInMonthCount; d++){
         const dateStr = `${year}-${mm}-${String(d).padStart(2,"0")}`;
         const dow = new Date(year, month-1, d).getDay(); // 5 = Friday
@@ -5318,19 +5328,34 @@ async function exportAttendanceByProjectExcel(){
         else if(isOnVacation(emp.id, dateStr)) val = "VAC";
         else if(absentByDate[dateStr] && absentByDate[dateStr].has(emp.id)) val = "A";
         else if(dayProjectMap[`${dateStr}|${emp.id}`]) val = dayProjectMap[`${dateStr}|${emp.id}`];
+        // Matches the salary sheet's own convention: Friday and VAC
+        // days count toward neither present nor absent -- only an
+        // actual project assignment or an "A" mark does.
+        if(val === "A") absentCount++;
+        else if(val && val !== "FRIDAY" && val !== "VAC") presentCount++;
         rowVals.push(val);
       }
+      const regHours = presentCount * STANDARD_HOURS_PER_DAY;
+      const otHours = otHoursByEmp[emp.id] || 0;
+      rowVals.push(regHours, otHours, presentCount, absentCount);
       row.values = rowVals;
       row.eachCell((cell, colNum) => {
         cell.font = { size: 9 };
         cell.alignment = { horizontal: colNum <= 2 ? "left" : "center", vertical: "middle" };
         cell.border = { top:{style:"thin",color:{argb:"FFD9D9D9"}}, left:{style:"thin",color:{argb:"FFD9D9D9"}}, bottom:{style:"thin",color:{argb:"FFD9D9D9"}}, right:{style:"thin",color:{argb:"FFD9D9D9"}} };
-        if(colNum > 3){
+        if(colNum > 3 && colNum < summaryColStart){
           const v = cell.value;
           if(v === "FRIDAY") cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0E0E0" } };
           else if(v === "A") cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8D7DA" } };
           else if(v === "VAC") cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD1ECF1" } };
           else if(v) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD4EDDA" } };
+        }
+        if(colNum >= summaryColStart){
+          cell.font = { size: 9, bold: true };
+          // REG HRS / OT HRS -> neutral blue tint; PRESENT -> green; ABSENT -> red
+          const offset = colNum - summaryColStart; // 0=REG,1=OT,2=PRESENT,3=ABSENT
+          const fillByOffset = ["FFD6E8FA", "FFD6E8FA", "FFD4EDDA", "FFF8D7DA"];
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fillByOffset[offset] } };
         }
       });
     });
@@ -5688,6 +5713,29 @@ async function generateSalarySheet(){
       state.hrmSupervisorId = mohammedId || null;
     }
 
+    // Project assignment is tracked day-by-day in Daily Reports (who
+    // actually worked where, logged by supervisors every day) — far
+    // more reliable than the project_id on a timesheet entry, which
+    // depends on someone remembering to pick one when filling that in
+    // separately. Pulled once for everyone here rather than per
+    // employee inside the loop below.
+    const [{ data: allUnits }, { data: allReports }] = await Promise.all([
+      sb.from("ts_project_units").select("id, project_id"),
+      sb.from("ts_daily_reports").select("report_date, unit_id, team_member_ids").gte("report_date", start).lte("report_date", end)
+    ]);
+    const projectIdByUnit = {};
+    (allUnits || []).forEach(u => { projectIdByUnit[u.id] = u.project_id; });
+    const dailyReportProjectDaysByEmployee = {};
+    (allReports || []).forEach(rep => {
+      const pid = projectIdByUnit[rep.unit_id];
+      const pname = pid ? (projectName(pid) || "") : "";
+      if(!pname) return;
+      (rep.team_member_ids || []).forEach(empId => {
+        if(!dailyReportProjectDaysByEmployee[empId]) dailyReportProjectDaysByEmployee[empId] = {};
+        dailyReportProjectDaysByEmployee[empId][pname] = (dailyReportProjectDaysByEmployee[empId][pname] || 0) + 1;
+      });
+    });
+
     const records = [];
     for(const emp of (employees || [])){
       const { data: entryRows } = await sb.from("ts_timesheet_entries").select("*")
@@ -5706,7 +5754,14 @@ async function generateSalarySheet(){
           absent++; // Sick days are intentionally NOT counted here — no deduction for sick leave
         }
       });
-      const projectLabel = Object.keys(projectDays).join("/");
+      // Daily Reports' own record of where this person actually
+      // worked takes priority; the timesheet entry's project_id (if
+      // any) only fills in for people Daily Reports doesn't cover,
+      // like the Saudi team, who are excluded from that workflow.
+      const fromDailyReports = dailyReportProjectDaysByEmployee[emp.id];
+      const projectLabel = fromDailyReports && Object.keys(fromDailyReports).length
+        ? Object.keys(fromDailyReports).join("/")
+        : Object.keys(projectDays).join("/");
       records.push({ emp, present, ot, absent, projectLabel, isApproved: approvedIds.has(emp.id) });
     }
 
@@ -5853,6 +5908,15 @@ async function generateSalarySheet(){
 
       ws.getColumn(2).alignment = { horizontal: "left" };
       ws.getColumn(4).alignment = { horizontal: "left" };
+
+      // ExcelJS quirk: setting a column's alignment touches every cell
+      // in that column, including ones that are part of an unrelated
+      // merged range elsewhere in the same column -- which silently
+      // overwrites that merged cell's own alignment. Column 2 and 4
+      // both run through the title row and the Total row above, so
+      // both need to be explicitly reasserted here, after the fact.
+      titleCell.alignment = { horizontal: "center", vertical: "middle" };
+      ws.getCell(totalRow, 1).alignment = { horizontal: "right" };
     });
 
     if(!wb.worksheets.length){
