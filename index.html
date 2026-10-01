@@ -4752,20 +4752,30 @@ function buildBlankTimesheetPdfBlob(type){
   doc.setDrawColor(0,0,0); doc.setLineWidth(1.5);
   doc.line(40, 54, 555, 54);
 
-  doc.setFontSize(10); doc.setFont("helvetica","bold");
-  doc.text("Employee Name:", 40, 76);
-  doc.text("EMP ID:", 320, 76);
-  doc.text("Position:", 40, 94);
-  doc.text(`MONTH: ${monthText}`, 40, 112);
-  doc.text(`Project Name: ${projectName}`, 250, 112);
-  doc.text("Location:", 440, 112);
-  doc.setDrawColor(0,0,0); doc.setLineWidth(1);
-  doc.rect(40, 64, 515, 58);
+  // Each field gets its own box to write in -- label in small bold
+  // text at the top-left corner of the box, matching the Excel
+  // version's layout exactly.
+  doc.setDrawColor(0,0,0); doc.setLineWidth(1.5);
+  const field = (x, y, w, h, label, value) => {
+    doc.rect(x, y, w, h);
+    doc.setFontSize(8); doc.setFont("helvetica","bold");
+    doc.text(label, x + 5, y + 10);
+    if(value){
+      doc.setFontSize(10);
+      doc.text(String(value), x + 5, y + h - 7);
+    }
+  };
+  field(40, 64, 345, 22, "Employee Name", "");
+  field(385, 64, 170, 22, "EMP ID", "");
+  field(40, 86, 515, 22, "Position", "");
+  field(40, 108, 130, 26, "MONTH", monthText);
+  field(170, 108, 195, 26, "Project Name", projectName);
+  field(365, 108, 190, 26, "Location", "");
 
   const body = days.map(d => [ddmmyyyy(d), DAY_ABBR[d.getUTCDay()], "", "", "", ""]);
 
   doc.autoTable({
-    startY: 130,
+    startY: 144,
     head: [["Date","Day","Unit No/Project","Regular Hrs","Over Time","Supervisor Signature"]],
     body,
     styles: { fontSize: 8.5, cellPadding: 4, lineWidth: 1, lineColor: [0,0,0], textColor: [0,0,0] },
