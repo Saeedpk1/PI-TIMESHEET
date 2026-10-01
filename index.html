@@ -896,6 +896,9 @@ async function sendCeoMessage(){
 }
 
 async function loadCeoInboxMessages(){
+  // Only HR and the Owner review these -- anyone else never even
+  // fetches the data.
+  if(!["hr","ceo"].includes(state.user.role)){ state.ceoInboxMessages = []; return; }
   state.loading = true; render();
   let q = sb.from("ts_ceo_messages").select("*").order("created_at", { ascending: false });
   if(state.user.role === "ceo") q = q.eq("status", "sent");
@@ -6554,7 +6557,7 @@ function renderEmployeeView(){
     </div>
     <button id="downloadMyPdfBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;font-weight:800;font-size:14px;cursor:pointer;">${ar ? "⬇ تحميل PDF" : "⬇ Download PDF"}</button>
     <button id="openLeaveFormBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:2px solid #E8A33D;background:#FFF3D9;color:#966109;font-weight:800;font-size:14px;cursor:pointer;">🌴 ${ar ? "طلب إجازة سنوية" : "Apply for Annual Leave"}</button>
-    <button id="openCeoContactBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:2px solid var(--ksa-gold);background:var(--ksa-cream);color:var(--blue);font-weight:800;font-size:14px;cursor:pointer;">📞 ${ar ? "تواصل مباشر مع الرئيس التنفيذي" : "Direct Contact with CEO"}</button>
+    ${state.user.iqama_number !== "2357537808" ? `<button id="openCeoContactBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:2px solid var(--ksa-gold);background:var(--ksa-cream);color:var(--blue);font-weight:800;font-size:14px;cursor:pointer;">📞 ${ar ? "تواصل مباشر مع الرئيس التنفيذي" : "Direct Contact with CEO"}</button>` : ""}
     ${state.user.can_record_purchases ? `<button id="openPurchaseFormBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:2px solid #1B7A6B;background:#EAF6F3;color:#125C4F;font-weight:800;font-size:14px;cursor:pointer;">🧾 Record Purchase</button>` : ""}
     <button id="openMyProfileBtn" style="display:block;width:100%;margin-bottom:14px;padding:11px 16px;border-radius:10px;border:2px solid var(--blue-light);background:#EAF1FC;color:var(--blue);font-weight:800;font-size:14px;cursor:pointer;">👤 ${ar ? "ملفي الشخصي" : "My Profile"}</button>
     <div class="card" style="padding:8px 6px 4px;">
@@ -9260,6 +9263,15 @@ function renderCombinedReports(){
 function renderCeoInbox(){
   const isCeoUser = state.user.role === "ceo";
   const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (state.user.role === "manager" ? "backToManagerHomeBtn" : "backToHrBtn");
+
+  // Only HR and the Owner review employee messages before they're
+  // forwarded on -- anyone else landing on this view (a supervisor,
+  // say) sees nothing, regardless of how they got here.
+  if(!isCeoUser && state.user.role !== "hr"){
+    return `
+    <button class="link-btn" id="${backBtnId}" style="margin-bottom:14px;">‹ Back</button>
+    <div class="empty-state"><div class="ic">🔒</div>You don't have access to this.</div>`;
+  }
 
   const renderMessageRow = (m) => {
     const isPending = m.status === "pending";
