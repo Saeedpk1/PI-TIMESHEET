@@ -534,6 +534,8 @@ let state = {
   whatsappMissingNumberCount: 0,
   hrTimesheetsSectionOpen: false,
   hrSecuritySectionOpen: false,
+  hrToOwnerSectionOpen: false,
+  hrInboxSentSectionOpen: false,
   biometricSectionOpen: false,
   passportRenewalSectionOpen: false,
   iqamaSectionOpen: false,
@@ -903,6 +905,18 @@ async function loadCeoInboxMessages(){
   render();
 }
 
+function checkNewCeoMessageAlert(){
+  // Plays a chime the first time HR sees a pending-message count
+  // higher than whatever they last saw -- persisted across reloads
+  // so it only fires once per genuinely new message, not every time
+  // the dashboard refreshes.
+  if(state.user.role !== "hr") return;
+  const pendingCount = state.ceoInboxMessages.filter(m => m.status === "pending").length;
+  const lastSeen = Number(localStorage.getItem("hrLastSeenPendingCeoMessages") || "0");
+  if(pendingCount > lastSeen) playNotificationChime();
+  localStorage.setItem("hrLastSeenPendingCeoMessages", String(pendingCount));
+}
+
 async function markCeoMessageRead(id){
   const msg = state.ceoInboxMessages.find(m=>m.id===id);
   if(!msg || msg.is_read) return;
@@ -1265,7 +1279,7 @@ async function completeLogin(match, plaintextPassword){
   state.view = match.role === "employee" ? "employee" : (match.role === "supervisor" ? "supervisor" : (match.role === "ceo" ? "ceo-home" : (match.role === "manager" ? "manager-home" : "hr")));
   if(state.view === "employee") await loadEmployeeMonth();
   if(state.view === "supervisor") await loadSupervisorList();
-  if(state.view === "hr") await loadHrMonth();
+  if(state.view === "hr") { await loadHrMonth(); await loadCeoInboxMessages(); checkNewCeoMessageAlert(); }
   if(state.view === "ceo-home") { await loadCeoLeaveRequests(); await loadCeoInboxMessages(); }
   state.loading = false;
   render();
@@ -8352,6 +8366,7 @@ function renderManagerHome(){
 }
 
 function renderHrView(){
+  const hrPendingCeoMessageCount = state.ceoInboxMessages.filter(m => m.status === "pending").length;
   const isHrmTeam = (s) => s.ts_employees?.supervisor_id === state.hrmSupervisorId;
   const mainCount = state.hrApproved.filter(s => !state.hrExcluded.has(s.employee_id) && !isHrmTeam(s)).length;
   const saudiCount = state.hrApproved.filter(s => !state.hrExcluded.has(s.employee_id) && isHrmTeam(s)).length;
@@ -8435,10 +8450,22 @@ function renderHrView(){
     </div>
 
     <div class="hr-section-label" style="color:#0F6E56;">📨 To Owner</div>
-    <div class="hr-tile-grid">
+    <div class="card" style="padding:12px 14px;cursor:pointer;position:relative;" id="toggleHrToOwnerSectionBtn">
+      <div class="row-between">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">📨</span>
+          <div style="font-weight:800;font-size:13.5px;color:#0F6E56;">Messages & To-Do for Owner</div>
+        </div>
+        <span style="color:#0F6E56;font-size:16px;font-weight:800;">${state.hrToOwnerSectionOpen ? "▲" : "▼"}</span>
+      </div>
+      ${hrPendingCeoMessageCount ? `<div style="position:absolute;top:-6px;right:10px;background:#C43B3B;color:#fff;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;">${hrPendingCeoMessageCount} waiting</div>` : ""}
+    </div>
+    ${state.hrToOwnerSectionOpen ? `
+    <div class="hr-tile-grid" style="margin-top:8px;">
       ${hrTileLight("📨", "Messages<br>to Owner", "openCeoInboxBtn", "#054035", "#7FCFAF")}
       ${hrTileLight("📝", "To-Do for<br>Owner", "openSendHrTodoBtn", "#054035", "#7FCFAF")}
     </div>
+    ` : ""}
 
 
     <div class="hr-section-label" style="color:#C43B3B;">🛡️ Database Security</div>
@@ -9234,7 +9261,7 @@ function renderCeoInbox(){
   const isCeoUser = state.user.role === "ceo";
   const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (state.user.role === "manager" ? "backToManagerHomeBtn" : "backToHrBtn");
 
-  const rows = state.ceoInboxMessages.map(m => {
+  const renderMessageRow = (m) => {
     const isPending = m.status === "pending";
     const isEditing = state.editingCeoMessageId === m.id;
     return `
@@ -9260,15 +9287,41 @@ function renderCeoInbox(){
       </div>` : ""}
       `}
     </div>`;
-  }).join("");
+  };
 
-  return `
+  const header = `
     <button class="back-link-glow" id="${backBtnId}" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
     <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);margin-bottom:14px;">
       <div style="font-weight:800;font-size:14.5px;color:var(--navy);">📨 Employee Requests to Owner</div>
       <div class="meta" style="color:var(--blue);">${isCeoUser ? "Messages sent directly to you by employees" : "Review before they reach the CEO — edit, send, or remove"}</div>
+    </div>`;
+
+  // The CEO only ever sees already-sent messages (loadCeoInboxMessages
+  // filters to status="sent" for that role), so this split only
+  // matters for HR, who sees both pending and already-sent ones
+  // mixed together otherwise.
+  if(isCeoUser){
+    const rows = state.ceoInboxMessages.map(renderMessageRow).join("");
+    return header + (rows || `<div class="empty-state"><div class="ic">📨</div>Nothing here yet.</div>`);
+  }
+
+  const pending = state.ceoInboxMessages.filter(m => m.status === "pending");
+  const sent = state.ceoInboxMessages.filter(m => m.status !== "pending");
+  return `
+    ${header}
+    ${pending.length ? pending.map(renderMessageRow).join("") : `<div class="empty-state"><div class="ic">📨</div>Nothing waiting for review.</div>`}
+    ${sent.length ? `
+    <div class="card" style="padding:12px 14px;cursor:pointer;margin-top:14px;" id="toggleHrInboxSentSectionBtn">
+      <div class="row-between">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:18px;">✅</span>
+          <div style="font-weight:800;font-size:13px;color:var(--present);">Already sent to Owner (${sent.length})</div>
+        </div>
+        <span style="color:var(--present);font-size:16px;font-weight:800;">${state.hrInboxSentSectionOpen ? "▲" : "▼"}</span>
+      </div>
     </div>
-    ${rows || `<div class="empty-state"><div class="ic">📨</div>Nothing here yet.</div>`}
+    ${state.hrInboxSentSectionOpen ? `<div style="margin-top:8px;">${sent.map(renderMessageRow).join("")}</div>` : ""}
+    ` : ""}
   `;
 }
 
@@ -9698,7 +9751,7 @@ function handleDelegatedClick(e){
   if(el("manageProjectsBtn")){ state.view = "hr-projects"; render(); return; }
   const deleteSubBtn = e.target.closest("[data-delete-sub]");
   if(deleteSubBtn){ deleteTimesheetSubmission(deleteSubBtn.getAttribute("data-delete-sub")); return; }
-  if(el("backToHrBtn")){ state.view = "hr"; loadHrMonth(); return; }
+  if(el("backToHrBtn")){ state.view = "hr"; loadHrMonth(); loadCeoInboxMessages().then(checkNewCeoMessageAlert); return; }
   if(el("backToManagerHomeBtn")){ state.view = "manager-home"; render(); return; }
   if(el("backToSupervisorHomeBtn")){ state.view = "supervisor"; loadSupervisorList(); return; }
   if(el("addProjectBtn")){ addProject(); return; }
@@ -10018,6 +10071,16 @@ function handleDelegatedClick(e){
   }
   if(el("toggleHrSecuritySectionBtn")){
     state.hrSecuritySectionOpen = !state.hrSecuritySectionOpen;
+    render();
+    return;
+  }
+  if(el("toggleHrToOwnerSectionBtn")){
+    state.hrToOwnerSectionOpen = !state.hrToOwnerSectionOpen;
+    render();
+    return;
+  }
+  if(el("toggleHrInboxSentSectionBtn")){
+    state.hrInboxSentSectionOpen = !state.hrInboxSentSectionOpen;
     render();
     return;
   }
