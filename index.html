@@ -955,6 +955,10 @@ async function deleteCeoMessage(id){
 
 function monthKey(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0"); }
 function monthLabel(d){ return d.toLocaleDateString("en-GB",{month:"long",year:"numeric"}); }
+function fmtHours(n){
+  const num = Number(n) || 0;
+  return num % 1 === 0 ? String(num) : num.toFixed(1);
+}
 function blankTimesheetLabel(ym){
   const MONTH_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const [y,m] = (ym || "").split("-").map(Number);
@@ -3991,6 +3995,26 @@ function dismissHrTodo(){
   render();
 }
 
+async function resetEmployeePassword(employeeId){
+  const emp = state.employeeDirectory.find(e => e.id === employeeId);
+  const name = emp ? emp.name : "this employee";
+  const proceed = confirm(`Reset ${name}'s login? They'll need to log in with their ID number and set a brand new password the next time they sign in.`);
+  if(!proceed) return;
+  state.loading = true; render();
+  try{
+    const { data, error } = await sb.functions.invoke("reset-employee-password", { body: { employee_id: employeeId } });
+    if(error || (data && data.error)){
+      toast("Could not reset password: " + (data && data.error ? data.error : (error ? error.message : "unknown error")));
+    }else{
+      toast(`${name}'s login has been reset. They can log in with their ID number now.`);
+    }
+  }catch(e){
+    toast("Could not reset password: " + (e && e.message ? e.message : "unknown error"));
+  }
+  state.loading = false;
+  render();
+}
+
 async function generateEmployeeProfilePdf(){
   const emp = state.employeeDirectory.find(e=>e.id===state.selectedDirectoryEmployeeId);
   if(!emp){ toast("Select an employee first."); return; }
@@ -6157,8 +6181,8 @@ async function buildCombinedPdf(included, titleText, filename){
     const ot = Number(sub.approved_ot_hours) || 0;
     return [
       emp?.name || "Employee",
-      totals.regularHours.toFixed(1),
-      ot.toFixed(1),
+      fmtHours(totals.regularHours),
+      fmtHours(ot),
       String(totals.present),
       String(totals.absent)
     ];
@@ -6174,7 +6198,13 @@ async function buildCombinedPdf(included, titleText, filename){
       headStyles: { fillColor: [27,90,150] },
       theme: "grid",
       margin: { left: 40, right: 40 },
-      columnStyles: { 0: { cellWidth: 210 }, 1: { cellWidth: 75 }, 2: { cellWidth: 75 }, 3: { cellWidth: 80 }, 4: { cellWidth: 75 } }
+      columnStyles: {
+        0: { cellWidth: 210 },
+        1: { cellWidth: 75, halign: "center" },
+        2: { cellWidth: 75, halign: "center" },
+        3: { cellWidth: 80, halign: "center" },
+        4: { cellWidth: 75, halign: "center" }
+      }
     });
   }
 
@@ -6785,6 +6815,7 @@ function renderEmployeeDirectory(){
     )}
 
     <button class="btn btn-sm" id="exportProfilePdfBtn" style="width:100%;margin-top:16px;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff;border:none;font-weight:800;">⬇ Export as PDF</button>
+    ${(isHrUser || isCeoUser) ? `<button class="btn btn-sm btn-outline" id="resetEmployeePasswordBtn" data-employee-id="${emp.id}" style="width:100%;margin-top:8px;color:#C43B3B;border-color:#C43B3B;" ${state.loading ? "disabled" : ""}>🔑 Reset Login Password</button>` : ""}
     ${isHrUser ? `<div class="field-note" style="text-align:center;">To update dates, use "Renewals & Expiry" instead.</div>` : ""}
   ` : "";
 
@@ -9849,6 +9880,8 @@ function handleDelegatedClick(e){
     return;
   }
   if(el("exportProfilePdfBtn")){ generateEmployeeProfilePdf(); return; }
+  const resetPwBtn = el("resetEmployeePasswordBtn");
+  if(resetPwBtn){ resetEmployeePassword(resetPwBtn.getAttribute("data-employee-id")); return; }
   if(el("openVehicleDocumentsBtn")){
     state.view = "vehicle-documents";
     state.vehicleDocsSearch = "";
