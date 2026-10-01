@@ -4819,6 +4819,21 @@ async function shareOrDownloadBlob(blob, filename, mimeType){
   return false;
 }
 
+function viewBlankTimesheet(type){
+  try{
+    const { blob } = buildBlankTimesheetPdfBlob(type);
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    if(!win) toast("Your browser blocked the preview — allow pop-ups for this site and try again.");
+    // Leaves the URL alive long enough for the new tab to actually
+    // load it, then frees the memory -- no download/share side effect.
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }catch(e){
+    console.error("Blank timesheet preview error:", e);
+    toast("Error: " + (e && e.message ? e.message : "unknown"));
+  }
+}
+
 async function shareBlankTimesheet(type, format){
   state.loading = true; render();
   try{
@@ -7141,6 +7156,7 @@ function renderBlankTimesheetScreen(){
         <div class="mgr-card-title">Monthly Timesheet</div>
         <div class="mgr-card-desc">Full calendar month ${blankTimesheetLabel(state.blankTimesheetMonth)}</div>
         <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-outline btn-sm" data-view-timesheet="regular" style="flex:1;">👁 View</button>
           <button class="btn btn-outline btn-sm" data-share-timesheet="regular" data-format="excel" style="flex:1;">📊 Excel</button>
           <button class="btn btn-outline btn-sm" data-share-timesheet="regular" data-format="pdf" style="flex:1;">📄 PDF</button>
         </div>
@@ -7153,6 +7169,7 @@ function renderBlankTimesheetScreen(){
         <div class="mgr-card-title">Qidiya Timesheet</div>
         <div class="mgr-card-desc">26th of the previous month through the 25th</div>
         <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-outline btn-sm" data-view-timesheet="qidiya" style="flex:1;">👁 View</button>
           <button class="btn btn-outline btn-sm" data-share-timesheet="qidiya" data-format="excel" style="flex:1;">📊 Excel</button>
           <button class="btn btn-outline btn-sm" data-share-timesheet="qidiya" data-format="pdf" style="flex:1;">📄 PDF</button>
         </div>
@@ -10253,6 +10270,11 @@ function handleDelegatedClick(e){
   const shareTimesheetEl = e.target.closest("[data-share-timesheet]");
   if(shareTimesheetEl){
     shareBlankTimesheet(shareTimesheetEl.getAttribute("data-share-timesheet"), shareTimesheetEl.getAttribute("data-format"));
+    return;
+  }
+  const viewTimesheetEl = e.target.closest("[data-view-timesheet]");
+  if(viewTimesheetEl){
+    viewBlankTimesheet(viewTimesheetEl.getAttribute("data-view-timesheet"));
     return;
   }
   if(el("openDailyReportBtn")){
