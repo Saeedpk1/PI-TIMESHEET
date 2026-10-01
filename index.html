@@ -5688,10 +5688,16 @@ async function generateWpsPayroll(payrollGroup){
 }
 
 async function generateSalarySheet(){
+  const defaultMonth = state.hrMonth || monthKey(new Date());
+  const monthStr = prompt("Month for the salary sheet (YYYY-MM):", defaultMonth);
+  if(!monthStr) return;
+  const [chosenY, chosenM] = monthStr.split("-").map(Number);
+  if(!chosenY || !chosenM || chosenM < 1 || chosenM > 12){ toast("Enter a valid month like 2026-09."); return; }
+
   const shortName = (n) => (n || "").trim().split(/\s+/).slice(0, 2).join(" ");
   state.loading = true; render();
   try{
-    const [y, m] = state.hrMonth.split("-").map(Number);
+    const y = chosenY, m = chosenM;
     const nd = new Date(y, m, 0).getDate();
     const start = fmtDate(y, m-1, 1), end = fmtDate(y, m-1, nd);
 
@@ -5702,7 +5708,7 @@ async function generateSalarySheet(){
     if(empErr) throw empErr;
 
     const { data: approvedSubs, error: subErr } = await sb.from("ts_timesheet_submissions")
-      .select("employee_id, status, approved_ot_hours").eq("month", state.hrMonth);
+      .select("employee_id, status, approved_ot_hours").eq("month", monthStr);
     if(subErr) throw subErr;
     const approvedIds = new Set((approvedSubs || []).filter(s => s.status === "approved").map(s => s.employee_id));
     const otMap = {};
@@ -5925,7 +5931,7 @@ async function generateSalarySheet(){
       return;
     }
 
-    await downloadWorkbook(wb, `Salary_Sheet_${state.hrMonth}_v2_${Date.now()}.xlsx`);
+    await downloadWorkbook(wb, `Salary_Sheet_${monthStr}_v2_${Date.now()}.xlsx`);
     toast("Salary sheet downloaded.");
   }catch(e){
     console.error("Salary sheet error:", e);
