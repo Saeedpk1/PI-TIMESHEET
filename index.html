@@ -9725,7 +9725,8 @@ function renderHrPurchasesList(){
           <thead><tr><th style="font-size:8px;">Date</th><th style="font-size:8px;">Description</th><th style="font-size:8px;">Project</th><th style="font-size:8px;">Bill No</th><th style="font-size:8px;">Amount</th><th style="font-size:8px;">VAT</th><th style="font-size:8px;">Total</th><th></th></tr></thead>
           <tbody>${itemRows}</tbody>
         </table>
-        <button class="link-btn" data-delete-purchase-batch="${b.batchId}" data-batch-count="${b.items.length}" style="color:var(--absent) !important;margin:8px 0 4px;">🗑 Remove this submission</button>
+        <button class="link-btn" data-print-purchase-batch="${b.batchId}" style="color:var(--present) !important;margin:8px 0 4px;">🖨 Print this submission</button>
+        <button class="link-btn" data-delete-purchase-batch="${b.batchId}" data-batch-count="${b.items.length}" style="color:var(--absent) !important;margin:8px 0 4px 16px;">🗑 Remove this submission</button>
         <button class="link-btn" data-return-purchase-batch="${b.batchId}" style="color:var(--blue) !important;margin:8px 0 4px 16px;">↩ Send back for correction</button>
       </div>` : ""}
     </div>`;
@@ -9874,6 +9875,13 @@ function handleDelegatedClick(e){
   }
   const returnBatchEl = e.target.closest("[data-return-purchase-batch]");
   if(returnBatchEl){ returnPurchaseBatchToDraft(returnBatchEl.getAttribute("data-return-purchase-batch")); return; }
+  const printBatchEl = e.target.closest("[data-print-purchase-batch]");
+  if(printBatchEl){
+    const batchId = printBatchEl.getAttribute("data-print-purchase-batch");
+    const batch = groupPurchasesByBatch(state.hrPurchases).find(b => b.batchId === batchId);
+    if(batch) previewAndPrintPurchases(batch.items, `Purchases / Expenses — ${firstLastName(batch.supervisorName || "Unknown")} — ${formatDateDMY(batch.date)}`);
+    return;
+  }
   const downloadMyBatchEl = e.target.closest("[data-download-my-purchase-batch]");
   if(downloadMyBatchEl){ generateMyPurchaseBatchPdf(downloadMyBatchEl.getAttribute("data-download-my-purchase-batch")); return; }
   if(el("exportPurchasesExcelBtn")){ generatePurchasesExcel(); return; }
