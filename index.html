@@ -9725,9 +9725,11 @@ function renderHrPurchasesList(){
           <thead><tr><th style="font-size:8px;">Date</th><th style="font-size:8px;">Description</th><th style="font-size:8px;">Project</th><th style="font-size:8px;">Bill No</th><th style="font-size:8px;">Amount</th><th style="font-size:8px;">VAT</th><th style="font-size:8px;">Total</th><th></th></tr></thead>
           <tbody>${itemRows}</tbody>
         </table>
-        <button class="link-btn" data-print-purchase-batch="${b.batchId}" style="color:var(--present) !important;margin:8px 0 4px;">🖨 Print this submission</button>
-        <button class="link-btn" data-delete-purchase-batch="${b.batchId}" data-batch-count="${b.items.length}" style="color:var(--absent) !important;margin:8px 0 4px 16px;">🗑 Remove this submission</button>
-        <button class="link-btn" data-return-purchase-batch="${b.batchId}" style="color:var(--blue) !important;margin:8px 0 4px 16px;">↩ Send back for correction</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+          <button class="btn btn-sm btn-outline" data-print-purchase-batch="${b.batchId}" style="flex:1;min-width:110px;color:var(--present);border-color:var(--present);">🖨 Print</button>
+          <button class="btn btn-sm btn-outline" data-return-purchase-batch="${b.batchId}" style="flex:1;min-width:110px;color:var(--blue);border-color:var(--blue);">↩ Send Back</button>
+          <button class="btn btn-sm btn-outline" data-delete-purchase-batch="${b.batchId}" data-batch-count="${b.items.length}" style="flex:1;min-width:110px;color:var(--absent);border-color:var(--absent);">🗑 Remove</button>
+        </div>
       </div>` : ""}
     </div>`;
   };
