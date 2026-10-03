@@ -536,6 +536,8 @@ let state = {
   hrSecuritySectionOpen: false,
   hrToOwnerSectionOpen: false,
   hrInboxSentSectionOpen: false,
+  absenceComparisonRows: [],
+  absenceComparisonMonth: null,
   biometricSectionOpen: false,
   passportRenewalSectionOpen: false,
   iqamaSectionOpen: false,
@@ -5304,6 +5306,63 @@ async function downloadWorkbook(wb, filename){
   setTimeout(()=> URL.revokeObjectURL(url), 4000);
 }
 
+async function loadAbsenceComparison(){
+  const monthStr = state.absenceComparisonMonth || state.hrMonth || monthKey(new Date());
+  state.absenceComparisonMonth = monthStr;
+  const [year, month] = monthStr.split("-").map(Number);
+  const nd = new Date(year, month, 0).getDate();
+  const start = fmtDate(year, month-1, 1), end = fmtDate(year, month-1, nd);
+
+  state.loading = true; render();
+  const [{ data: employees }, { data: entries }, { data: reports }, { data: absenceRows }, { data: vacations }] = await Promise.all([
+    sb.from("ts_employees").select("id, name, short_name").eq("active", true).not("short_name", "is", null).order("name"),
+    sb.from("ts_timesheet_entries").select("employee_id, entry_date, status").gte("entry_date", start).lte("entry_date", end),
+    sb.from("ts_daily_reports").select("report_date, team_member_ids").gte("report_date", start).lte("report_date", end),
+    sb.from("ts_daily_absences").select("*").gte("absence_date", start).lte("absence_date", end),
+    sb.from("ts_vacations").select("*").lte("start_date", end).gte("end_date", start)
+  ]);
+
+  const vacationsByEmp = {};
+  (vacations || []).forEach(v => {
+    if(!vacationsByEmp[v.employee_id]) vacationsByEmp[v.employee_id] = [];
+    vacationsByEmp[v.employee_id].push([v.start_date, v.end_date]);
+  });
+  function isOnVacation(empId, dateStr){
+    return (vacationsByEmp[empId] || []).some(([s,e]) => dateStr >= s && dateStr <= e);
+  }
+
+  const presentInReport = {}; // `${dateStr}|${empId}` -> true
+  (reports || []).forEach(rep => {
+    (rep.team_member_ids || []).forEach(empId => { presentInReport[`${rep.report_date}|${empId}`] = true; });
+  });
+
+  const absentByDate = {};
+  (absenceRows || []).forEach(a => { absentByDate[a.absence_date] = new Set(a.absent_ids || []); });
+
+  const timesheetAbsentByEmp = {};
+  (entries || []).forEach(e => {
+    if(e.status === "Absent") timesheetAbsentByEmp[e.employee_id] = (timesheetAbsentByEmp[e.employee_id] || 0) + 1;
+  });
+
+  state.absenceComparisonRows = (employees || []).map(emp => {
+    let dailyReportAbsent = 0;
+    for(let d = 1; d <= nd; d++){
+      const dateStr = fmtDate(year, month-1, d);
+      const dow = new Date(year, month-1, d).getDay();
+      if(dow === 5) continue; // Friday
+      if(isOnVacation(emp.id, dateStr)) continue;
+      const explicitlyAbsent = absentByDate[dateStr] && absentByDate[dateStr].has(emp.id);
+      const presentThatDay = presentInReport[`${dateStr}|${emp.id}`];
+      if(explicitlyAbsent || !presentThatDay) dailyReportAbsent++;
+    }
+    const timesheetAbsent = timesheetAbsentByEmp[emp.id] || 0;
+    return { id: emp.id, name: emp.short_name || emp.name, timesheetAbsent, dailyReportAbsent, mismatch: timesheetAbsent !== dailyReportAbsent };
+  });
+
+  state.loading = false;
+  render();
+}
+
 async function exportAttendanceByProjectExcel(){
   const defaultMonth = state.hrMonth || monthKey(new Date());
   const monthStr = prompt("Month to export (YYYY-MM):", defaultMonth);
@@ -6370,6 +6429,7 @@ function render(){
   else if(state.view === "hr") body = renderHrView();
   else if(state.view === "manager-home") body = renderManagerHome();
   else if(state.view === "blank-timesheet") body = renderBlankTimesheetScreen();
+  else if(state.view === "absence-comparison") body = renderAbsenceComparisonScreen();
   else if(state.view === "hr-projects") body = renderProjectsManager();
   else if(state.view === "leave-form") body = renderLeaveForm();
   else if(state.view === "supervisor-leave-list") body = renderSupervisorLeaveList();
@@ -8544,6 +8604,7 @@ function renderHrView(){
       <button class="btn btn-primary btn-compact" id="combinedPdfBtn" style="margin-top:8px;">⬇ Download combined PDF (${mainCount})</button>
       <button class="btn btn-primary btn-compact" id="saudiPdfBtn" style="margin-top:5px;background:linear-gradient(135deg,#1C8A4E,#25A85F);">⬇ Download SAUDI TIME SHEET (${saudiCount})</button>
       <button class="btn btn-primary btn-compact" id="saudiArabicPdfBtn" style="margin-top:5px;background:linear-gradient(135deg,#8A5A1C,#B87F2E);">⬇ تحميل كشف الدوام (Arabic) (${saudiCount})</button>
+      <button class="btn btn-outline btn-compact" id="openAbsenceComparisonBtn" style="margin-top:10px;">📋 Absence Comparison</button>
     </div>
     ` : ""}
   `;
@@ -9687,6 +9748,46 @@ function renderPurchaseForm(){
   `;
 }
 
+function renderAbsenceComparisonScreen(){
+  const rows = state.absenceComparisonRows;
+  const mismatchCount = rows.filter(r => r.mismatch).length;
+  const tableRows = rows.map(r => `
+    <tr style="${r.mismatch ? "background:#FDECEC;" : ""}">
+      <td style="padding:7px 8px;font-size:12.5px;">${r.name}</td>
+      <td style="padding:7px 8px;font-size:12.5px;text-align:center;">${r.timesheetAbsent}</td>
+      <td style="padding:7px 8px;font-size:12.5px;text-align:center;">${r.dailyReportAbsent}</td>
+      <td style="padding:7px 8px;font-size:12.5px;text-align:center;">${r.mismatch ? "⚠️" : "✅"}</td>
+    </tr>`).join("");
+
+  return `
+    <button class="back-link-glow" id="backToHrBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    <div class="card">
+      <h3>📋 Absence Comparison</h3>
+      <div class="meta">Timesheet (self-submitted) vs. Daily Reports (supervisor-logged) — mismatches highlighted in red.</div>
+    </div>
+    <div class="card" style="padding:12px 14px;margin-top:10px;">
+      <label style="margin-top:0;">Month</label>
+      <input type="month" id="absenceComparisonMonthInput" value="${state.absenceComparisonMonth}">
+    </div>
+    ${rows.length ? `
+    <div class="card" style="margin-top:10px;padding:0;overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;min-width:420px;">
+        <thead>
+          <tr style="background:var(--navy);color:#fff;">
+            <th style="padding:8px;text-align:left;font-size:11.5px;">Name</th>
+            <th style="padding:8px;font-size:11.5px;">Timesheet<br>Absent</th>
+            <th style="padding:8px;font-size:11.5px;">Daily Report<br>Absent</th>
+            <th style="padding:8px;font-size:11.5px;">Status</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+    <div class="field-note" style="margin-top:8px;">${mismatchCount} of ${rows.length} employee${rows.length===1?"":"s"} ${mismatchCount===1?"has":"have"} a mismatch this month.</div>
+    ` : `<div class="empty-state"><div class="ic">📋</div>No data for this month yet.</div>`}
+  `;
+}
+
 function renderHrPurchasesList(){
   const items = state.hrPurchases;
   const batches = groupPurchasesByBatch(items);
@@ -10282,6 +10383,7 @@ function handleDelegatedClick(e){
   }
   if(el("saveMyProfileBtn")){ saveMyProfile(); return; }
   if(el("openBlankTimesheetScreenBtn")){ state.view = "blank-timesheet"; render(); return; }
+  if(el("openAbsenceComparisonBtn")){ state.view = "absence-comparison"; loadAbsenceComparison(); return; }
   const shareTimesheetEl = e.target.closest("[data-share-timesheet]");
   if(shareTimesheetEl){
     shareBlankTimesheet(shareTimesheetEl.getAttribute("data-share-timesheet"), shareTimesheetEl.getAttribute("data-format"));
@@ -10470,6 +10572,7 @@ function handleDelegatedChange(e){
   if(e.target.id === "vacationStartInput"){ state.vacationFormStart = e.target.value; return; }
   if(e.target.id === "vacationEndInput"){ state.vacationFormEnd = e.target.value; return; }
   if(e.target.id === "blankTimesheetMonthInput"){ state.blankTimesheetMonth = e.target.value; render(); return; }
+  if(e.target.id === "absenceComparisonMonthInput"){ state.absenceComparisonMonth = e.target.value; loadAbsenceComparison(); return; }
   if(e.target.id === "quoteDaysInput"){
     state.quoteDays = e.target.value;
     const cursorPos = e.target.selectionStart;
