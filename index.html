@@ -9745,7 +9745,10 @@ function renderPurchaseForm(){
 }
 
 function renderAbsenceComparisonScreen(){
-  const rows = state.absenceComparisonRows;
+  // Employees with zero absences in both sources aren't interesting
+  // to review -- only show the ones with at least one, from either
+  // source.
+  const rows = state.absenceComparisonRows.filter(r => r.timesheetAbsent > 0 || r.dailyReportAbsent > 0);
   const mismatchCount = rows.filter(r => r.mismatch).length;
   const tableRows = rows.map(r => `
     <tr style="${r.mismatch ? "background:#FDECEC;" : ""}">
@@ -9780,7 +9783,9 @@ function renderAbsenceComparisonScreen(){
       </table>
     </div>
     <div class="field-note" style="margin-top:8px;">${mismatchCount} of ${rows.length} employee${rows.length===1?"":"s"} ${mismatchCount===1?"has":"have"} a mismatch this month.</div>
-    ` : `<div class="empty-state"><div class="ic">📋</div>No data for this month yet.</div>`}
+    ` : (state.absenceComparisonRows.length
+      ? `<div class="empty-state"><div class="ic">✅</div>No absences recorded for anyone this month.</div>`
+      : `<div class="empty-state"><div class="ic">📋</div>No data for this month yet.</div>`)}
   `;
 }
 
