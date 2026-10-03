@@ -5333,13 +5333,19 @@ async function loadAbsenceComparison(){
   const absentByDate = {};
   (absenceRows || []).forEach(a => { absentByDate[a.absence_date] = new Set(a.absent_ids || []); });
 
-  const timesheetAbsentByEmp = {};
+  // Day numbers only (e.g. 2, 7, 10), not full dates -- easy to
+  // manually cross-check against the calendar at a glance.
+  const timesheetAbsentDaysByEmp = {};
   (entries || []).forEach(e => {
-    if(e.status === "Absent") timesheetAbsentByEmp[e.employee_id] = (timesheetAbsentByEmp[e.employee_id] || 0) + 1;
+    if(e.status === "Absent"){
+      const day = Number(e.entry_date.split("-")[2]);
+      if(!timesheetAbsentDaysByEmp[e.employee_id]) timesheetAbsentDaysByEmp[e.employee_id] = [];
+      timesheetAbsentDaysByEmp[e.employee_id].push(day);
+    }
   });
 
   state.absenceComparisonRows = (employees || []).map(emp => {
-    let dailyReportAbsent = 0;
+    const dailyReportAbsentDays = [];
     for(let d = 1; d <= nd; d++){
       const dateStr = fmtDate(year, month-1, d);
       const dow = new Date(year, month-1, d).getDay();
@@ -5349,10 +5355,15 @@ async function loadAbsenceComparison(){
       // day (no daily report entry at all for them that day) isn't
       // the same as a deliberate absence mark, so it's left out.
       const explicitlyAbsent = absentByDate[dateStr] && absentByDate[dateStr].has(emp.id);
-      if(explicitlyAbsent) dailyReportAbsent++;
+      if(explicitlyAbsent) dailyReportAbsentDays.push(d);
     }
-    const timesheetAbsent = timesheetAbsentByEmp[emp.id] || 0;
-    return { id: emp.id, name: emp.short_name || emp.name, timesheetAbsent, dailyReportAbsent, mismatch: timesheetAbsent !== dailyReportAbsent };
+    const timesheetAbsentDays = (timesheetAbsentDaysByEmp[emp.id] || []).sort((a,b) => a-b);
+    return {
+      id: emp.id, name: emp.short_name || emp.name,
+      timesheetAbsentDays, dailyReportAbsentDays,
+      timesheetAbsent: timesheetAbsentDays.length, dailyReportAbsent: dailyReportAbsentDays.length,
+      mismatch: timesheetAbsentDays.length !== dailyReportAbsentDays.length
+    };
   });
 
   state.loading = false;
@@ -9753,8 +9764,8 @@ function renderAbsenceComparisonScreen(){
   const tableRows = rows.map(r => `
     <tr style="${r.mismatch ? "background:#FDECEC;" : ""}">
       <td style="padding:7px 8px;font-size:12.5px;">${r.name}</td>
-      <td style="padding:7px 8px;font-size:12.5px;text-align:center;">${r.timesheetAbsent}</td>
-      <td style="padding:7px 8px;font-size:12.5px;text-align:center;">${r.dailyReportAbsent}</td>
+      <td style="padding:7px 8px;font-size:12.5px;text-align:center;">${r.timesheetAbsentDays.join(", ") || "-"}</td>
+      <td style="padding:7px 8px;font-size:12.5px;text-align:center;">${r.dailyReportAbsentDays.join(", ") || "-"}</td>
       <td style="padding:7px 8px;font-size:12.5px;text-align:center;">${r.mismatch ? "⚠️" : "✅"}</td>
     </tr>`).join("");
 
