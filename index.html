@@ -9764,8 +9764,8 @@ function renderAbsenceComparisonScreen(){
   const tableRows = rows.map(r => `
     <tr style="${r.mismatch ? "background:#FDECEC;" : ""}">
       <td style="padding:7px 8px;font-size:12.5px;">${r.name}</td>
-      <td style="padding:7px 8px;font-size:12.5px;text-align:center;">${r.timesheetAbsentDays.join(", ") || "-"}</td>
-      <td style="padding:7px 8px;font-size:12.5px;text-align:center;">${r.dailyReportAbsentDays.join(", ") || "-"}</td>
+      <td style="padding:7px 8px;font-size:12.5px;text-align:center;">${r.timesheetAbsentDays.join(", ") || "-"} <span style="color:var(--muted);font-weight:700;">(${r.timesheetAbsent})</span></td>
+      <td style="padding:7px 8px;font-size:12.5px;text-align:center;">${r.dailyReportAbsentDays.join(", ") || "-"} <span style="color:var(--muted);font-weight:700;">(${r.dailyReportAbsent})</span></td>
       <td style="padding:7px 8px;font-size:12.5px;text-align:center;">${r.mismatch ? "⚠️" : "✅"}</td>
     </tr>`).join("");
 
