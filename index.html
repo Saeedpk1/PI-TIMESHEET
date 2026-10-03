@@ -9726,7 +9726,7 @@ function renderHrPurchasesList(){
           <tbody>${itemRows}</tbody>
         </table>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
-          <button class="btn btn-sm btn-outline" data-print-purchase-batch="${b.batchId}" style="flex:1;min-width:110px;color:var(--present);border-color:var(--present);">🖨 Print</button>
+          <button class="btn btn-sm btn-outline" data-print-purchase-batch="${b.batchId}" style="flex:1;min-width:110px;color:var(--present);border-color:var(--present);">👁 View</button>
           <button class="btn btn-sm btn-outline" data-return-purchase-batch="${b.batchId}" style="flex:1;min-width:110px;color:var(--blue);border-color:var(--blue);">↩ Send Back</button>
           <button class="btn btn-sm btn-outline" data-delete-purchase-batch="${b.batchId}" data-batch-count="${b.items.length}" style="flex:1;min-width:110px;color:var(--absent);border-color:var(--absent);">🗑 Remove</button>
         </div>
@@ -9751,9 +9751,6 @@ function renderHrPurchasesList(){
       <div class="meta">${items.length} item${items.length===1?"":"s"} across ${batches.length} submission${batches.length===1?"":"s"} • Total ${grandTotal.toFixed(2)} SAR</div>
     </div>
     ${supervisorSections || `<div class="empty-state"><div class="ic">🧾</div>Nothing submitted yet.</div>`}
-    <button class="btn btn-outline" id="exportPurchasesExcelBtn" style="margin-top:14px;">📊 Export as Excel</button>
-    <button class="btn btn-outline" id="previewPrintPurchasesBtn" style="margin-top:8px;">👁 Preview & Print</button>
-    <button class="btn btn-primary" id="exportPurchasesPdfBtn" style="margin-top:8px;background:linear-gradient(135deg,#0F3556,#1B5A96);">📄 Export as PDF (v2)</button>
   `;
 }
 
@@ -9886,9 +9883,6 @@ function handleDelegatedClick(e){
   }
   const downloadMyBatchEl = e.target.closest("[data-download-my-purchase-batch]");
   if(downloadMyBatchEl){ generateMyPurchaseBatchPdf(downloadMyBatchEl.getAttribute("data-download-my-purchase-batch")); return; }
-  if(el("exportPurchasesExcelBtn")){ generatePurchasesExcel(); return; }
-  if(el("previewPrintPurchasesBtn")){ generatePurchasesPdf("preview"); return; }
-  if(el("exportPurchasesPdfBtn")){ generatePurchasesPdf(); return; }
   const reviewHrTsEl = e.target.closest("[data-review-hr-timesheet]");
   if(reviewHrTsEl){ openHrTimesheetReview(reviewHrTsEl.getAttribute("data-review-hr-timesheet")); return; }
   if(el("saveHrTimesheetBtn")){ saveHrTimesheetEdit(); return; }
