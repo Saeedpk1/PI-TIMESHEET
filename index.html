@@ -5314,10 +5314,9 @@ async function loadAbsenceComparison(){
   const start = fmtDate(year, month-1, 1), end = fmtDate(year, month-1, nd);
 
   state.loading = true; render();
-  const [{ data: employees }, { data: entries }, { data: reports }, { data: absenceRows }, { data: vacations }] = await Promise.all([
+  const [{ data: employees }, { data: entries }, { data: absenceRows }, { data: vacations }] = await Promise.all([
     sb.from("ts_employees").select("id, name, short_name").eq("active", true).not("short_name", "is", null).order("name"),
     sb.from("ts_timesheet_entries").select("employee_id, entry_date, status").gte("entry_date", start).lte("entry_date", end),
-    sb.from("ts_daily_reports").select("report_date, team_member_ids").gte("report_date", start).lte("report_date", end),
     sb.from("ts_daily_absences").select("*").gte("absence_date", start).lte("absence_date", end),
     sb.from("ts_vacations").select("*").lte("start_date", end).gte("end_date", start)
   ]);
@@ -5330,11 +5329,6 @@ async function loadAbsenceComparison(){
   function isOnVacation(empId, dateStr){
     return (vacationsByEmp[empId] || []).some(([s,e]) => dateStr >= s && dateStr <= e);
   }
-
-  const presentInReport = {}; // `${dateStr}|${empId}` -> true
-  (reports || []).forEach(rep => {
-    (rep.team_member_ids || []).forEach(empId => { presentInReport[`${rep.report_date}|${empId}`] = true; });
-  });
 
   const absentByDate = {};
   (absenceRows || []).forEach(a => { absentByDate[a.absence_date] = new Set(a.absent_ids || []); });
@@ -5351,9 +5345,11 @@ async function loadAbsenceComparison(){
       const dow = new Date(year, month-1, d).getDay();
       if(dow === 5) continue; // Friday
       if(isOnVacation(emp.id, dateStr)) continue;
+      // Only a day explicitly written as absent counts -- a blank
+      // day (no daily report entry at all for them that day) isn't
+      // the same as a deliberate absence mark, so it's left out.
       const explicitlyAbsent = absentByDate[dateStr] && absentByDate[dateStr].has(emp.id);
-      const presentThatDay = presentInReport[`${dateStr}|${emp.id}`];
-      if(explicitlyAbsent || !presentThatDay) dailyReportAbsent++;
+      if(explicitlyAbsent) dailyReportAbsent++;
     }
     const timesheetAbsent = timesheetAbsentByEmp[emp.id] || 0;
     return { id: emp.id, name: emp.short_name || emp.name, timesheetAbsent, dailyReportAbsent, mismatch: timesheetAbsent !== dailyReportAbsent };
