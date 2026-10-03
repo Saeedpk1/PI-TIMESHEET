@@ -9761,15 +9761,24 @@ function renderAbsenceComparisonScreen(){
   // source.
   const rows = state.absenceComparisonRows.filter(r => r.timesheetAbsent > 0 || r.dailyReportAbsent > 0);
   const mismatchCount = rows.filter(r => r.mismatch).length;
-  const tableRows = rows.map(r => `
-    <tr style="${r.mismatch ? "background:#FDECEC;" : ""}">
-      <td style="padding:7px 8px;font-size:12.5px;">${r.name}</td>
-      <td style="padding:7px 8px;font-size:12.5px;text-align:center;">${r.timesheetAbsentDays.join(", ") || "-"}</td>
-      <td style="padding:7px 8px;font-size:13px;text-align:center;font-weight:800;background:#F3F6FA;">${r.timesheetAbsent}</td>
-      <td style="padding:7px 8px;font-size:12.5px;text-align:center;">${r.dailyReportAbsentDays.join(", ") || "-"}</td>
-      <td style="padding:7px 8px;font-size:13px;text-align:center;font-weight:800;background:#F3F6FA;">${r.dailyReportAbsent}</td>
-      <td style="padding:7px 8px;font-size:12.5px;text-align:center;">${r.mismatch ? "⚠️" : "✅"}</td>
-    </tr>`).join("");
+  // One card per employee rather than a wide table -- a 6-column
+  // table can't fit a mobile screen without horizontal scrolling,
+  // no matter how narrow each column is made.
+  const cards = rows.map(r => `
+    <div class="card" style="margin-top:10px;${r.mismatch ? "border:2px solid #E08787;background:#FDECEC;" : ""}">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-weight:800;font-size:13.5px;color:var(--navy);">${r.name}</div>
+        <div style="font-size:16px;">${r.mismatch ? "⚠️" : "✅"}</div>
+      </div>
+      <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="font-size:11.5px;color:var(--muted);">📝 Timesheet: ${r.timesheetAbsentDays.join(", ") || "-"}</div>
+        <div style="font-weight:800;font-size:13px;background:#F3F6FA;border-radius:6px;padding:2px 8px;flex-shrink:0;">${r.timesheetAbsent}</div>
+      </div>
+      <div style="margin-top:5px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="font-size:11.5px;color:var(--muted);">📋 Daily Report: ${r.dailyReportAbsentDays.join(", ") || "-"}</div>
+        <div style="font-weight:800;font-size:13px;background:#F3F6FA;border-radius:6px;padding:2px 8px;flex-shrink:0;">${r.dailyReportAbsent}</div>
+      </div>
+    </div>`).join("");
 
   return `
     <button class="back-link-glow" id="backToHrBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
@@ -9782,21 +9791,7 @@ function renderAbsenceComparisonScreen(){
       <input type="month" id="absenceComparisonMonthInput" value="${state.absenceComparisonMonth}">
     </div>
     ${rows.length ? `
-    <div class="card" style="margin-top:10px;padding:0;overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;min-width:420px;">
-        <thead>
-          <tr style="background:var(--navy);color:#fff;">
-            <th style="padding:8px;text-align:left;font-size:11.5px;">Name</th>
-            <th style="padding:8px;font-size:11.5px;">Timesheet<br>Days</th>
-            <th style="padding:8px 6px;font-size:11.5px;width:1%;white-space:nowrap;">Total</th>
-            <th style="padding:8px;font-size:11.5px;">Daily Report<br>Days</th>
-            <th style="padding:8px 6px;font-size:11.5px;width:1%;white-space:nowrap;">Total</th>
-            <th style="padding:8px;font-size:11.5px;">Status</th>
-          </tr>
-        </thead>
-        <tbody>${tableRows}</tbody>
-      </table>
-    </div>
+    ${cards}
     <div class="field-note" style="margin-top:8px;">${mismatchCount} of ${rows.length} employee${rows.length===1?"":"s"} ${mismatchCount===1?"has":"have"} a mismatch this month.</div>
     ` : (state.absenceComparisonRows.length
       ? `<div class="empty-state"><div class="ic">✅</div>No absences recorded for anyone this month.</div>`
