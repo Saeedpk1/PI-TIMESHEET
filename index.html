@@ -7678,7 +7678,8 @@ function renderFinancialReport(){
       <button class="link-btn ceo-gold-btn" id="prevFinancialDayBtn" style="font-size:18px;font-weight:800;">‹</button>
       <div style="text-align:center;">
         <div style="font-weight:800;font-size:13px;color:var(--blue);">${new Date(state.financialReportDate + "T00:00:00").toLocaleDateString(undefined,{weekday:"short",day:"2-digit",month:"short",year:"numeric"})}</div>
-        ${state.financialReportDate !== todayLocalISO() ? `<button class="link-btn ceo-gold-btn" id="todayFinancialBtn" style="font-size:11px;">Jump to today</button>` : ""}
+        <input type="date" id="financialReportDateInput" value="${state.financialReportDate}" max="${todayLocalISO()}" style="margin-top:4px;padding:3px 6px;font-size:12px;width:auto;">
+        ${state.financialReportDate !== todayLocalISO() ? `<div><button class="link-btn ceo-gold-btn" id="todayFinancialBtn" style="font-size:11px;">Jump to today</button></div>` : ""}
       </div>
       <button class="link-btn ceo-gold-btn" id="nextFinancialDayBtn" style="font-size:18px;font-weight:800;" ${state.financialReportDate>=todayLocalISO()?"disabled":""}>›</button>
     </div>
@@ -9348,7 +9349,8 @@ function renderCombinedReports(){
       <button class="link-btn ceo-gold-btn" id="prevReportsDayBtn" style="font-size:18px;font-weight:800;">‹</button>
       <div style="text-align:center;">
         <div style="font-weight:800;font-size:13px;color:var(--blue);">${dateLabel}</div>
-        ${!isToday ? `<button class="link-btn ceo-gold-btn" id="todayReportsBtn" style="font-size:11px;">Jump to today</button>` : ""}
+        <input type="date" id="combinedReportsDateInput" value="${state.combinedReportsDate}" max="${todayLocalISO()}" style="margin-top:4px;padding:3px 6px;font-size:12px;width:auto;">
+        ${!isToday ? `<div><button class="link-btn ceo-gold-btn" id="todayReportsBtn" style="font-size:11px;">Jump to today</button></div>` : ""}
       </div>
       <button class="link-btn ceo-gold-btn" id="nextReportsDayBtn" style="font-size:18px;font-weight:800;" ${isToday?"disabled":""}>›</button>
     </div>
@@ -10613,6 +10615,24 @@ function handleDelegatedChange(e){
     render();
     const freshInput = document.getElementById("quotePriceInput");
     if(freshInput){ freshInput.focus(); freshInput.setSelectionRange(cursorPos, cursorPos); }
+    return;
+  }
+  if(e.target.id === "combinedReportsDateInput"){
+    const newDate = e.target.value;
+    if(!newDate || newDate > todayLocalISO()) return;
+    state.combinedReportsDate = newDate;
+    loadCombinedReports();
+    return;
+  }
+  if(e.target.id === "financialReportDateInput"){
+    const newDate = e.target.value;
+    if(!newDate || newDate > todayLocalISO()) return;
+    // Same unsaved-changes safety check the arrows already use.
+    if(state.financialDirty && !confirm("You have unsaved changes on this date. Switch anyway and lose them?")){
+      render(); // snap the picker back to the date still being edited
+      return;
+    }
+    loadFinancialReport(newDate);
     return;
   }
   if(e.target.id === "dailyReportDateInput"){
