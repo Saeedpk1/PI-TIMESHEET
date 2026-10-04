@@ -455,7 +455,7 @@ function setupSupabaseClient(){
 // otherwise the password would only ever be checked once, and anyone who
 // picks up an already-logged-in device would bypass it entirely. Instead,
 // such accounts are re-prompted for their password on every fresh app open.
-const cachedUser = JSON.parse(localStorage.getItem("ts_user") || "null");
+const cachedUser = (() => { try{ return JSON.parse(localStorage.getItem("ts_user") || "null"); }catch(e){ return null; } })();
 const cachedNeedsPassword = !!(cachedUser && cachedUser.password_hash);
 
 let state = {
@@ -1758,6 +1758,14 @@ function syntheticAuthEmail(iqamaNumber){
   return `emp${iqamaNumber}@pi-timesheet-auth.internal`;
 }
 
+// Works out, in plain terms, why a sign-in to the real login account failed.
+function authFailureInfo(error){
+  const msg = String((error && error.message) || "");
+  const rateLimited = !!error && (error.status === 429 || error.code === "over_request_rate_limit" || /rate limit|too many/i.test(msg));
+  const network = !!error && (error.name === "AuthRetryableFetchError" || /failed to fetch|network|load failed|timeout/i.test(msg));
+  return { rateLimited, network, message: msg || "sign-in failed" };
+}
+
 async function establishAuthSession(match, plaintextPassword){
   // Signs into real Supabase Auth. Uses the employee's actual chosen
   // password if they've set one (passed in by the login flow, since
@@ -1767,9 +1775,14 @@ async function establishAuthSession(match, plaintextPassword){
     const email = syntheticAuthEmail(match.iqama_number);
     const password = plaintextPassword || match.iqama_number;
     const { error } = await sb.auth.signInWithPassword({ email, password });
-    if(error) console.log("Auth session not established (not migrated yet, or Auth not configured):", error.message);
+    if(error){
+      console.log("Auth session not established (not migrated yet, or Auth not configured):", error.message);
+      return { ok: false, ...authFailureInfo(error) };
+    }
+    return { ok: true };
   }catch(e){
     console.log("Auth session attempt failed:", e.message);
+    return { ok: false, ...authFailureInfo(e) };
   }
 }
 
@@ -1924,7 +1937,10 @@ async function submitSetupPassword(){
   const { error: signInError } = await sb.auth.signInWithPassword({ email, password: match.iqama_number });
   if(signInError){
     state.loading = false;
-    state.error = "Could not set up your password right now. Try again, or contact your admin.";
+    const why = authFailureInfo(signInError);
+    state.error = why.rateLimited ? "Too many attempts right now. Wait a minute, then try again."
+      : why.network ? "Connection problem — check your internet and try again."
+      : `Could not set up your password right now (${escapeHtml(why.message)}). Try again, or contact your admin.`;
     render();
     return;
   }
@@ -1933,7 +1949,7 @@ async function submitSetupPassword(){
   const { error: updateAuthError } = await sb.auth.updateUser({ password: pw1 });
   if(updateAuthError){
     state.loading = false;
-    state.error = "Could not save your new password. Try again.";
+    state.error = `Could not save your new password (${escapeHtml(authFailureInfo(updateAuthError).message)}). Try a different one.`;
     render();
     return;
   }
@@ -1954,24 +1970,91 @@ async function submitSetupPassword(){
   await completeLogin(match, pw1);
 }
 
+// What the phone remembers between visits. Browsers keep only ~5 MB per site, and a profile photo (saved full-size)
+// can fill that by itself, so it is left out -- it isn't needed to restore a login, and a full store must never block one.
+function cacheLoggedInUser(user){
+  try{
+    const { photo_data, ...lean } = user || {};
+    localStorage.setItem("ts_user", JSON.stringify(lean));
+  }catch(e){
+    console.error("Could not remember the login on this device:", e);
+  }
+}
+
+function landingViewFor(role){
+  return role === "employee" ? "employee" : (role === "supervisor" ? "supervisor" : (role === "ceo" ? "ceo-home" : (role === "manager" ? "manager-home" : "hr")));
+}
+
+// Loads what the first screen is built on. A failing extra (announcement, letters...) must never keep someone out of
+// the app; but if the screen's own data can't be loaded, say so -- an empty screen could be mistaken for real data.
+async function loadLandingData(user, opts){
+  const problems = [];
+  const optional = async (label, fn) => {
+    try{ await fn(); }catch(e){ console.error("Optional load failed:", label, e); problems.push(label); }
+  };
+  try{
+    const { data: hrmId } = await sb.rpc("get_hrm_supervisor_id");
+    state.hrmSupervisorId = hrmId || null;
+    await loadProjects();
+    await optional("announcements", loadLatestAnnouncementForUser);
+    await optional("letters", loadMyLetters);
+    if(user.role === "ceo") await optional("to-do list", loadLatestHrTodoForOwner);
+    state.view = landingViewFor(user.role);
+    if(state.view === "employee") await loadEmployeeMonth();
+    else if(state.view === "supervisor") await loadSupervisorList();
+    else if(state.view === "hr"){
+      await loadHrMonth();
+      if(opts && opts.hrInbox) await optional("messages", async () => { await loadCeoInboxMessages(); checkNewCeoMessageAlert(); });
+    }else if(state.view === "ceo-home"){
+      await loadCeoLeaveRequests();
+      await optional("messages", loadCeoInboxMessages);
+    }
+  }catch(e){
+    console.error("Landing load failed:", e);
+    return { fatal: (e && e.message) ? e.message : String(e), problems };
+  }
+  return { fatal: null, problems };
+}
+
+// Back to the login screen with a plain explanation, instead of a spinner that never ends.
+function failLogin(message){
+  state.user = null;
+  try{ localStorage.removeItem("ts_user"); }catch(_){}
+  state.loading = false;
+  state.pendingPasswordUser = null;
+  state.pendingSetupPasswordUser = null;
+  state.error = message;
+  render();
+}
+
 async function completeLogin(match, plaintextPassword){
   state.loading = true; render();
   state.user = match;
-  localStorage.setItem("ts_user", JSON.stringify(match));
-  await establishAuthSession(match, plaintextPassword);
-  const { data: hrmId } = await sb.rpc("get_hrm_supervisor_id");
-  state.hrmSupervisorId = hrmId || null;
-  await loadProjects();
-  await loadLatestAnnouncementForUser();
-  await loadMyLetters();
-  if(match.role === "ceo") await loadLatestHrTodoForOwner();
-  state.view = match.role === "employee" ? "employee" : (match.role === "supervisor" ? "supervisor" : (match.role === "ceo" ? "ceo-home" : (match.role === "manager" ? "manager-home" : "hr")));
-  if(state.view === "employee") await loadEmployeeMonth();
-  if(state.view === "supervisor") await loadSupervisorList();
-  if(state.view === "hr") { await loadHrMonth(); await loadCeoInboxMessages(); checkNewCeoMessageAlert(); }
-  if(state.view === "ceo-home") { await loadCeoLeaveRequests(); await loadCeoInboxMessages(); }
+  cacheLoggedInUser(match);
+  const auth = await establishAuthSession(match, plaintextPassword);
+  // Everyone now has a real login account. If he has one but signing into it fails, nothing could load: say why.
+  if(!auth.ok && match.auth_user_id){
+    failLogin(auth.rateLimited
+      ? "Too many sign-in attempts right now. Wait a minute, then try again."
+      : auth.network
+        ? "Connection problem — check your internet and try again."
+        : `Your login needs to be reset by HR (${escapeHtml(auth.message)}). Please ask HR to use "Reset Login Password" for you.`);
+    return;
+  }
+  const result = await loadLandingData(match, { hrInbox: true });
+  if(result.fatal){
+    failLogin(`Signed in, but your data couldn't be loaded (${escapeHtml(result.fatal)}). Please try again.`);
+    return;
+  }
   state.loading = false;
-  render();
+  try{
+    render();
+  }catch(e){
+    console.error("Render failed after login:", e);
+    failLogin(`The app couldn't open (${escapeHtml(e && e.message ? e.message : e)}). Please try again, or tell HR.`);
+    return;
+  }
+  if(result.problems.length) toast("Some extras couldn't be loaded: " + result.problems.join(", ") + ".");
 }
 
 function randomChallenge(){ return crypto.getRandomValues(new Uint8Array(32)); }
@@ -2071,6 +2154,18 @@ async function setAccountPassword(){
   if(pw2 === null) return;
   if(pw1 !== pw2){ toast("Passwords didn't match. Try again."); return; }
   state.loading = true; render();
+  // The real login account holds the password that actually opens the door. Change it first, and only then the
+  // app's own copy, so the two can never disagree (that disagreement is what leaves someone spinning at login).
+  if(state.user.auth_user_id){
+    const { error: authError } = await sb.auth.updateUser({ password: pw1 });
+    const alreadyThatPassword = !!authError && /different from the old password/i.test(authError.message || "");
+    if(authError && !alreadyThatPassword){
+      state.loading = false;
+      toast("Could not save password (" + (authError.message || "unknown error") + ").");
+      render();
+      return;
+    }
+  }
   const { hash, salt } = await hashPassword(pw1);
   const { error } = await sb.from("ts_employees").update({ password_hash: hash, password_salt: salt }).eq("id", state.user.id);
   state.loading = false;
@@ -2078,7 +2173,7 @@ async function setAccountPassword(){
   if(!error){
     state.user.password_hash = hash;
     state.user.password_salt = salt;
-    localStorage.setItem("ts_user", JSON.stringify(state.user));
+    cacheLoggedInUser(state.user);
   }
   render();
 }
@@ -2086,13 +2181,25 @@ async function setAccountPassword(){
 async function removeAccountPassword(){
   if(!confirm("Remove your password? You'll be able to log in with just your ID number again.")) return;
   state.loading = true; render();
+  // "Just your ID number" has to be true of the real login account too, not only of the app's copy -- the
+  // first-time setup screen signs in with the ID number, and fails if the account still has the old password.
+  if(state.user.auth_user_id){
+    const { error: authError } = await sb.auth.updateUser({ password: state.user.iqama_number });
+    const alreadyThatPassword = !!authError && /different from the old password/i.test(authError.message || "");
+    if(authError && !alreadyThatPassword){
+      state.loading = false;
+      toast("Could not remove password (" + (authError.message || "unknown error") + ").");
+      render();
+      return;
+    }
+  }
   const { error } = await sb.from("ts_employees").update({ password_hash: null, password_salt: null }).eq("id", state.user.id);
   state.loading = false;
   toast(error ? "Could not remove password." : "Password removed.");
   if(!error){
     state.user.password_hash = null;
     state.user.password_salt = null;
-    localStorage.setItem("ts_user", JSON.stringify(state.user));
+    cacheLoggedInUser(state.user);
   }
   render();
 }
@@ -4827,8 +4934,26 @@ function handleMyProfilePhotoFile(file){
   if(!file) return;
   const reader = new FileReader();
   reader.onload = () => {
-    state.myProfileDraft.photo_data = reader.result;
-    render();
+    const original = reader.result;
+    const img = new Image();
+    img.onload = () => {
+      // A phone photo is several megabytes, which slows every login and the whole directory. 480px is plenty.
+      const MAX = 480;
+      const k = Math.min(1, MAX / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(img.width * k));
+      c.height = Math.max(1, Math.round(img.height * k));
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      state.myProfileDraft.photo_data = c.toDataURL("image/jpeg", 0.82);
+      render();
+    };
+    img.onerror = () => {
+      if(String(original).length <= 400000){ state.myProfileDraft.photo_data = original; render(); }
+      else toast("Couldn't read that photo. Please choose a different one.");
+    };
+    img.src = original;
   };
   reader.readAsDataURL(file);
 }
@@ -11570,33 +11695,38 @@ async function init(){
   document.addEventListener("change", handleDelegatedChange);
   document.addEventListener("input", handleDelegatedInput);
   if(state.user){
-    // Re-verify fresh from the database whether a password has been
-    // set yet, rather than trusting the cached session -- otherwise
-    // anyone already logged in on their phone could skip the new
-    // requirement indefinitely just by never logging out.
-    const { data: freshData } = await sb.rpc("login_refetch_by_id", { p_id: state.user.id });
-    const fresh = Array.isArray(freshData) ? freshData[0] : freshData;
-    if(fresh && !fresh.password_hash){
-      state.user = null;
-      localStorage.removeItem("ts_user");
-      state.pendingSetupPasswordUser = fresh;
-      render();
+    try{
+      // Re-verify fresh from the database whether a password has been
+      // set yet, rather than trusting the cached session -- otherwise
+      // anyone already logged in on their phone could skip the new
+      // requirement indefinitely just by never logging out.
+      const { data: freshData } = await sb.rpc("login_refetch_by_id", { p_id: state.user.id });
+      const fresh = Array.isArray(freshData) ? freshData[0] : freshData;
+      if(fresh && !fresh.password_hash){
+        state.user = null;
+        localStorage.removeItem("ts_user");
+        state.pendingSetupPasswordUser = fresh;
+        render();
+        return;
+      }
+      if(fresh) state.user = fresh;
+      const result = await loadLandingData(state.user, { hrInbox: false });
+      if(result.fatal){
+        failLogin(`Couldn't load your data (${escapeHtml(result.fatal)}). Please log in again.`);
+        return;
+      }
+    }catch(e){
+      console.error("Start-up failed:", e);
+      failLogin(`The app couldn't start (${escapeHtml(e && e.message ? e.message : e)}). Please log in again.`);
       return;
     }
-    if(fresh) state.user = fresh;
-    const { data: mohammedId } = await sb.rpc("get_hrm_supervisor_id");
-    state.hrmSupervisorId = mohammedId || null;
-    await loadProjects();
-    await loadLatestAnnouncementForUser();
-    await loadMyLetters();
-    if(state.user.role === "ceo") await loadLatestHrTodoForOwner();
-    state.view = state.user.role === "employee" ? "employee" : (state.user.role === "supervisor" ? "supervisor" : (state.user.role === "ceo" ? "ceo-home" : (state.user.role === "manager" ? "manager-home" : "hr")));
-    if(state.view === "employee") await loadEmployeeMonth();
-    else if(state.view === "supervisor") await loadSupervisorList();
-    else if(state.view === "hr") await loadHrMonth();
-    else if(state.view === "ceo-home") { await loadCeoLeaveRequests(); await loadCeoInboxMessages(); }
   }
-  render();
+  try{
+    render();
+  }catch(e){
+    console.error("Render failed at start-up:", e);
+    failLogin(`The app couldn't open (${escapeHtml(e && e.message ? e.message : e)}). Please log in again.`);
+  }
 }
 
 // Wait for the async-loaded libraries (with CDN fallback) before booting the app.
