@@ -5362,7 +5362,9 @@ async function loadAbsenceComparison(){
       id: emp.id, name: emp.short_name || emp.name,
       timesheetAbsentDays, dailyReportAbsentDays,
       timesheetAbsent: timesheetAbsentDays.length, dailyReportAbsent: dailyReportAbsentDays.length,
-      mismatch: timesheetAbsentDays.length !== dailyReportAbsentDays.length
+      // Compare the actual days, not just how many: 2,3 vs 2,5 is a mismatch
+      // even though both have two.
+      mismatch: timesheetAbsentDays.length !== dailyReportAbsentDays.length || timesheetAbsentDays.some(d => !dailyReportAbsentDays.includes(d))
     };
   });
 
@@ -7674,15 +7676,7 @@ function renderFinancialReport(){
     <button class="btn btn-sm" id="toggleFinancialSummaryBtn" style="width:100%;margin-bottom:14px;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff;border:none;font-weight:800;">${state.financialSummaryMode ? "📋 Show Full Report" : "📊 Summary View"}</button>
 
     ${state.financialSummaryMode ? "" : `
-    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--ksa-cream);border:2px solid var(--ksa-gold-light);border-radius:10px;padding:8px 12px;margin-bottom:14px;">
-      <button class="link-btn ceo-gold-btn" id="prevFinancialDayBtn" style="font-size:18px;font-weight:800;">‹</button>
-      <div style="text-align:center;">
-        <div style="font-weight:800;font-size:13px;color:var(--blue);">${new Date(state.financialReportDate + "T00:00:00").toLocaleDateString(undefined,{weekday:"short",day:"2-digit",month:"short",year:"numeric"})}</div>
-        <input type="date" id="financialReportDateInput" value="${state.financialReportDate}" max="${todayLocalISO()}" style="margin-top:4px;padding:3px 6px;font-size:12px;width:auto;">
-        ${state.financialReportDate !== todayLocalISO() ? `<div><button class="link-btn ceo-gold-btn" id="todayFinancialBtn" style="font-size:11px;">Jump to today</button></div>` : ""}
-      </div>
-      <button class="link-btn ceo-gold-btn" id="nextFinancialDayBtn" style="font-size:18px;font-weight:800;" ${state.financialReportDate>=todayLocalISO()?"disabled":""}>›</button>
-    </div>
+    ${renderDateJumpBar({ prevId: "prevFinancialDayBtn", nextId: "nextFinancialDayBtn", pickerId: "financialReportDateInput", todayId: "todayFinancialBtn", dateISO: state.financialReportDate })}
 
     ${canEdit ? `
     <div style="display:flex;gap:8px;margin-top:10px;">
@@ -9266,10 +9260,30 @@ function renderUnitFinancialReport(){
   `;
 }
 
+// One compact row:  ‹  [📅 Tue, 15 Sep 2026]  [Today]  ›
+// The date pill IS the calendar -- a transparent date input sits over it,
+// so tapping the date opens the native picker and no extra row is needed.
+function renderDateJumpBar({ prevId, nextId, pickerId, todayId, dateISO }){
+  const today = todayLocalISO();
+  const isToday = dateISO >= today;
+  const label = new Date(dateISO + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;background:var(--ksa-cream);border:2px solid var(--ksa-gold-light);border-radius:10px;padding:6px 10px;margin-bottom:14px;">
+      <button class="link-btn ceo-gold-btn" id="${prevId}" style="font-size:18px;font-weight:800;">‹</button>
+      <div style="display:flex;align-items:center;justify-content:center;gap:6px;flex:1;min-width:0;">
+        <div data-open-date-picker style="position:relative;display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid var(--ksa-gold-light);border-radius:999px;padding:5px 12px;cursor:pointer;">
+          <span style="font-size:13px;">📅</span>
+          <span style="font-weight:800;font-size:13px;color:var(--blue);white-space:nowrap;">${label}</span>
+          <input type="date" id="${pickerId}" value="${dateISO}" max="${today}" style="position:absolute;top:0;left:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:0;font-size:16px;background:transparent;cursor:pointer;">
+        </div>
+        ${!isToday ? `<button class="link-btn ceo-gold-btn" id="${todayId}" style="font-size:11.5px;font-weight:800;background:var(--ksa-gold-light);border-radius:999px;padding:5px 10px;white-space:nowrap;">Today</button>` : ""}
+      </div>
+      <button class="link-btn ceo-gold-btn" id="${nextId}" style="font-size:18px;font-weight:800;" ${isToday ? "disabled" : ""}>›</button>
+    </div>`;
+}
+
 function renderCombinedReports(){
   const isCeo = state.user.role === "ceo";
-  const dateLabel = new Date(state.combinedReportsDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-  const isToday = state.combinedReportsDate === todayLocalISO();
 
   let totalEmp = 0;
   const rows = state.combinedReports.map(r => {
@@ -9345,15 +9359,7 @@ function renderCombinedReports(){
         <span class="meta">${state.combinedVacations.join(", ")}</span>
       </div>
     </div>` : ""}
-    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--ksa-cream);border:2px solid var(--ksa-gold-light);border-radius:10px;padding:8px 12px;margin-bottom:14px;">
-      <button class="link-btn ceo-gold-btn" id="prevReportsDayBtn" style="font-size:18px;font-weight:800;">‹</button>
-      <div style="text-align:center;">
-        <div style="font-weight:800;font-size:13px;color:var(--blue);">${dateLabel}</div>
-        <input type="date" id="combinedReportsDateInput" value="${state.combinedReportsDate}" max="${todayLocalISO()}" style="margin-top:4px;padding:3px 6px;font-size:12px;width:auto;">
-        ${!isToday ? `<div><button class="link-btn ceo-gold-btn" id="todayReportsBtn" style="font-size:11px;">Jump to today</button></div>` : ""}
-      </div>
-      <button class="link-btn ceo-gold-btn" id="nextReportsDayBtn" style="font-size:18px;font-weight:800;" ${isToday?"disabled":""}>›</button>
-    </div>
+    ${renderDateJumpBar({ prevId: "prevReportsDayBtn", nextId: "nextReportsDayBtn", pickerId: "combinedReportsDateInput", todayId: "todayReportsBtn", dateISO: state.combinedReportsDate })}
     ${body}
   `;
 }
@@ -9763,17 +9769,22 @@ function renderAbsenceComparisonScreen(){
   // source.
   const rows = state.absenceComparisonRows.filter(r => r.timesheetAbsent > 0 || r.dailyReportAbsent > 0);
   const mismatchCount = rows.filter(r => r.mismatch).length;
-  // Compact table, sized to fit a mobile screen without horizontal
-  // scrolling -- small fonts, tight padding, short header labels.
+  // Days recorded in only one of the two sources are shown in red (not
+  // bold), so it's obvious exactly which dates to go and check.
+  const dayList = (days, otherDays) => days.length
+    ? days.map(d => otherDays.includes(d) ? String(d) : `<span style="color:#C43B3B;">${d}</span>`).join(", ")
+    : "-";
+  const LINE = "1px solid #B7C3D1";
   const tableRows = rows.map(r => `
     <tr style="${r.mismatch ? "background:#FDECEC;" : ""}">
-      <td style="padding:5px 4px;font-size:10.5px;">${r.name}</td>
-      <td style="padding:5px 3px;font-size:9.5px;text-align:center;">${r.timesheetAbsentDays.join(",") || "-"}</td>
-      <td style="padding:5px 3px;font-size:11px;text-align:center;font-weight:800;background:#F3F6FA;">${r.timesheetAbsent}</td>
-      <td style="padding:5px 3px;font-size:9.5px;text-align:center;">${r.dailyReportAbsentDays.join(",") || "-"}</td>
-      <td style="padding:5px 3px;font-size:11px;text-align:center;font-weight:800;background:#F3F6FA;">${r.dailyReportAbsent}</td>
-      <td style="padding:5px 3px;font-size:11px;text-align:center;">${r.mismatch ? "⚠️" : "✅"}</td>
+      <td style="border:${LINE};padding:6px 4px;font-size:11px;overflow-wrap:anywhere;">${r.name}</td>
+      <td style="border:${LINE};padding:6px 5px;font-size:11.5px;text-align:center;line-height:1.5;">${dayList(r.timesheetAbsentDays, r.dailyReportAbsentDays)}</td>
+      <td style="border:${LINE};padding:6px 2px;font-size:10px;text-align:center;background:#F3F6FA;">${r.timesheetAbsent}</td>
+      <td style="border:${LINE};padding:6px 5px;font-size:11.5px;text-align:center;line-height:1.5;">${dayList(r.dailyReportAbsentDays, r.timesheetAbsentDays)}</td>
+      <td style="border:${LINE};padding:6px 2px;font-size:10px;text-align:center;background:#F3F6FA;">${r.dailyReportAbsent}</td>
+      <td style="border:${LINE};padding:6px 2px;font-size:11px;text-align:center;">${r.mismatch ? "⚠️" : "✅"}</td>
     </tr>`).join("");
+  const HB = "border:1px solid rgba(255,255,255,0.35);";
 
   return `
     <button class="back-link-glow" id="backToHrBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
@@ -9786,22 +9797,27 @@ function renderAbsenceComparisonScreen(){
       <input type="month" id="absenceComparisonMonthInput" value="${state.absenceComparisonMonth}">
     </div>
     ${rows.length ? `
-    <div class="card" style="margin-top:10px;padding:0;">
+    <div class="card" style="margin-top:10px;padding:0;overflow:hidden;">
       <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+        <colgroup><col style="width:22%;"><col style="width:27%;"><col style="width:8%;"><col style="width:27%;"><col style="width:8%;"><col style="width:8%;"></colgroup>
         <thead>
           <tr style="background:var(--navy);color:#fff;">
-            <th style="padding:6px 4px;text-align:left;font-size:9px;">Name</th>
-            <th style="padding:6px 3px;font-size:9px;">TS<br>Days</th>
-            <th style="padding:6px 3px;font-size:9px;">TS</th>
-            <th style="padding:6px 3px;font-size:9px;">DR<br>Days</th>
-            <th style="padding:6px 3px;font-size:9px;">DR</th>
-            <th style="padding:6px 3px;font-size:9px;">✓</th>
+            <th rowspan="2" style="${HB}padding:6px 5px;text-align:left;font-size:10px;">Name</th>
+            <th colspan="2" style="${HB}padding:5px 3px;font-size:10px;">📝 Timesheet</th>
+            <th colspan="2" style="${HB}padding:5px 3px;font-size:10px;">📋 Daily Report</th>
+            <th rowspan="2" style="${HB}padding:5px 2px;font-size:10px;">✓</th>
+          </tr>
+          <tr style="background:#24507D;color:#fff;">
+            <th style="${HB}padding:4px 3px;font-size:9px;">Days</th>
+            <th style="${HB}padding:4px 1px;font-size:9px;">Tot</th>
+            <th style="${HB}padding:4px 3px;font-size:9px;">Days</th>
+            <th style="${HB}padding:4px 1px;font-size:9px;">Tot</th>
           </tr>
         </thead>
         <tbody>${tableRows}</tbody>
       </table>
     </div>
-    <div class="field-note" style="margin-top:8px;">TS = Timesheet, DR = Daily Report. ${mismatchCount} of ${rows.length} employee${rows.length===1?"":"s"} ${mismatchCount===1?"has":"have"} a mismatch this month.</div>
+    <div class="field-note" style="margin-top:8px;"><span style="color:#C43B3B;">Red</span> days are recorded in only one of the two — those are the dates to check. ${mismatchCount} of ${rows.length} employee${rows.length===1?"":"s"} ${mismatchCount===1?"has":"have"} a mismatch this month.</div>
     ` : (state.absenceComparisonRows.length
       ? `<div class="empty-state"><div class="ic">✅</div>No absences recorded for anyone this month.</div>`
       : `<div class="empty-state"><div class="ic">📋</div>No data for this month yet.</div>`)}
@@ -9878,6 +9894,16 @@ function renderHrPurchasesList(){
 /* ---------------- event wiring (delegated — bound once, survives every re-render) ---------------- */
 function handleDelegatedClick(e){
   const el = (id)=> e.target.closest("#"+id);
+
+  // Date pills: the transparent date input covers the whole pill, so a tap
+  // already opens the native picker on phones. Desktop browsers only open it
+  // from the tiny calendar icon, so ask for it explicitly there too.
+  const datePill = e.target.closest("[data-open-date-picker]");
+  if(datePill){
+    const picker = datePill.querySelector("input[type=date]");
+    if(picker && typeof picker.showPicker === "function"){ try{ picker.showPicker(); }catch(_){} }
+    return;
+  }
 
   if(el("logoutBtn")){ logout(); return; }
   if(el("loginBtn")){ doLogin(document.getElementById("loginIqama").value); return; }
