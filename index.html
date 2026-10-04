@@ -538,6 +538,10 @@ let state = {
   hrInboxSentSectionOpen: false,
   absenceComparisonRows: [],
   absenceComparisonMonth: null,
+  letters: [],
+  myLetters: [],
+  letterDraft: null,
+  letterDbMissing: false,
   biometricSectionOpen: false,
   passportRenewalSectionOpen: false,
   iqamaSectionOpen: false,
@@ -873,8 +877,686 @@ async function loadUnitFinancials(unitId){
 }
 
 /* ---------------- Direct Contact with CEO ---------------- */
+/* ---------------- Formal letters ----------------
+   An employee's message to the Owner can be turned into a formal letter:
+   HR or the Owner prepares it, the Owner signs it with his saved signature,
+   then it is delivered to the employee's own account (shown under his
+   message) and/or sent on WhatsApp. */
+
+function escapeHtml(s){
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+const LETTER_SUBJECT_CHIPS = ["Resignation", "Leave request", "Salary / advance request", "Complaint", "Employee request"];
+
+function suggestLetterSubject(text){
+  const t = String(text || "").toLowerCase();
+  if(/resign/.test(t)) return "Resignation";
+  if(/vacation|\bleave\b|holiday/.test(t)) return "Leave request";
+  if(/salary|advance|\bloan\b/.test(t)) return "Salary / advance request";
+  if(/complain/.test(t)) return "Complaint";
+  return "Employee request";
+}
+
+// True when the database hasn't been set up for letters yet (add_letters.sql not run).
+function isMissingLettersTable(error){
+  if(!error) return false;
+  const msg = String(error.message || "");
+  return error.code === "42P01" || error.code === "PGRST205" || (/ts_letters/.test(msg) && /could not find|does not exist|schema cache/i.test(msg));
+}
+
+function letterErrorMessage(error){
+  if(isMissingLettersTable(error)) return "Letters need a one-time database setup first (run add_letters.sql).";
+  return "Could not save: " + (error && error.message ? error.message : "unknown error");
+}
+
+async function loadLetters(){
+  if(!["hr", "ceo"].includes(state.user.role)){ state.letters = []; return; }
+  const { data, error } = await sb.from("ts_letters")
+    .select("id, message_id, employee_id, subject, status, signed_at, sent_to_employee_at, employee_viewed_at");
+  state.letterDbMissing = isMissingLettersTable(error);
+  state.letters = error ? [] : (data || []);
+}
+
+// An employee's own letters -- only ones that have actually been delivered to him.
+async function loadMyLetters(){
+  const { data, error } = await sb.from("ts_letters").select("*")
+    .eq("employee_id", state.user.id)
+    .not("sent_to_employee_at", "is", null)
+    .order("sent_to_employee_at", { ascending: false });
+  state.myLetters = error ? [] : (data || []);
+}
+
+async function openLetter(messageId){
+  const msg = state.ceoInboxMessages.find(m => m.id === messageId);
+  if(!msg) return;
+  const isOwner = state.user.role === "ceo";
+  if(isOwner) markCeoMessageRead(messageId);
+  state.loading = true; render();
+  const [empRes, letterRes, sigRes] = await Promise.all([
+    sb.from("ts_employees").select("id, name, employee_no, iqama_number, project_site, mobile_number").eq("id", msg.employee_id).maybeSingle(),
+    sb.from("ts_letters").select("*").eq("message_id", messageId).maybeSingle(),
+    isOwner ? sb.from("ts_supervisor_signatures").select("signature_data").eq("supervisor_id", state.user.id).maybeSingle() : Promise.resolve({ data: null })
+  ]);
+  state.letterDbMissing = isMissingLettersTable(letterRes.error);
+  if(isOwner && sigRes.data) state.savedSignature = sigRes.data.signature_data;
+  const emp = empRes.data || {};
+  const L = letterRes.data || null;
+  const signed = !!L && L.status === "signed";
+  state.letterDraft = {
+    messageId,
+    letterId: L ? L.id : null,
+    employeeId: msg.employee_id,
+    // a signed letter keeps exactly what it was signed with; a draft follows the current records
+    employeeName: signed ? L.employee_name : (emp.name || msg.employee_name || "Employee"),
+    employeeNo: signed ? (L.employee_no || "") : (emp.employee_no == null ? "" : String(emp.employee_no)),
+    iqamaNumber: signed ? (L.iqama_number || "") : (emp.iqama_number || ""),
+    projectSite: signed ? (L.project_site || "") : (emp.project_site || ""),
+    mobileNumber: emp.mobile_number || "",
+    subject: (L && L.subject) ? L.subject : suggestLetterSubject(msg.message),
+    letterDate: L ? L.letter_date : todayLocalISO(),
+    remarks: L ? (L.remarks || "") : "",
+    body: signed ? L.body : msg.message,
+    messageCreatedAt: signed ? L.message_created_at : msg.created_at,
+    status: L ? L.status : "draft",
+    signatureData: L ? L.signature_data : null,
+    signedByName: L ? L.signed_by_name : null,
+    signedAt: L ? L.signed_at : null,
+    sentAt: L ? L.sent_to_employee_at : null,
+    viewedAt: L ? L.employee_viewed_at : null
+  };
+  state.view = "letter";
+  state.loading = false;
+  render();
+}
+
+// Creates or updates the letter row. HR can't touch the Owner's remarks, so they aren't sent for HR.
+function writeLetter(extra){
+  const d = state.letterDraft;
+  const isOwner = state.user.role === "ceo";
+  const fields = {
+    employee_name: d.employeeName,
+    employee_no: d.employeeNo == null ? "" : String(d.employeeNo),
+    iqama_number: d.iqamaNumber || "",
+    project_site: d.projectSite || "",
+    subject: (d.subject || "").trim(),
+    letter_date: d.letterDate || todayLocalISO(),
+    body: d.body,
+    message_created_at: d.messageCreatedAt || null,
+    ...(isOwner ? { remarks: (d.remarks || "").trim() || null } : {}),
+    ...(extra || {})
+  };
+  return d.letterId
+    ? sb.from("ts_letters").update(fields).eq("id", d.letterId).select().single()
+    : sb.from("ts_letters").insert({ ...fields, message_id: d.messageId, employee_id: d.employeeId, created_by: state.user.id }).select().single();
+}
+
+function applyLetterRow(row){
+  const d = state.letterDraft;
+  if(!d || !row) return;
+  d.letterId = row.id;
+  d.status = row.status;
+  d.signatureData = row.signature_data;
+  d.signedByName = row.signed_by_name;
+  d.signedAt = row.signed_at;
+  d.sentAt = row.sent_to_employee_at;
+  d.viewedAt = row.employee_viewed_at;
+  const light = { id: row.id, message_id: row.message_id, employee_id: row.employee_id, subject: row.subject, status: row.status, signed_at: row.signed_at, sent_to_employee_at: row.sent_to_employee_at, employee_viewed_at: row.employee_viewed_at };
+  const i = state.letters.findIndex(l => l.id === row.id);
+  if(i >= 0) state.letters[i] = light; else state.letters.push(light);
+}
+
+async function saveLetter(){
+  const d = state.letterDraft;
+  if(!d || d.status === "signed") return false;
+  if(!(d.subject || "").trim()){ toast("Add a subject first."); return false; }
+  state.loading = true; render();
+  const { data, error } = await writeLetter();
+  state.loading = false;
+  if(error){ toast(letterErrorMessage(error)); render(); return false; }
+  applyLetterRow(data);
+  toast("Letter saved.");
+  render();
+  return true;
+}
+
+async function signLetter(){
+  const d = state.letterDraft;
+  if(!d || state.user.role !== "ceo" || d.status === "signed") return;
+  if(!state.savedSignature){ toast("Draw and save your signature first."); return; }
+  if(!(d.subject || "").trim()){ toast("Add a subject first."); return; }
+  if(!confirm("Sign this letter? Once signed it is locked. You can still withdraw your signature until it has been delivered.")) return;
+  state.loading = true; render();
+  const { data, error } = await writeLetter({
+    status: "signed",
+    signature_data: state.savedSignature,
+    signed_by: state.user.id,
+    signed_by_name: state.user.name,
+    signed_at: new Date().toISOString()
+  });
+  state.loading = false;
+  if(error){ toast(letterErrorMessage(error)); render(); return; }
+  applyLetterRow(data);
+  toast("Letter signed.");
+  render();
+}
+
+async function withdrawLetterSignature(){
+  const d = state.letterDraft;
+  if(!d || state.user.role !== "ceo" || d.status !== "signed" || d.sentAt) return;
+  if(!confirm("Withdraw your signature? The letter goes back to a draft that can be edited and signed again.")) return;
+  state.loading = true; render();
+  const { data, error } = await sb.from("ts_letters").update({ status: "draft" }).eq("id", d.letterId).select().single();
+  state.loading = false;
+  if(error){ toast(letterErrorMessage(error)); render(); return; }
+  applyLetterRow(data);
+  toast("Signature withdrawn.");
+  render();
+}
+
+async function deliverLetter(){
+  const d = state.letterDraft;
+  if(!d || d.status !== "signed" || d.sentAt) return;
+  const first = String(d.employeeName || "the employee").trim().split(/\s+/)[0];
+  if(!confirm(`Deliver this signed letter to ${first}'s account? He will see it under his message.`)) return;
+  state.loading = true; render();
+  const { data, error } = await sb.from("ts_letters").update({ sent_to_employee_at: new Date().toISOString() }).eq("id", d.letterId).select().single();
+  state.loading = false;
+  if(error){ toast(letterErrorMessage(error)); render(); return; }
+  applyLetterRow(data);
+  toast(`Delivered to ${first}'s account.`);
+  render();
+}
+
+function letterPdfModel(d){
+  return {
+    employeeName: d.employeeName, employeeNo: d.employeeNo, iqamaNumber: d.iqamaNumber, projectSite: d.projectSite,
+    subject: d.subject, letterDate: d.letterDate, remarks: d.remarks, body: d.body, messageCreatedAt: d.messageCreatedAt,
+    signatureData: d.status === "signed" ? d.signatureData : null, signedByName: d.signedByName, signedAt: d.signedAt
+  };
+}
+
+function letterRowPdfModel(L){
+  return {
+    employeeName: L.employee_name, employeeNo: L.employee_no, iqamaNumber: L.iqama_number, projectSite: L.project_site,
+    subject: L.subject, letterDate: L.letter_date, remarks: L.remarks, body: L.body, messageCreatedAt: L.message_created_at,
+    signatureData: L.status === "signed" ? L.signature_data : null, signedByName: L.signed_by_name, signedAt: L.signed_at
+  };
+}
+
+// Opens the tab straight away (inside the tap, so it isn't blocked as a pop-up), then fills it in
+// once the PDF has been built. Falls back to a download if pop-ups are blocked.
+async function openPdfInTab(makeBlob, filename){
+  const w = window.open("", "_blank");
+  try{
+    if(w){ try{ w.document.write("<p style=\"font-family:sans-serif;padding:20px;\">Preparing your letter…</p>"); }catch(_){} }
+    const blob = await makeBlob();
+    const url = URL.createObjectURL(blob);
+    if(w){
+      w.location.href = url;
+    }else{
+      const a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      toast("Pop-ups are blocked, so the letter was downloaded instead.");
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+  }catch(e){
+    if(w){ try{ w.close(); }catch(_){} }
+    throw e;
+  }
+}
+
+async function viewLetterPdf(){
+  const d = state.letterDraft;
+  if(!d) return;
+  try{
+    await openPdfInTab(async () => (await buildLetterPdfBlob(letterPdfModel(d))).blob, "Letter.pdf");
+  }catch(e){
+    console.error("Letter PDF error:", e);
+    toast("Could not build the letter: " + (e && e.message ? e.message : "unknown error"));
+  }
+}
+
+async function sendLetterWhatsApp(){
+  const d = state.letterDraft;
+  if(!d) return;
+  if(d.status !== "signed"){ toast("The Owner needs to sign the letter first."); return; }
+  try{
+    const { blob, filename } = await buildLetterPdfBlob(letterPdfModel(d));
+    const first = String(d.employeeName || "").trim().split(/\s+/)[0] || "";
+    const text = `Dear ${first}, please find your signed letter attached: ${d.subject}.`;
+    const file = new File([blob], filename, { type: "application/pdf" });
+    if(navigator.canShare && navigator.canShare({ files: [file] })){
+      try{
+        await navigator.share({ files: [file], text, title: d.subject });
+        return;
+      }catch(e){
+        if(e && e.name === "AbortError") return; // he closed the share sheet -- nothing to do
+        // anything else: fall through to the manual route below
+      }
+    }
+    // This device can't share a file straight into WhatsApp: save the PDF, then open his chat to attach it.
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    const link = buildWhatsAppLink(d.mobileNumber, text);
+    if(link){
+      window.open(link, "_blank");
+      toast("PDF saved. In WhatsApp, tap the attach icon and choose the PDF to send it.");
+    }else{
+      toast("PDF saved. No mobile number is saved for him, so attach it in WhatsApp yourself.");
+    }
+  }catch(e){
+    console.error("Letter WhatsApp error:", e);
+    toast("Could not prepare the letter: " + (e && e.message ? e.message : "unknown error"));
+  }
+}
+
+// Employee side: open one of his own delivered letters.
+async function openMyLetter(letterId, download){
+  const L = state.myLetters.find(l => l.id === letterId);
+  if(!L) return;
+  if(!L.employee_viewed_at){
+    L.employee_viewed_at = new Date().toISOString();
+    render();
+    sb.from("ts_letters").update({ employee_viewed_at: L.employee_viewed_at }).eq("id", L.id).then(() => {}, () => {});
+  }
+  const model = letterRowPdfModel(L);
+  try{
+    if(download){
+      const { blob, filename } = await buildLetterPdfBlob(model);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }else{
+      await openPdfInTab(async () => (await buildLetterPdfBlob(model)).blob, "Letter.pdf");
+    }
+  }catch(e){
+    console.error("My letter PDF error:", e);
+    toast("Could not open the letter: " + (e && e.message ? e.message : "unknown error"));
+  }
+}
+
+function letterStatusChip(L){
+  if(!L) return "";
+  const base = "display:inline-block;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800;border:1px solid;";
+  if(L.sent_to_employee_at) return `<span style="${base}background:#E9F7EF;color:#1C8A4E;border-color:#BFE3CD;">📤 Delivered${L.employee_viewed_at ? " • 👁 opened" : ""}</span>`;
+  if(L.status === "signed") return `<span style="${base}background:#EAF2FA;color:#1B5A96;border-color:#B8D4EC;">✍ Signed</span>`;
+  return `<span style="${base}background:#FDF3E6;color:#966109;border-color:#F0C766;">📝 Letter draft</span>`;
+}
+
+/* ---- the letter as a PDF ---- */
+
+// Phone keyboards turn straight quotes and "--" into curly quotes and long dashes. Those aren't in the PDF's
+// standard fonts, so map them back to plain characters and keep ordinary letters crisp and selectable.
+function letterTypography(s){
+  return String(s == null ? "" : s)
+    .replace(/[\u2018\u2019\u201A\u2032]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u2033]/g, '"')
+    .replace(/[\u2013\u2014\u2212]/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/[\u2022\u25CF\u25AA]/g, "*")
+    .replace(/[\u00A0\u2007\u202F\u200B\uFEFF]/g, " ")
+    .replace(/\t/g, "    ");
+}
+// Anything still outside plain Latin (Arabic, Malayalam, Hindi, emoji...) can't be drawn with the PDF's
+// built-in fonts, so that text is drawn through the browser instead, which can render any script.
+const LETTER_NEEDS_IMAGE = /[^\n\r\x20-\x7E\xA0-\xFF]/;
+
+async function buildLetterPdfBlob(L){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "pt", format: "a4", compress: true });
+  const M = 40, W = 515, TOP = 74, BOTTOM = 782;
+  const INK = [30, 40, 55], GREY = [110, 120, 135], NAVY = [15, 53, 86], BLUE = [27, 90, 150], LINE = [200, 210, 222];
+  let y = TOP;
+  let stage = null;
+
+  drawLetterhead(doc, "");
+  const newPage = () => { doc.addPage(); drawLetterhead(doc, ""); y = TOP; };
+  const ensure = (h) => { if(y + h > BOTTOM) newPage(); };
+  const rgb = (c) => `rgb(${c[0]},${c[1]},${c[2]})`;
+  const latin = (s) => letterTypography(s).replace(/[^\n\r\x20-\x7E\xA0-\xFF]/g, "?");
+  const fit = (s, w) => {
+    s = String(s);
+    if(doc.getTextWidth(s) <= w) return s;
+    while(s.length > 1 && doc.getTextWidth(s + "...") > w) s = s.slice(0, -1);
+    return s + "...";
+  };
+
+  // ordinary text, drawn as real PDF text
+  const drawVector = (text, o) => {
+    const { size = 10.5, bold = false, color = INK, lh = 15, x = M, width = W } = o || {};
+    const setFont = () => {
+      doc.setFont("helvetica", bold ? "bold" : "normal");
+      doc.setFontSize(size);
+      doc.setTextColor(color[0], color[1], color[2]);
+    };
+    setFont();
+    for(const para of text.split(/\r?\n/)){
+      if(para.trim() === ""){ ensure(lh * 0.7); y += lh * 0.7; continue; }
+      for(const ln of doc.splitTextToSize(para, width)){
+        ensure(lh);
+        setFont(); // a page break redraws the letterhead, which changes the font
+        doc.text(ln, x, y + size);
+        y += lh;
+      }
+    }
+  };
+
+  // any-script text, drawn by the browser and placed as a picture, sliced between lines across pages
+  const drawImageText = async (text, o) => {
+    const { size = 10.5, bold = false, color = INK, lh = 15, x = M, width = W } = o || {};
+    if(!stage){
+      stage = document.createElement("div");
+      stage.style.cssText = "position:fixed;top:0;left:-9999px;background:#fff;";
+      document.body.appendChild(stage);
+    }
+    const paras = String(text).split(/\r?\n/).map(p => `<div dir="auto" style="min-height:${lh}px;">${escapeHtml(p)}</div>`).join("");
+    stage.innerHTML = `<div style="width:${width}px;font:${bold ? 700 : 400} ${size}px/${lh}px Tahoma,'Noto Naskh Arabic','Noto Sans','Segoe UI',Arial,sans-serif;color:${rgb(color)};white-space:pre-wrap;overflow-wrap:anywhere;">${paras}</div>`;
+    const node = stage.firstChild;
+    const SCALE = 3;
+    const canvas = await html2canvas(node, { scale: SCALE, backgroundColor: "#ffffff" });
+
+    // where each rendered line starts and ends, so a page break never cuts through the middle of a line
+    const top0 = node.getBoundingClientRect().top;
+    const rects = [];
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    while(walker.nextNode()){
+      const r = document.createRange();
+      r.selectNodeContents(walker.currentNode);
+      for(const c of r.getClientRects()) rects.push({ top: c.top - top0, bottom: c.bottom - top0 });
+    }
+    rects.sort((a, b) => a.top - b.top);
+    const lines = [];
+    for(const r of rects){
+      const last = lines[lines.length - 1];
+      if(last && r.top < last.bottom - 1) last.bottom = Math.max(last.bottom, r.bottom);
+      else lines.push({ top: r.top, bottom: r.bottom });
+    }
+    const totalH = node.getBoundingClientRect().height;
+
+    // Cutting exactly at a line's measured edge can still slice through marks and dots that hang below it,
+    // so look at the actual pixels and cut along a row of pure white in the gap between two lines.
+    const fullCtx = canvas.getContext("2d");
+    const blankRowNear = (fromPx, toPx) => {
+      const y0 = Math.max(0, Math.floor(fromPx));
+      const y1 = Math.min(canvas.height, Math.max(y0 + 1, Math.ceil(toPx)));
+      const rows = y1 - y0;
+      const data = fullCtx.getImageData(0, y0, canvas.width, rows).data;
+      const mid = rows / 2;
+      let best = -1;
+      for(let r = 0; r < rows; r++){
+        let blank = true;
+        for(let i = r * canvas.width * 4, e = i + canvas.width * 4; i < e; i += 4){
+          if(data[i] < 245 || data[i + 1] < 245 || data[i + 2] < 245){ blank = false; break; }
+        }
+        if(blank && (best < 0 || Math.abs(r - mid) < Math.abs(best - mid))) best = r;
+      }
+      return best >= 0 ? y0 + best : null;
+    };
+
+    let start = 0;
+    while(start < totalH - 0.5){
+      const avail = BOTTOM - y;
+      let end = start, endIdx = -1;
+      for(let i = 0; i < lines.length; i++){
+        // keep a few points spare: the clean cut may sit slightly below the line's measured edge
+        if(lines[i].bottom > start + 0.5 && lines[i].bottom - start <= avail - 4){ end = Math.max(end, lines[i].bottom); endIdx = i; }
+      }
+      if(totalH - start <= avail){
+        end = totalH;
+      }else if(endIdx >= 0 && end > start + 0.5){
+        const nextTop = endIdx + 1 < lines.length ? lines[endIdx + 1].top : end + 4;
+        let cut = blankRowNear(end * SCALE, nextTop * SCALE);
+        if(cut == null) cut = blankRowNear((end - 3) * SCALE, (nextTop + 3) * SCALE);
+        end = cut != null ? cut / SCALE : (end + nextTop) / 2;
+        end = Math.min(end, start + avail);
+      }
+      if(end <= start + 0.5){
+        if(y > TOP + 1){ newPage(); continue; }
+        end = Math.min(totalH, start + avail); // one line taller than a whole page: cut it
+      }
+      const sy = Math.round(start * SCALE);
+      const sh = Math.max(1, Math.min(canvas.height - sy, Math.round((end - start) * SCALE)));
+      const slice = document.createElement("canvas");
+      slice.width = canvas.width; slice.height = sh;
+      const ctx = slice.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, slice.width, slice.height);
+      ctx.drawImage(canvas, 0, sy, canvas.width, sh, 0, 0, canvas.width, sh);
+      doc.addImage(slice.toDataURL("image/png"), "PNG", x, y, width, end - start);
+      y += end - start;
+      start = end;
+      if(start < totalH - 0.5) newPage();
+    }
+  };
+
+  const drawText = async (text, o) => {
+    const t = letterTypography(text);
+    if(LETTER_NEEDS_IMAGE.test(t)) await drawImageText(String(text == null ? "" : text), o);
+    else drawVector(t, o);
+  };
+
+  try{
+    // ---- date, top right ----
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(INK[0], INK[1], INK[2]);
+    doc.text(`Date: ${formatDateDMY(L.letterDate)}`, M + W, y + 10, { align: "right" });
+    y += 26;
+
+    // ---- who it is from ----
+    const boxH = 46;
+    doc.setFillColor(243, 246, 250); doc.setDrawColor(LINE[0], LINE[1], LINE[2]); doc.setLineWidth(0.7);
+    doc.roundedRect(M, y, W, boxH, 4, 4, "FD");
+    const cols = [
+      { label: "EMPLOYEE", value: latin(L.employeeName) || "-", x: M + 12, w: 205 },
+      { label: "EMPLOYEE NO", value: latin(L.employeeNo) || "-", x: M + 230, w: 70 },
+      { label: "ID / IQAMA NO", value: latin(L.iqamaNumber) || "-", x: M + 308, w: 90 },
+      { label: "SITE", value: latin(L.projectSite) || "-", x: M + 406, w: 100 }
+    ];
+    for(const c of cols){
+      doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(GREY[0], GREY[1], GREY[2]);
+      doc.text(c.label, c.x, y + 15);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(9.5); doc.setTextColor(INK[0], INK[1], INK[2]);
+      doc.text(fit(c.value, c.w), c.x, y + 32);
+    }
+    y += boxH + 14;
+
+    // ---- to ----
+    doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(INK[0], INK[1], INK[2]);
+    doc.text("To:", M, y + 10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`The Owner, ${COMPANY_NAME}`, M + 28, y + 10);
+    y += 28;
+
+    // ---- subject ----
+    ensure(44);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(11.5); doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.text("Subject:", M, y + 11.5);
+    await drawText(L.subject || "", { size: 11.5, bold: true, color: NAVY, lh: 16, x: M + 56, width: W - 56 });
+    y += 4;
+    doc.setDrawColor(BLUE[0], BLUE[1], BLUE[2]); doc.setLineWidth(1);
+    doc.line(M, y, M + W, y);
+    y += 14;
+
+    // ---- the employee's message ----
+    await drawText(L.body || "", { size: 10.5, lh: 16, color: INK });
+    y += 10;
+
+    // ---- how it reached us ----
+    const t = L.messageCreatedAt ? new Date(L.messageCreatedAt) : null;
+    if(t && !isNaN(t)){
+      const p = (n) => String(n).padStart(2, "0");
+      ensure(20);
+      doc.setFont("helvetica", "italic"); doc.setFontSize(8); doc.setTextColor(GREY[0], GREY[1], GREY[2]);
+      doc.text(`Submitted by the employee through the company app on ${p(t.getDate())}-${p(t.getMonth() + 1)}-${t.getFullYear()} at ${p(t.getHours())}:${p(t.getMinutes())}.`, M, y + 8);
+      y += 22;
+    }
+
+    // ---- the Owner's remarks ----
+    if((L.remarks || "").trim()){
+      ensure(60);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(GREY[0], GREY[1], GREY[2]);
+      doc.text("OWNER'S REMARKS", M + 12, y + 8);
+      y += 14;
+      const pageBefore = doc.internal.getCurrentPageInfo().pageNumber;
+      const barTop = y;
+      await drawText(L.remarks, { size: 10.5, lh: 15, x: M + 12, width: W - 12 });
+      if(doc.internal.getCurrentPageInfo().pageNumber === pageBefore){
+        doc.setFillColor(BLUE[0], BLUE[1], BLUE[2]);
+        doc.rect(M, barTop, 2.5, y - barTop, "F");
+      }
+      y += 8;
+    }
+
+    // ---- signatures ----
+    y += 10;
+    ensure(124);
+    const sTop = y;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(GREY[0], GREY[1], GREY[2]);
+    doc.text("EMPLOYEE", M, sTop + 8);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(10.5); doc.setTextColor(INK[0], INK[1], INK[2]);
+    doc.text(fit(latin(L.employeeName) || "-", 240), M, sTop + 26);
+
+    const bx = M + 300, bw = 215;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(GREY[0], GREY[1], GREY[2]);
+    doc.text("OWNER'S SIGNATURE", bx, sTop + 8);
+    doc.setDrawColor(LINE[0], LINE[1], LINE[2]); doc.setLineWidth(0.8);
+    doc.rect(bx, sTop + 14, bw, 58);
+    if(L.signatureData){
+      try{
+        const props = doc.getImageProperties(L.signatureData);
+        const maxW = bw - 12, maxH = 58 - 10;
+        const k = Math.min(maxW / props.width, maxH / props.height);
+        const iw = props.width * k, ih = props.height * k;
+        doc.addImage(L.signatureData, "PNG", bx + (bw - iw) / 2, sTop + 14 + (58 - ih) / 2, iw, ih);
+      }catch(e){ console.error("Letter signature draw error:", e); }
+    }
+    const ownerName = L.signatureData ? latin(L.signedByName || "") : "";
+    const signedOn = (L.signatureData && L.signedAt) ? formatDateDMY(String(L.signedAt).slice(0, 10)) : "";
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(INK[0], INK[1], INK[2]);
+    doc.text("Name:", bx, sTop + 90);
+    doc.text("Date:", bx, sTop + 106);
+    doc.setDrawColor(LINE[0], LINE[1], LINE[2]); doc.setLineWidth(0.6);
+    if(ownerName) doc.text(ownerName, bx + 34, sTop + 90); else doc.line(bx + 34, sTop + 91, bx + bw, sTop + 91);
+    if(signedOn) doc.text(signedOn, bx + 34, sTop + 106); else doc.line(bx + 34, sTop + 107, bx + bw, sTop + 107);
+    y = sTop + 116;
+
+    stampFooters(doc);
+  }finally{
+    if(stage) stage.remove();
+  }
+
+  const safe = String(latin(L.employeeName) || "employee").replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "employee";
+  const stamp = String(L.letterDate || "").replace(/-/g, "");
+  return { blob: doc.output("blob"), filename: `Letter_${safe}${stamp ? "_" + stamp : ""}.pdf` };
+}
+
+function renderLetterScreen(){
+  const d = state.letterDraft;
+  if(!d){
+    return `<button class="back-link-glow" id="backToInboxFromLetterBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>`;
+  }
+  const isOwner = state.user.role === "ceo";
+  const signed = d.status === "signed";
+  const delivered = !!d.sentAt;
+  const stage = delivered ? 3 : (signed ? 2 : 1);
+  const first = escapeHtml(String(d.employeeName || "the employee").trim().split(/\s+/)[0]);
+  const dmy = (iso) => formatDateDMY(String(iso || "").slice(0, 10));
+
+  const step = (n, label) => `<div style="flex:1;text-align:center;padding:6px 2px;border-radius:8px;font-size:11px;font-weight:800;${stage >= n ? "background:#E3F1E9;color:#1C8A4E;" : "background:#EEF2F6;color:#8A98A8;"}">${stage >= n ? "✓ " : ""}${label}</div>`;
+
+  const chips = signed ? "" : `
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
+      ${LETTER_SUBJECT_CHIPS.map(c => `<button class="btn btn-outline btn-sm" data-letter-subject-chip="${escapeHtml(c)}" style="padding:4px 9px;font-size:11.5px;">${escapeHtml(c)}</button>`).join("")}
+    </div>`;
+
+  const remarksHtml = (isOwner && !signed)
+    ? `<textarea id="letterRemarksInput" rows="3" maxlength="500" style="font-family:inherit;" placeholder="e.g. Resignation accepted. Last working day 31-10-2026.">${escapeHtml(d.remarks)}</textarea>`
+    : `<div style="background:#F3F6FA;border-radius:10px;padding:10px 12px;font-size:13px;white-space:pre-wrap;">${d.remarks ? escapeHtml(d.remarks) : `<span style="color:var(--muted);">None</span>`}</div>`;
+
+  let sigHtml;
+  if(signed){
+    sigHtml = `
+      <div class="sig-preview"><img src="${escapeHtml(d.signatureData)}" alt="Owner's signature"></div>
+      <div class="meta" style="margin-top:6px;">✍ Signed by ${escapeHtml(d.signedByName || "the Owner")} on ${dmy(d.signedAt)}</div>
+      ${(isOwner && !delivered) ? `<button class="btn btn-outline btn-sm" id="withdrawLetterBtn" style="margin-top:8px;color:var(--absent);border-color:var(--absent);">↩ Withdraw signature</button>` : ""}`;
+  }else if(isOwner){
+    sigHtml = state.savedSignature
+      ? `<div class="sig-preview"><img src="${escapeHtml(state.savedSignature)}" alt="Your saved signature"></div>
+         <button class="btn btn-submit" id="signLetterBtn" style="margin-top:10px;width:100%;">✍ Sign this letter</button>
+         <div class="field-note">Uses your saved signature. After signing, the letter is locked.</div>`
+      : `<div class="meta">Draw your signature once — it is saved and reused for letters and leave approvals.</div>
+         <div class="sig-pad-wrap"><canvas id="sigCanvas"></canvas></div>
+         <div style="display:flex;gap:8px;margin-top:8px;">
+           <button class="btn btn-outline btn-sm" id="clearSigBtn" style="flex:1;">Clear</button>
+           <button class="btn btn-primary btn-sm" id="saveSigBtn" style="flex:1;">Save signature</button>
+         </div>`;
+  }else{
+    sigHtml = `<div class="meta">⏳ Waiting for the Owner's signature. You can print it now if it needs to be signed by hand.</div>`;
+  }
+
+  const actions = `
+    <button class="btn btn-outline" id="viewLetterPdfBtn" style="width:100%;">👁 View / Print</button>
+    ${!signed ? `<button class="btn btn-outline" id="saveLetterBtn" style="width:100%;margin-top:8px;">💾 Save draft</button>` : ""}
+    ${signed ? `
+      <button class="btn btn-primary" id="whatsappLetterBtn" style="width:100%;margin-top:8px;background:linear-gradient(135deg,#1C8A4E,#25A85F);">📲 Send via WhatsApp</button>
+      <div class="field-note">${d.mobileNumber ? `Opens WhatsApp with the signed PDF ready to send to ${escapeHtml(d.mobileNumber)}. You tap Send.` : "No mobile number is saved for him — you will pick his contact in WhatsApp yourself."}</div>
+      ${delivered
+        ? `<div class="meta" style="margin-top:10px;color:var(--present);font-weight:800;">📤 Delivered to ${first}'s account on ${dmy(d.sentAt)} • ${d.viewedAt ? "👁 he has opened it" : "not opened yet"}</div>`
+        : `<button class="btn btn-submit" id="deliverLetterBtn" style="width:100%;margin-top:8px;">📥 Deliver to ${first}'s account</button>`}
+    ` : ""}`;
+
+  return `
+    <button class="back-link-glow" id="backToInboxFromLetterBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
+    <div class="card">
+      <h3>🖨 Formal letter</h3>
+      <div class="meta">${escapeHtml(d.employeeName)} • message of ${dmy(d.messageCreatedAt)}</div>
+      <div style="display:flex;gap:6px;margin-top:10px;">${step(1, "Draft")}${step(2, "Signed")}${step(3, "Delivered")}</div>
+    </div>
+    ${state.letterDbMissing ? `
+    <div class="card" style="margin-top:10px;border:2px solid #E0A84E;background:#FFF6E5;">
+      <div style="font-weight:800;font-size:13px;">One-time setup needed</div>
+      <div class="meta">Saving, signing and delivering letters needs a small database setup (add_letters.sql). You can still view and print this letter.</div>
+    </div>` : ""}
+
+    <div class="card" style="margin-top:10px;">
+      <label style="margin-top:0;">Date</label>
+      <input type="date" id="letterDateInput" value="${escapeHtml(d.letterDate)}" ${signed ? "disabled" : ""}>
+      <label>Subject</label>
+      <input type="text" id="letterSubjectInput" maxlength="120" value="${escapeHtml(d.subject)}" placeholder="e.g. Resignation" ${signed ? "disabled" : ""}>
+      ${chips}
+      <div style="margin-top:12px;padding:10px;background:#F3F6FA;border-radius:8px;font-size:12px;line-height:1.7;">
+        <b>${escapeHtml(d.employeeName)}</b><br>
+        Emp No: ${escapeHtml(d.employeeNo || "-")} • ID: ${escapeHtml(d.iqamaNumber || "-")} • Site: ${escapeHtml(d.projectSite || "-")}
+        ${d.mobileNumber ? `<br>📱 ${escapeHtml(d.mobileNumber)}` : ""}
+      </div>
+      <label>Message (printed as the letter)</label>
+      <div style="white-space:pre-wrap;background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;max-height:220px;overflow:auto;">${escapeHtml(d.body)}</div>
+      <div class="field-note">To change the wording, edit the message in the inbox first.</div>
+      <label>Owner's remarks <span style="text-transform:none;font-weight:400;">(optional)</span></label>
+      ${remarksHtml}
+    </div>
+
+    <div class="card" style="margin-top:10px;">
+      <h3 style="font-size:14px;">Owner's signature</h3>
+      <div style="margin-top:8px;">${sigHtml}</div>
+    </div>
+
+    <div class="card" style="margin-top:10px;">
+      ${actions}
+    </div>
+  `;
+}
+
 async function loadMyCeoMessages(){
-  const { data } = await sb.from("ts_ceo_messages").select("*").eq("employee_id", state.user.id).order("created_at", { ascending: false });
+  const [{ data }] = await Promise.all([
+    sb.from("ts_ceo_messages").select("*").eq("employee_id", state.user.id).order("created_at", { ascending: false }),
+    loadMyLetters()
+  ]);
   state.myCeoMessages = data || [];
 }
 
@@ -904,7 +1586,7 @@ async function loadCeoInboxMessages(){
   state.loading = true; render();
   let q = sb.from("ts_ceo_messages").select("*").order("created_at", { ascending: false });
   if(state.user.role === "ceo") q = q.eq("status", "sent");
-  const { data } = await q;
+  const [{ data }] = await Promise.all([q, loadLetters()]);
   state.ceoInboxMessages = data || [];
   state.loading = false;
   render();
@@ -963,6 +1645,7 @@ async function sendMessageToCeo(id){
 }
 
 async function deleteCeoMessage(id){
+  if(state.letters.some(l => l.message_id === id)){ toast("This message has a letter attached, so it can't be removed."); return; }
   if(!confirm("Remove this message? The Owner will never see it.")) return;
   state.loading = true; render();
   const { error } = await sb.from("ts_ceo_messages").delete().eq("id", id);
@@ -1280,6 +1963,7 @@ async function completeLogin(match, plaintextPassword){
   state.hrmSupervisorId = hrmId || null;
   await loadProjects();
   await loadLatestAnnouncementForUser();
+  await loadMyLetters();
   if(match.role === "ceo") await loadLatestHrTodoForOwner();
   state.view = match.role === "employee" ? "employee" : (match.role === "supervisor" ? "supervisor" : (match.role === "ceo" ? "ceo-home" : (match.role === "manager" ? "manager-home" : "hr")));
   if(state.view === "employee") await loadEmployeeMonth();
@@ -6435,6 +7119,7 @@ function render(){
   else if(state.view === "supervisor") body = renderSupervisorList();
   else if(state.view === "supervisor-review") body = renderSupervisorReview();
   else if(state.view === "supervisor-signature") body = renderSignaturePad();
+  else if(state.view === "letter") body = renderLetterScreen();
   else if(state.view === "hr") body = renderHrView();
   else if(state.view === "manager-home") body = renderManagerHome();
   else if(state.view === "blank-timesheet") body = renderBlankTimesheetScreen();
@@ -6474,7 +7159,7 @@ function render(){
 
   root.innerHTML = header + renderAnnouncementBanner() + renderHrTodoBanner() + `<main>${body}</main>` + renderPhotoOverlay();
   attachViewEvents();
-  if(state.view === "supervisor-signature") initSigPad();
+  if(state.view === "supervisor-signature" || (state.view === "letter" && document.getElementById("sigCanvas"))) initSigPad();
   if(state.view === "leave-form") initLeaveSigPad();
 }
 
@@ -6652,7 +7337,7 @@ function renderEmployeeView(){
     </div>
     <button id="downloadMyPdfBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;font-weight:800;font-size:14px;cursor:pointer;">${ar ? "⬇ تحميل PDF" : "⬇ Download PDF"}</button>
     <button id="openLeaveFormBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:2px solid #E8A33D;background:#FFF3D9;color:#966109;font-weight:800;font-size:14px;cursor:pointer;">🌴 ${ar ? "طلب إجازة سنوية" : "Apply for Annual Leave"}</button>
-    ${state.user.iqama_number !== "2357537808" ? `<button id="openCeoContactBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:2px solid var(--ksa-gold);background:var(--ksa-cream);color:var(--blue);font-weight:800;font-size:14px;cursor:pointer;">📞 ${ar ? "تواصل مباشر مع الرئيس التنفيذي" : "Direct Contact with CEO"}</button>` : ""}
+    ${state.user.iqama_number !== "2357537808" ? `<button id="openCeoContactBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:2px solid var(--ksa-gold);background:var(--ksa-cream);color:var(--blue);font-weight:800;font-size:14px;cursor:pointer;">📞 ${ar ? "تواصل مباشر مع الرئيس التنفيذي" : "Direct Contact with CEO"}${(() => { const n = state.myLetters.filter(l => !l.employee_viewed_at).length; return n ? ` <span style="background:#C43B3B;color:#fff;border-radius:999px;padding:1px 8px;font-size:11px;margin-inline-start:6px;">${n} new letter${n === 1 ? "" : "s"}</span>` : ""; })()}</button>` : ""}
     ${state.user.can_record_purchases ? `<button id="openPurchaseFormBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:2px solid #1B7A6B;background:#EAF6F3;color:#125C4F;font-weight:800;font-size:14px;cursor:pointer;">🧾 Record Purchase</button>` : ""}
     <button id="openMyProfileBtn" style="display:block;width:100%;margin-bottom:14px;padding:11px 16px;border-radius:10px;border:2px solid var(--blue-light);background:#EAF1FC;color:var(--blue);font-weight:800;font-size:14px;cursor:pointer;">👤 ${ar ? "ملفي الشخصي" : "My Profile"}</button>
     <div class="card" style="padding:8px 6px 4px;">
@@ -6797,11 +7482,28 @@ function renderRajeshDashboard(){
 }
 
 function renderCeoContactForm(){
+  const letterBlock = (m) => {
+    const L = state.myLetters.find(x => x.message_id === m.id);
+    if(!L) return "";
+    return `
+        <div style="margin-top:10px;border:2px solid var(--ksa-gold);border-radius:10px;padding:10px;background:#FFFBF0;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <div style="font-weight:800;font-size:13px;color:var(--navy);">📄 Signed letter</div>
+            ${L.employee_viewed_at ? "" : `<span class="badge badge-submitted">NEW</span>`}
+          </div>
+          <div class="meta" style="margin-top:2px;">${escapeHtml(L.subject)} • ${formatDateDMY(L.letter_date)}</div>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="btn btn-outline btn-sm" data-view-my-letter="${L.id}" style="flex:1;">👁 View</button>
+            <button class="btn btn-outline btn-sm" data-download-my-letter="${L.id}" style="flex:1;">⬇ Save PDF</button>
+          </div>
+        </div>`;
+  };
   const historyHtml = state.myCeoMessages.map(m => `
     <div class="emp-list-item li-submitted">
       <div style="flex:1;min-width:0;">
         <div class="sub">${new Date(m.created_at).toLocaleDateString()} ${new Date(m.created_at).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</div>
-        <div style="margin-top:4px;">${m.message}</div>
+        <div style="margin-top:4px;white-space:pre-wrap;">${escapeHtml(m.message)}</div>
+        ${letterBlock(m)}
       </div>
     </div>`).join("");
 
@@ -9380,21 +10082,24 @@ function renderCeoInbox(){
   const renderMessageRow = (m) => {
     const isPending = m.status === "pending";
     const isEditing = state.editingCeoMessageId === m.id;
+    const letterRow = state.letters.find(l => l.message_id === m.id);
     return `
     <div class="card" style="margin-bottom:10px;border:2px solid ${isPending ? "#F0C766" : (m.is_read ? "var(--line)" : "var(--ksa-gold)")};" ${isCeoUser ? `data-view-ceo-message="${m.id}"` : ""}>
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div style="font-weight:800;color:var(--blue);">${m.employee_name || "Employee"}</div>
+        <div style="font-weight:800;color:var(--blue);">${escapeHtml(m.employee_name || "Employee")}</div>
         ${isPending && !isCeoUser ? `<span class="badge" style="background:#FDF3E6;color:#966109;border-color:#F0C766;">AWAITING REVIEW</span>` : (!m.is_read ? `<span class="badge badge-submitted">NEW</span>` : "")}
       </div>
       <div class="meta" style="margin-top:2px;">${new Date(m.created_at).toLocaleDateString()} ${new Date(m.created_at).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</div>
       ${isEditing ? `
-      <textarea id="ceoMessageEditInput-${m.id}" rows="3" style="margin-top:8px;">${m.message}</textarea>
+      <textarea id="ceoMessageEditInput-${m.id}" rows="3" style="margin-top:8px;">${escapeHtml(m.message)}</textarea>
       <div style="display:flex;gap:8px;margin-top:8px;">
         <button class="btn btn-submit btn-sm" data-save-ceo-edit="${m.id}" style="flex:1;">💾 Save</button>
         <button class="btn btn-outline btn-sm" id="cancelCeoEditBtn" style="flex:1;">Cancel</button>
       </div>
       ` : `
-      <div style="margin-top:8px;">${m.message}</div>
+      <div style="margin-top:8px;white-space:pre-wrap;">${escapeHtml(m.message)}</div>
+      ${letterRow ? `<div style="margin-top:8px;">${letterStatusChip(letterRow)}</div>` : ""}
+      <button class="btn btn-outline btn-sm" data-open-letter="${m.id}" style="margin-top:10px;width:100%;">🖨 ${letterRow ? "Open formal letter" : "Make formal letter"}</button>
       ${!isCeoUser ? `
       <div style="display:flex;gap:8px;margin-top:10px;">
         <button class="link-btn" data-edit-ceo-message="${m.id}" style="color:var(--blue) !important;">✎ Edit</button>
@@ -9904,6 +10609,22 @@ function handleDelegatedClick(e){
     if(picker && typeof picker.showPicker === "function"){ try{ picker.showPicker(); }catch(_){} }
     return;
   }
+
+  const openLetterEl = e.target.closest("[data-open-letter]");
+  if(openLetterEl){ openLetter(openLetterEl.getAttribute("data-open-letter")); return; }
+  const letterChipEl = e.target.closest("[data-letter-subject-chip]");
+  if(letterChipEl){ if(state.letterDraft){ state.letterDraft.subject = letterChipEl.getAttribute("data-letter-subject-chip"); render(); } return; }
+  if(el("backToInboxFromLetterBtn")){ state.letterDraft = null; state.view = "ceo-inbox"; loadCeoInboxMessages(); return; }
+  if(el("saveLetterBtn")){ saveLetter(); return; }
+  if(el("signLetterBtn")){ signLetter(); return; }
+  if(el("withdrawLetterBtn")){ withdrawLetterSignature(); return; }
+  if(el("viewLetterPdfBtn")){ viewLetterPdf(); return; }
+  if(el("whatsappLetterBtn")){ sendLetterWhatsApp(); return; }
+  if(el("deliverLetterBtn")){ deliverLetter(); return; }
+  const viewMyLetterEl = e.target.closest("[data-view-my-letter]");
+  if(viewMyLetterEl){ openMyLetter(viewMyLetterEl.getAttribute("data-view-my-letter"), false); return; }
+  const dlMyLetterEl = e.target.closest("[data-download-my-letter]");
+  if(dlMyLetterEl){ openMyLetter(dlMyLetterEl.getAttribute("data-download-my-letter"), true); return; }
 
   if(el("logoutBtn")){ logout(); return; }
   if(el("loginBtn")){ doLogin(document.getElementById("loginIqama").value); return; }
@@ -10543,6 +11264,7 @@ function handleDelegatedClick(e){
 }
 
 function handleDelegatedChange(e){
+  if(e.target.id === "letterDateInput"){ if(state.letterDraft) state.letterDraft.letterDate = e.target.value; return; }
   const toggleManpowerEl = e.target.closest("[data-toggle-manpower]");
   if(toggleManpowerEl){
     const [unitId, projectId] = toggleManpowerEl.getAttribute("data-toggle-manpower").split("|");
@@ -10759,6 +11481,8 @@ function filterHrDashboardTiles(searchTerm){
 }
 
 function handleDelegatedInput(e){
+  if(e.target.id === "letterSubjectInput"){ if(state.letterDraft) state.letterDraft.subject = e.target.value; return; }
+  if(e.target.id === "letterRemarksInput"){ if(state.letterDraft) state.letterDraft.remarks = e.target.value; return; }
   if(e.target.id === "hrDashboardSearchInput"){
     filterHrDashboardTiles(e.target.value);
   }
@@ -10864,8 +11588,9 @@ async function init(){
     state.hrmSupervisorId = mohammedId || null;
     await loadProjects();
     await loadLatestAnnouncementForUser();
+    await loadMyLetters();
     if(state.user.role === "ceo") await loadLatestHrTodoForOwner();
-    state.view = state.user.role === "employee" ? "employee" : (state.user.role === "supervisor" ? "supervisor" : (state.user.role === "ceo" ? "ceo-home" : "hr"));
+    state.view = state.user.role === "employee" ? "employee" : (state.user.role === "supervisor" ? "supervisor" : (state.user.role === "ceo" ? "ceo-home" : (state.user.role === "manager" ? "manager-home" : "hr")));
     if(state.view === "employee") await loadEmployeeMonth();
     else if(state.view === "supervisor") await loadSupervisorList();
     else if(state.view === "hr") await loadHrMonth();
