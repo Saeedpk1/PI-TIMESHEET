@@ -2230,8 +2230,8 @@ async function loadEmployeeMonth(){
     const dstr = fmtDate(y,m,day);
     const existing = (entryRows||[]).find(r=>r.entry_date===dstr);
     entries[dstr] = existing
-      ? { status: existing.status, overtime_hours: existing.overtime_hours, project_id: existing.project_id || "", medical_report_photo: existing.medical_report_photo || "" }
-      : { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0, project_id: "", medical_report_photo: "" };
+      ? { status: existing.status, overtime_hours: existing.overtime_hours, project_id: existing.project_id || "", medical_report_photo: existing.medical_report_photo || "", source: existing.source || "" }
+      : { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0, project_id: "", medical_report_photo: "", source: "" };
   }
   state.entries = entries;
   // days the database filled in from the daily reports (and he hasn't changed himself)
@@ -2252,8 +2252,21 @@ function isDateEditable(dstr){
   return entryDate >= yesterday;
 }
 
+// A day filled in from the daily report (or set by HR) can only be changed by HR / the Owner.
+// The database enforces this too, so this is just the friendly version of it.
+function isEntryLockedForUser(entry){
+  if(!entry || !state.user) return false;
+  if(["hr", "ceo"].includes(state.user.role)) return false;
+  return entry.source === "daily_report" || entry.source === "hr";
+}
+
 function setEntry(dstr, field, value){
   if(!state.entries[dstr]) return;
+  if((field === "status" || field === "project_id") && isEntryLockedForUser(state.entries[dstr])){
+    toast("This day comes from the daily report. Only HR can change it.");
+    renderMain();
+    return;
+  }
   if(!isDateEditable(dstr)){
     toast("This entry period has expired — you can only fill in today and yesterday.");
     renderMain();
@@ -7419,10 +7432,15 @@ function renderEmployeeView(){
   else banner = `<div class="status-banner status-draft">${ar ? "📝 مسودة — لم يتم الإرسال بعد" : "📝 Draft — not yet submitted"}</div>`;
   // Days the supervisors' daily reports already filled in for him: tell him, so he checks them and submits.
   const autoFilled = state.autoFilledDays || 0;
+  const canChangeLocked = ["hr", "ceo"].includes(state.user.role);
   const autoNote = (autoFilled > 0 && (subStatus === "draft" || subStatus === "rejected"))
     ? `<div class="status-banner" style="background:#EAF2FA;border:2px solid #B8D4EC;color:#1B5A96;">${ar
-        ? `📋 تمت تعبئة (${autoFilled}) من الأيام تلقائياً من التقارير اليومية. يرجى المراجعة ثم الإرسال.`
-        : `📋 ${autoFilled} ${autoFilled === 1 ? "day was" : "days were"} filled in from the daily reports. Please check them, then submit.`}</div>`
+        ? (canChangeLocked
+            ? `📋 تمت تعبئة (${autoFilled}) من الأيام تلقائياً من التقارير اليومية. يرجى المراجعة ثم الإرسال.`
+            : `📋 تمت تعبئة (${autoFilled}) من الأيام من التقارير اليومية وهي مقفلة 🔒 — يمكن لقسم الموارد البشرية فقط تغييرها. يرجى المراجعة ثم الإرسال.`)
+        : (canChangeLocked
+            ? `📋 ${autoFilled} ${autoFilled === 1 ? "day was" : "days were"} filled in from the daily reports. Please check them, then submit.`
+            : `📋 ${autoFilled} ${autoFilled === 1 ? "day was" : "days were"} filled in from the daily reports and ${autoFilled === 1 ? "is" : "are"} locked 🔒 — only HR can change ${autoFilled === 1 ? "it" : "them"}. Please check, then submit.`)}</div>`
     : "";
 
   let rows = "";
@@ -7431,13 +7449,14 @@ function renderEmployeeView(){
     const v = state.entries[dstr] || { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0, project_id: generalProjectId };
     const fri = isFriday(y,m,day);
     const futureLocked = !isDateEditable(dstr);
+    const dayLocked = isEntryLockedForUser(v);
     const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${v.project_id===p.id?"selected":""}>${p.name}</option>`).join("");
     const dayLabel = ar ? AR_DAY_SHORT[new Date(y,m,day).getDay()] : dayName(y,m,day);
     rows += `
     <tr class="${fri?'friday-row':''}${futureLocked?' future-locked-row':''}">
-      <td class="date-cell">${String(day).padStart(2,"0")}<small>${dayLabel}</small>${futureLocked ? `<span title="${ar ? "انتهت مدة الإدخال" : "Entry period expired"}" style="opacity:.55;">🔒</span>` : ""}</td>
+      <td class="date-cell">${String(day).padStart(2,"0")}<small>${dayLabel}</small>${futureLocked ? `<span title="${ar ? "انتهت مدة الإدخال" : "Entry period expired"}" style="opacity:.55;">🔒</span>` : ""}${dayLocked ? `<span title="${ar ? "من التقرير اليومي — يغيّره قسم الموارد البشرية فقط" : "From the daily report — only HR can change it"}" style="opacity:.8;">🔒</span>` : ""}</td>
       <td>
-        <select class="status-select st-${v.status}" data-date="${dstr}" data-field="status" ${locked?"disabled":""}>
+        <select class="status-select st-${v.status}" data-date="${dstr}" data-field="status" ${(locked || dayLocked)?"disabled":""}>
           <option value="Present" ${v.status==="Present"?"selected":""}>${ar ? "حاضر" : "Present"}</option>
           <option value="Absent" ${v.status==="Absent"?"selected":""}>${ar ? "غائب" : "Absent"}</option>
           <option value="Sick" ${v.status==="Sick"?"selected":""}>${ar ? "مريض" : "Sick"}</option>
@@ -7449,7 +7468,7 @@ function renderEmployeeView(){
         </button>` : ""}
       </td>
       <td>
-        <select class="status-select project-select" data-date="${dstr}" data-field="project_id" ${locked?"disabled":""}>
+        <select class="status-select project-select" data-date="${dstr}" data-field="project_id" ${(locked || dayLocked)?"disabled":""}>
           <option value="">—</option>
           ${projectOptions}
         </select>
