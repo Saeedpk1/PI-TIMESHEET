@@ -540,6 +540,7 @@ let state = {
   absenceComparisonMonth: null,
   letters: [],
   myLetters: [],
+  autoFilledDays: 0,
   letterDraft: null,
   letterDbMissing: false,
   biometricSectionOpen: false,
@@ -2233,6 +2234,8 @@ async function loadEmployeeMonth(){
       : { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0, project_id: "", medical_report_photo: "" };
   }
   state.entries = entries;
+  // days the database filled in from the daily reports (and he hasn't changed himself)
+  state.autoFilledDays = (entryRows || []).filter(r => r.source === "daily_report").length;
   state.submission = sub || null;
   state.remarksDraft = (sub && sub.remarks) || "";
   state.loading = false;
@@ -7414,6 +7417,13 @@ function renderEmployeeView(){
     : `<div class="status-banner status-approved">${ar ? "✅ تم الاعتماد والتوقيع من قبل المشرف" : "✅ Approved and signed by your supervisor"}</div>`;
   else if(subStatus==="rejected") banner = `<div class="status-banner status-rejected">${ar ? "↩️ تم الإرجاع: " : "↩️ Sent back: "}${state.submission.rejection_reason || (ar ? "يرجى المراجعة وإعادة الإرسال" : "please review and resubmit")}</div>`;
   else banner = `<div class="status-banner status-draft">${ar ? "📝 مسودة — لم يتم الإرسال بعد" : "📝 Draft — not yet submitted"}</div>`;
+  // Days the supervisors' daily reports already filled in for him: tell him, so he checks them and submits.
+  const autoFilled = state.autoFilledDays || 0;
+  const autoNote = (autoFilled > 0 && (subStatus === "draft" || subStatus === "rejected"))
+    ? `<div class="status-banner" style="background:#EAF2FA;border:2px solid #B8D4EC;color:#1B5A96;">${ar
+        ? `📋 تمت تعبئة (${autoFilled}) من الأيام تلقائياً من التقارير اليومية. يرجى المراجعة ثم الإرسال.`
+        : `📋 ${autoFilled} ${autoFilled === 1 ? "day was" : "days were"} filled in from the daily reports. Please check them, then submit.`}</div>`
+    : "";
 
   let rows = "";
   for(let day=1; day<=nd; day++){
@@ -7451,6 +7461,7 @@ function renderEmployeeView(){
     ${isSelfSubmit ? `<button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">${ar ? "› رجوع" : "‹ Back"}</button>` : ""}
     ${renderMonthNav("employee")}
     ${banner}
+    ${autoNote}
     <div class="status-banner" style="background:#FFF3D9;border:2px solid #F0C766;color:#7A5A0A;">
       ${ar ? "📋 يُصرف راتب الإجازة المرضية فقط عند إرفاق تقرير طبي معتمد من الطبيب." : "📋 Sick leave is paid only when a certified medical report from a doctor is provided."}
     </div>
