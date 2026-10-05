@@ -2479,6 +2479,7 @@ function startEditLeaveRequest(reqId){
     existingSignature: req.employee_signature || ""
   };
   render();
+  if(!state.leaveFormDraft.photoDataUrl) fillLeavePhotoFromProfile().then(() => render());
 }
 
 async function openNewLeaveForm(){
@@ -2490,12 +2491,15 @@ async function openNewLeaveForm(){
   // date they were marked as on vacation, not just what a leave
   // request originally asked for, so it stays accurate even if the
   // actual dates ended up different from what was requested.
+  // (only vacations that have already started: one HR recorded in advance for the future isn't his "last" one yet)
   const { data: vacations } = await sb.from("ts_vacations")
     .select("start_date").eq("employee_id", state.user.id)
+    .lte("start_date", todayLocalISO())
     .order("start_date", { ascending: false }).limit(1);
   if(vacations && vacations[0] && vacations[0].start_date){
     state.leaveFormDraft.lastVacationDate = vacations[0].start_date;
   }
+  await fillLeavePhotoFromProfile();
   render();
 }
 
@@ -2627,40 +2631,64 @@ async function submitLeaveRequest(){
   render();
 }
 
+// Makes the leave form's two pictures from one photo: a square one for the screen and a round one for the PDF.
+function setLeavePhotosFromDataUrl(dataUrl, onDone){
+  const img = new Image();
+  img.onload = () => {
+    const SIZE = 300;
+    // Square crop (for the on-screen preview, shown circular via CSS)
+    const squareCanvas = document.createElement("canvas");
+    squareCanvas.width = SIZE; squareCanvas.height = SIZE;
+    const sctx = squareCanvas.getContext("2d");
+    const side = Math.min(img.width, img.height);
+    const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+    sctx.drawImage(img, sx, sy, side, side, 0, 0, SIZE, SIZE);
+    state.leaveFormDraft.photoDataUrl = squareCanvas.toDataURL("image/jpeg", 0.85);
+
+    // Circular PNG with transparent corners (for the PDF — avoids relying on jsPDF's clip API)
+    const circCanvas = document.createElement("canvas");
+    circCanvas.width = SIZE; circCanvas.height = SIZE;
+    const cctx = circCanvas.getContext("2d");
+    cctx.save();
+    cctx.beginPath();
+    cctx.arc(SIZE/2, SIZE/2, SIZE/2, 0, Math.PI*2);
+    cctx.closePath();
+    cctx.clip();
+    cctx.drawImage(img, sx, sy, side, side, 0, 0, SIZE, SIZE);
+    cctx.restore();
+    state.leaveFormDraft.photoCircleDataUrl = circCanvas.toDataURL("image/png");
+
+    if(onDone) onDone(true);
+  };
+  img.onerror = () => { if(onDone) onDone(false); };
+  img.src = dataUrl;
+}
+
+// A photo he picks himself for this application.
 function handleLeavePhotoFile(file){
   if(!file) return;
   const reader = new FileReader();
-  reader.onload = (e) => {
-    const img = new Image();
-    img.onload = () => {
-      const SIZE = 300;
-      // Square crop (for the on-screen preview, shown circular via CSS)
-      const squareCanvas = document.createElement("canvas");
-      squareCanvas.width = SIZE; squareCanvas.height = SIZE;
-      const sctx = squareCanvas.getContext("2d");
-      const side = Math.min(img.width, img.height);
-      const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
-      sctx.drawImage(img, sx, sy, side, side, 0, 0, SIZE, SIZE);
-      state.leaveFormDraft.photoDataUrl = squareCanvas.toDataURL("image/jpeg", 0.85);
-
-      // Circular PNG with transparent corners (for the PDF — avoids relying on jsPDF's clip API)
-      const circCanvas = document.createElement("canvas");
-      circCanvas.width = SIZE; circCanvas.height = SIZE;
-      const cctx = circCanvas.getContext("2d");
-      cctx.save();
-      cctx.beginPath();
-      cctx.arc(SIZE/2, SIZE/2, SIZE/2, 0, Math.PI*2);
-      cctx.closePath();
-      cctx.clip();
-      cctx.drawImage(img, sx, sy, side, side, 0, 0, SIZE, SIZE);
-      cctx.restore();
-      state.leaveFormDraft.photoCircleDataUrl = circCanvas.toDataURL("image/png");
-
-      render();
-    };
-    img.src = e.target.result;
-  };
+  reader.onload = (e) => setLeavePhotosFromDataUrl(e.target.result, (ok) => {
+    if(ok){ state.leaveFormDraft.photoFromProfile = false; render(); }
+  });
   reader.readAsDataURL(file);
+}
+
+// If he already has a photo in his profile, use it here -- he only has to add one if he has none.
+async function fillLeavePhotoFromProfile(){
+  const f = state.leaveFormDraft;
+  if(!f || f.photoDataUrl) return;
+  try{
+    const { data } = await sb.from("ts_employees").select("photo_data").eq("id", state.user.id).maybeSingle();
+    const photo = data && data.photo_data;
+    if(!photo || f.photoDataUrl || state.leaveFormDraft !== f) return;   // none, or he already added one meanwhile
+    await new Promise(resolve => setLeavePhotosFromDataUrl(photo, (ok) => {
+      if(ok) f.photoFromProfile = true;
+      resolve();
+    }));
+  }catch(e){
+    console.error("Could not use the profile photo for the leave form:", e);
+  }
 }
 
 async function loadSupervisorLeaveRequests(){
@@ -9609,6 +9637,7 @@ function renderLeaveForm(){
       <div style="flex:1;">
         <input type="file" accept="image/*" id="leavePhotoInput" style="display:none;">
         <button type="button" class="btn btn-outline btn-sm" id="leavePhotoBtn" style="width:100%;">${f.photoDataUrl ? "Change Photo" : "Take Photo / Choose from Gallery"}</button>
+        ${f.photoFromProfile ? `<div class="field-note">📷 Taken from your profile photo. Tap Change Photo to use a different one.</div>` : ""}
       </div>
     </div>
 
