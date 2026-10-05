@@ -2312,7 +2312,8 @@ async function submitForApproval(){
         submitted_at: new Date().toISOString(), rejection_reason: null, updated_at: new Date().toISOString() };
   const { error } = await sb.from("ts_timesheet_submissions").upsert(payload, { onConflict: "employee_id,month" });
   state.loading = false;
-  toast(error ? "Could not submit. Try again." : (selfSubmit ? "Timesheet submitted and recorded." : "Submitted to your supervisor for approval."));
+  if(error) console.error("Timesheet submit failed:", error);
+  toast(error ? describeSubmitError(error) : (selfSubmit ? "Timesheet submitted and recorded." : "Submitted to your supervisor for approval."));
   await loadEmployeeMonth();
 }
 
@@ -2535,6 +2536,27 @@ function humanDuration(fromStr, toStr){
   return (remMonths > 0 ? `${years} year${years===1?"":"s"} ${remMonths} month${remMonths===1?"":"s"}` : `${years} year${years===1?"":"s"}`) + " before";
 }
 
+// Turns a database error into something a person can act on, instead of a bare "try again".
+function describeSubmitError(error){
+  const msg = String((error && error.message) || "");
+  if(/row-level security|permission denied/i.test(msg)){
+    return "Your login session doesn't match your account. Please log out, log in again, and retry. If it still fails, tell HR.";
+  }
+  if(/jwt|expired|not authenticated/i.test(msg)){
+    return "Your session expired. Please log out, log in again, and retry.";
+  }
+  if(/could not find the .* column|schema cache/i.test(msg)){
+    return `The system needs an update before this can be saved (${msg}). Please tell HR.`;
+  }
+  if((error && error.status === 413) || /payload too large|entity too large/i.test(msg)){
+    return "That is too large to send (usually the photo). Please try a smaller photo.";
+  }
+  if(/failed to fetch|network|load failed|timeout/i.test(msg)){
+    return "Connection problem — check your internet and try again.";
+  }
+  return `Could not submit (${msg || "unknown error"}). If it keeps happening, tell HR.`;
+}
+
 async function submitLeaveRequest(){
   const f = state.leaveFormDraft;
   if(!f.firstDay || !f.lastDay){ toast("Enter the first and last day of leave."); return; }
@@ -2593,7 +2615,8 @@ async function submitLeaveRequest(){
   }
 
   state.loading = false;
-  toast(error ? "Could not submit. Try again." : (isEditing ? "Leave application updated and resubmitted." : "Leave application submitted to your supervisor."));
+  if(error) console.error("Leave submit failed:", error);
+  toast(error ? describeSubmitError(error) : (isEditing ? "Leave application updated and resubmitted." : "Leave application submitted to your supervisor."));
   if(!error){
     state.leaveFormDraft = { lastVacationDate: "", mobileNumber: "", homeMobileNumber: "", firstDay: "", lastDay: "", hasToolBox: "", toolBoxHandoverTo: "", replacementRequired: "", replacementName: "", currentProjectSite: "", hasSiteId: false, photoDataUrl: "", photoCircleDataUrl: "", existingSignature: "" };
     leaveSigHasStroke = false;
