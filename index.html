@@ -7024,6 +7024,7 @@ async function exportAttendanceByProjectExcel(){
     const monthEnd = `${year}-${mm}-${String(daysInMonthCount).padStart(2,"0")}`;
 
     // People who are not in the daily reports but are always on one project (set by HR) are listed too.
+    let fixedColumnAvailable = true;
     const loadAttendanceEmployees = async () => {
       const withFixed = await sb.from("ts_employees")
         .select("id, name, short_name, salary_group, joining_date, fixed_attendance_project_id")
@@ -7031,6 +7032,7 @@ async function exportAttendanceByProjectExcel(){
         .or("short_name.not.is.null,fixed_attendance_project_id.not.is.null")
         .order("name");
       if(!withFixed.error) return withFixed;
+      fixedColumnAvailable = false;
       // (the database doesn't have that column yet: carry on exactly as before)
       return sb.from("ts_employees").select("id, name, short_name, salary_group").eq("active", true).not("short_name", "is", null).order("name");
     };
@@ -7149,7 +7151,18 @@ async function exportAttendanceByProjectExcel(){
     });
 
     await downloadWorkbook(wb, `Attendance_By_Project_${year}-${mm}.xlsx`);
-    toast("Attendance sheet downloaded.");
+    // say plainly what happened for the people who are fixed on a project, so a missing setup is never a mystery
+    const fixedPeople = (employees || []).filter(e => e.fixed_attendance_project_id);
+    const label = (e) => e.short_name || String(e.name || "").toUpperCase();
+    let note = "Attendance sheet downloaded.";
+    if(!fixedColumnAvailable) note += " The fixed-project setting is not in the database yet, so no one is fixed on a project: run add_fixed_attendance_project.sql.";
+    else if(!fixedPeople.length) note += " No one is fixed on a project yet.";
+    else{
+      note += ` Fixed on a project: ${fixedPeople.map(label).join(", ")}.`;
+      const lost = fixedPeople.filter(e => !projectNameById[e.fixed_attendance_project_id]);
+      if(lost.length) note += ` Project not found for: ${lost.map(label).join(", ")}.`;
+    }
+    toast(note);
   }catch(e){
     console.error("Attendance export error:", e);
     toast("Export error: " + (e && e.message ? e.message : "unknown"));
