@@ -538,6 +538,7 @@ let state = {
   worklogProjects: [],
   worklogFrom: "",
   worklogTo: "",
+  worklogIncludeCost: true,
   letterDraft: null,
   letterDbMissing: false,
   biometricSectionOpen: false,
@@ -6235,7 +6236,10 @@ async function loadAbsenceComparison(){
 
 /* ---------------- Project work log (Excel) ----------------
    From the daily reports: for each project, one row per working day -- who worked and the
-   progress -- from its first report to its last. Laid out like the "Daily Work Log" sheet. */
+   progress -- from its first report to its last, laid out like the "Daily Work Log" sheet.
+   A project with units gets a sheet per unit plus a summary; every sheet also carries an
+   expense calculation (days worked x each person's expense per day), counted the same way
+   the Project Summary counts a unit's cost. */
 
 const WORKLOG_WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -6253,8 +6257,14 @@ function worklogCleanNotes(text){
     .join("; ");
 }
 
-// Turns one project's reports into the rows of its log: one row per day, however many units reported that day.
-function worklogBuildRows(reports, empById){
+function worklogEmpName(e){
+  return String((e && (e.short_name || e.name)) || "").trim().toUpperCase();
+}
+
+// Turns reports into the rows of a log: one row per day, however many reports were made that day.
+// withUnitPrefix: put the unit name in front of its note (used when several units share one log).
+function worklogBuildRows(reports, empById, withUnitPrefix){
+  if(withUnitPrefix === undefined) withUnitPrefix = true;
   const byDate = new Map();
   for(const r of reports || []){
     if(!r.report_date) continue;
@@ -6269,14 +6279,89 @@ function worklogBuildRows(reports, empById){
       if(name && !seen.has(name)){ seen.add(name); names.push(name); }
     };
     for(const r of list){
+      const ids = r.team_member_ids || [];
+      const resolved = ids.map(id => empById && empById[id]).filter(Boolean);
       const saved = r.team_member_names || [];
-      if(saved.length) saved.forEach(addName);
-      else (r.team_member_ids || []).forEach(id => { const e = empById && empById[id]; if(e) addName(e.short_name || e.name); });
+      // current names when every person can be found; otherwise the names saved with the report
+      if(ids.length && resolved.length === ids.length) resolved.forEach(e => addName(worklogEmpName(e)));
+      else if(saved.length) saved.forEach(addName);
+      else resolved.forEach(e => addName(worklogEmpName(e)));
       const text = worklogCleanNotes(r.polished_notes || r.raw_notes);
-      if(text) notes.push(r.unit_name ? `${r.unit_name}: ${text}` : text);
+      if(text) notes.push(withUnitPrefix && r.unit_name ? `${r.unit_name}: ${text}` : text);
     }
     return { date, day: worklogWeekday(date), employees: names.length ? names.join(", ") : "None", count: names.length, notes: notes.join("; ") };
   });
+}
+
+// Each person's days in one set of reports (every date counted once), with his expense per day.
+function worklogExpenseRows(reports, empById){
+  const datesById = new Map();
+  for(const r of reports || []){
+    for(const id of r.team_member_ids || []){
+      if(!datesById.has(id)) datesById.set(id, new Set());
+      datesById.get(id).add(r.report_date);
+    }
+  }
+  return [...datesById.entries()].map(([id, dates]) => {
+    const e = empById && empById[id];
+    const rate = e ? Number(e.expenses_per_day) || 0 : 0;
+    return { id, name: e ? worklogEmpName(e) : "REMOVED EMPLOYEE", rate, days: dates.size, noRate: !rate };
+  }).sort((a, b) => b.days - a.days || a.name.localeCompare(b.name));
+}
+
+// Everything the workbook needs about one project, worked out once.
+function worklogAnalyseProject(projectName, reports, empById){
+  const sorted = (reports || []).filter(r => r.report_date).slice().sort((a, b) =>
+    String(a.report_date).localeCompare(String(b.report_date)) || String(a.created_at || "").localeCompare(String(b.created_at || "")));
+  const unitKeys = [], byKey = new Map();
+  for(const r of sorted){
+    const k = r.unit_id || "";
+    if(!byKey.has(k)){ byKey.set(k, { key: k, name: "", reports: [] }); unitKeys.push(k); }
+    const g = byKey.get(k);
+    g.reports.push(r);
+    if(r.unit_name && !g.name) g.name = r.unit_name;
+  }
+  const mode = (unitKeys.length > 1 && unitKeys.some(k => k !== "")) ? "units" : "single";
+  const groups = mode === "units"
+    ? unitKeys.map(k => byKey.get(k)).map(g => ({ ...g, name: g.name || (g.key ? "Unit" : "No unit") }))
+    : [{ key: "", name: "", reports: sorted }];
+  groups.forEach(g => {
+    g.rows = worklogBuildRows(g.reports, empById, mode === "single");
+    g.days = new Set(g.reports.map(r => r.report_date)).size;
+    g.expense = worklogExpenseRows(g.reports, empById);
+    g.manDays = g.expense.length ? g.expense.reduce((s, e) => s + e.days, 0) : g.rows.reduce((s, r) => s + r.count, 0);
+    g.cost = g.expense.reduce((s, e) => s + e.days * e.rate, 0);
+  });
+  const dates = [...new Set(sorted.map(r => r.report_date))].sort();
+
+  // whole-project view by person (units mode): his days in every unit added up
+  const people = new Map();
+  groups.forEach(g => g.expense.forEach(e => {
+    if(!people.has(e.id)) people.set(e.id, { id: e.id, name: e.name, rate: e.rate, days: 0, noRate: e.noRate, units: [] });
+    const p = people.get(e.id);
+    p.days += e.days;
+    p.units.push({ unit: g.name, days: e.days });
+  }));
+  const projectPeople = [...people.values()].sort((a, b) => b.days - a.days || a.name.localeCompare(b.name));
+
+  // people listed in more than one unit on the same day (counted in each, as the Project Summary does)
+  let sharedDays = 0;
+  if(mode === "units"){
+    const seen = new Map();
+    groups.forEach((g, gi) => g.reports.forEach(r => (r.team_member_ids || []).forEach(id => {
+      const key = id + "|" + r.report_date;
+      if(!seen.has(key)) seen.set(key, new Set());
+      seen.get(key).add(gi);
+    })));
+    seen.forEach(s => { if(s.size > 1) sharedDays += s.size - 1; });
+  }
+  const noRate = [...new Set(groups.flatMap(g => g.expense.filter(e => e.noRate).map(e => e.name)))];
+  return {
+    projectName, mode, groups, projectPeople, sharedDays, noRate,
+    first: dates[0] || null, last: dates[dates.length - 1] || null, days: dates.length,
+    manDays: groups.reduce((s, g) => s + g.manDays, 0),
+    cost: groups.reduce((s, g) => s + g.cost, 0)
+  };
 }
 
 // Excel allows 31 characters and no  \ / ? * [ ] :  in a sheet name, and every name must be different.
@@ -6291,29 +6376,51 @@ function worklogSheetName(name, taken){
   return candidate;
 }
 
+// "Project - Unit" for a unit's sheet, keeping the unit's own name readable inside the 31 characters.
+function worklogUnitSheetName(project, unit, taken){
+  const full = `${project} - ${unit}`;
+  if(full.length <= 31) return worklogSheetName(full, taken);
+  const room = 31 - unit.length - 3;
+  return worklogSheetName(room >= 6 ? `${project.slice(0, room)} - ${unit}` : unit, taken);
+}
+
+function worklogXref(sheetName, addr){
+  return `'${sheetName.replace(/'/g, "''")}'!${addr}`;
+}
+
 const WORKLOG_THIN = { style: "thin", color: { argb: "FF000000" } };
 const WORKLOG_BOX = { top: WORKLOG_THIN, left: WORKLOG_THIN, bottom: WORKLOG_THIN, right: WORKLOG_THIN };
 const WORKLOG_HEAD_FILL = { type: "pattern", pattern: "solid", fgColor: { argb: "FF425D90" } };
+const WORKLOG_BAND_FILL = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCE6F2" } };
+const WORKLOG_TOTAL_FILL = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2CC" } };
+const WORKLOG_MONEY = "#,##0.00";
 
 function worklogUtcDate(iso){
   const [y, m, d] = String(iso).split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d));
 }
+function worklogDmy(iso){
+  const [y, m, d] = String(iso).split("-");
+  return `${d}-${m}-${y}`;
+}
 
-// logs = [{ projectName, rows }]  ->  an ExcelJS workbook: a sheet per project (and an overview first when there are several)
-function buildProjectWorkLogWorkbook(logs){
+// projects = worklogAnalyseProject results.  opts.includeCost: add the expense calculation (default yes).
+function buildProjectWorkLogWorkbook(projects, opts){
+  const includeCost = !(opts && opts.includeCost === false);
   const wb = new ExcelJS.Workbook();
   wb.creator = "PI Timesheet";
   wb.created = new Date();
   const taken = new Set();
-  const styleHeader = (row, labels, centerIdx) => {
+
+  const font = (o) => ({ name: "Arial", size: 10, ...(o || {}) });
+  const styleHeaderCells = (row, labels, startCol, centerIdx) => {
     labels.forEach((label, i) => {
-      const c = row.getCell(i + 1);
-      c.value = label;
+      const c = row.getCell(startCol + i);
+      if(label !== null) c.value = label;      // (null = the second half of a merged cell: writing to it would wipe the first half)
       c.font = { name: "Arial", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
       c.fill = WORKLOG_HEAD_FILL;
       c.border = WORKLOG_BOX;
-      c.alignment = { horizontal: centerIdx.includes(i) ? "center" : "left", vertical: "middle", wrapText: true };
+      c.alignment = { horizontal: (centerIdx || []).includes(i) ? "center" : "left", vertical: "middle", wrapText: true };
     });
     row.height = 22;
   };
@@ -6322,41 +6429,34 @@ function buildProjectWorkLogWorkbook(logs){
     const t = ws.getCell(range.split(":")[0]);
     t.value = text;
     t.font = { name: "Arial", size: 14, bold: true, color: { argb: "FF1A1B20" } };
-    t.alignment = { horizontal: "center", vertical: "middle" };
+    t.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     ws.getRow(1).height = 26;
   };
+  const band = (ws, r, text, lastCol) => {
+    ws.mergeCells(r, 1, r, lastCol);
+    const c = ws.getCell(r, 1);
+    c.value = text;
+    c.font = { name: "Arial", size: 11, bold: true, color: { argb: "FF1A1B20" } };
+    c.fill = WORKLOG_BAND_FILL;
+    c.alignment = { horizontal: "left", vertical: "middle" };
+    for(let k = 1; k <= lastCol; k++) ws.getCell(r, k).border = WORKLOG_BOX;
+    ws.getRow(r).height = 20;
+  };
+  const note = (ws, r, text, lastCol) => {
+    ws.mergeCells(r, 1, r, lastCol);
+    const c = ws.getCell(r, 1);
+    c.value = text;
+    c.font = { name: "Arial", size: 9, italic: true, color: { argb: "FF7F4F00" } };
+    c.alignment = { horizontal: "left", vertical: "top", wrapText: true };
+    ws.getRow(r).height = Math.max(15, 13 * Math.ceil(text.length / 150));
+  };
 
-  if(logs.length > 1){
-    const ws = wb.addWorksheet(worklogSheetName("Overview", taken), { views: [{ state: "frozen", ySplit: 2 }] });
-    ws.columns = [{ width: 36 }, { width: 16 }, { width: 16 }, { width: 14 }, { width: 14 }];
-    styleTitle(ws, "A1:E1", "Project Work Logs - Overview");
-    styleHeader(ws.getRow(2), ["Project", "First report", "Last report", "Working days", "Man-days"], [3, 4]);
-    logs.forEach((log, i) => {
-      const row = ws.getRow(3 + i);
-      const first = log.rows[0] ? log.rows[0].date : null, last = log.rows.length ? log.rows[log.rows.length - 1].date : null;
-      row.getCell(1).value = log.projectName;
-      if(first){ row.getCell(2).value = worklogUtcDate(first); row.getCell(2).numFmt = "dd-mm-yyyy"; }
-      if(last){ row.getCell(3).value = worklogUtcDate(last); row.getCell(3).numFmt = "dd-mm-yyyy"; }
-      row.getCell(4).value = log.rows.length;
-      row.getCell(5).value = log.rows.reduce((s, r) => s + r.count, 0);
-      for(let c = 1; c <= 5; c++){
-        const cell = row.getCell(c);
-        cell.font = { name: "Arial", size: 10 };
-        cell.border = WORKLOG_BOX;
-        cell.alignment = { horizontal: c >= 4 ? "center" : "left", vertical: "middle" };
-      }
-    });
-  }
-
-  for(const log of logs){
-    const ws = wb.addWorksheet(worklogSheetName(log.projectName, taken), {
-      views: [{ state: "frozen", ySplit: 2 }],
-      pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
-    });
-    ws.columns = [{ width: 14 }, { width: 15 }, { width: 48 }, { width: 12 }, { width: 100 }];
-    styleTitle(ws, "A1:E1", `${log.projectName} Project - Daily Work Log`);
-    styleHeader(ws.getRow(2), ["Date", "Day of Week", "Employees Assigned", "Total Count", "Work Details/Notes"], [3]);
-    log.rows.forEach((r, i) => {
+  // log table + the expense calculation underneath it. Returns where the totals landed.
+  const writeLogSheet = (ws, group, title) => {
+    ws.columns = [{ width: 14 }, { width: 15 }, { width: 46 }, { width: 14 }, { width: 90 }];
+    styleTitle(ws, "A1:E1", title);
+    styleHeaderCells(ws.getRow(2), ["Date", "Day of Week", "Employees Assigned", "Total Count", "Work Details/Notes"], 1, [3]);
+    group.rows.forEach((r, i) => {
       const row = ws.getRow(3 + i);
       row.getCell(1).value = worklogUtcDate(r.date);
       row.getCell(1).numFmt = "dd-mm-yyyy";
@@ -6366,12 +6466,240 @@ function buildProjectWorkLogWorkbook(logs){
       row.getCell(5).value = r.notes;
       for(let c = 1; c <= 5; c++){
         const cell = row.getCell(c);
-        cell.font = { name: "Arial", size: 10 };
+        cell.font = font();
         cell.border = WORKLOG_BOX;
         cell.alignment = { horizontal: c === 4 ? "center" : "left", vertical: "top", wrapText: c === 3 || c === 5 };
       }
     });
     ws.pageSetup.printTitlesRow = "1:2";
+    const out = { totalRow: null, daysRow: null };
+    if(!includeCost) return out;
+
+    let r = 3 + group.rows.length + 1;
+    band(ws, r, "EXPENSE SUMMARY", 5); r++;
+    ws.mergeCells(r, 1, r, 2);
+    ws.getCell(r, 1).value = "Total days worked";
+    ws.getCell(r, 1).font = font({ bold: true });
+    ws.getCell(r, 1).alignment = { horizontal: "left", vertical: "middle" };
+    ws.getCell(r, 2).alignment = { horizontal: "left", vertical: "middle" };
+    ws.getCell(r, 3).value = group.days;
+    ws.getCell(r, 3).font = font({ bold: true });
+    ws.getCell(r, 3).alignment = { horizontal: "center" };
+    for(let k = 1; k <= 3; k++) ws.getCell(r, k).border = WORKLOG_BOX;
+    out.daysRow = r; r++;
+
+    if(!group.expense.length){
+      note(ws, r, "No employee records are linked to these reports, so no expense could be calculated.", 5);
+      return out;
+    }
+    r++;
+    ws.mergeCells(r, 1, r, 2);
+    styleHeaderCells(ws.getRow(r), ["Employee", null, "Expense per day (SAR)", "Days worked", "Total expense (SAR)"], 1, [2, 3]);
+    ws.getCell(r, 2).border = WORKLOG_BOX;
+    r++;
+    const firstData = r;
+    group.expense.forEach(e => {
+      ws.mergeCells(r, 1, r, 2);
+      ws.getCell(r, 1).value = e.name;
+      ws.getCell(r, 3).value = e.rate;
+      ws.getCell(r, 3).numFmt = WORKLOG_MONEY;
+      ws.getCell(r, 4).value = e.days;
+      ws.getCell(r, 5).value = { formula: `C${r}*D${r}`, result: e.rate * e.days };
+      ws.getCell(r, 5).numFmt = WORKLOG_MONEY;
+      for(let k = 1; k <= 5; k++){
+        const c = ws.getCell(r, k);
+        c.font = font();
+        c.border = WORKLOG_BOX;
+        c.alignment = { horizontal: k <= 2 || k === 5 ? "left" : "center", vertical: "middle" };
+      }
+      r++;
+    });
+    const lastData = r - 1;
+    ws.mergeCells(r, 1, r, 2);
+    ws.getCell(r, 1).value = "TOTAL EXPENSE";
+    ws.getCell(r, 4).value = { formula: `SUM(D${firstData}:D${lastData})`, result: group.manDays };
+    ws.getCell(r, 5).value = { formula: `SUM(E${firstData}:E${lastData})`, result: group.cost };
+    ws.getCell(r, 5).numFmt = WORKLOG_MONEY;
+    for(let k = 1; k <= 5; k++){
+      const c = ws.getCell(r, k);
+      c.font = font({ bold: true });
+      c.fill = WORKLOG_TOTAL_FILL;
+      c.border = WORKLOG_BOX;
+      c.alignment = { horizontal: k <= 2 || k === 5 ? "left" : "center", vertical: "middle" };
+    }
+    out.totalRow = r; r++;
+    const missing = group.expense.filter(e => e.noRate).map(e => e.name);
+    if(missing.length){ note(ws, r, `No expense per day is set for ${missing.join(", ")}: counted as 0.`, 5); r++; }
+    return out;
+  };
+
+  const overviewRows = [];
+  const overview = projects.length > 1 ? wb.addWorksheet(worklogSheetName("Overview", taken), { views: [{ state: "frozen", ySplit: 2 }], pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 } }) : null;
+
+  for(const p of projects){
+    if(p.mode === "single"){
+      const g = p.groups[0];
+      const ws = wb.addWorksheet(worklogSheetName(p.projectName, taken), {
+        views: [{ state: "frozen", ySplit: 2 }],
+        pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
+      });
+      const t = writeLogSheet(ws, g, `${p.projectName} Project - Daily Work Log`);
+      overviewRows.push({ p, sheet: ws.name, manDaysRef: t.totalRow ? `D${t.totalRow}` : null, costRef: t.totalRow ? `E${t.totalRow}` : null });
+      continue;
+    }
+
+    // a project with units: a summary sheet, then a sheet for every unit
+    const summary = wb.addWorksheet(worklogSheetName(p.projectName, taken), { views: [{ state: "frozen", ySplit: 2 }], pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+    const unitRefs = p.groups.map(g => {
+      const ws = wb.addWorksheet(worklogUnitSheetName(p.projectName, g.name, taken), {
+        views: [{ state: "frozen", ySplit: 2 }],
+        pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
+      });
+      const t = writeLogSheet(ws, g, `${p.projectName} Project - ${g.name} - Daily Work Log`);
+      return { sheet: ws.name, totalRow: t.totalRow };
+    });
+
+    const cols = includeCost ? 5 : 4;
+    summary.columns = includeCost
+      ? [{ width: 34 }, { width: 16 }, { width: 16 }, { width: 22 }, { width: 80 }]
+      : [{ width: 34 }, { width: 16 }, { width: 16 }, { width: 80 }];
+    styleTitle(summary, `A1:${includeCost ? "E" : "D"}1`, `${p.projectName} Project - Summary`);
+    summary.mergeCells(2, 1, 2, cols);
+    summary.getCell(2, 1).value = `Period: ${p.first ? worklogDmy(p.first) : "-"} to ${p.last ? worklogDmy(p.last) : "-"}   |   Total days worked: ${p.days}   |   Units: ${p.groups.length}`;
+    summary.getCell(2, 1).font = font({ bold: true });
+    summary.getCell(2, 1).alignment = { horizontal: "center", vertical: "middle" };
+    summary.getRow(2).height = 20;
+
+    let r = 4;
+    band(summary, r, "BY UNIT", cols); r++;
+    styleHeaderCells(summary.getRow(r),
+      includeCost ? ["Unit", "Days worked", "Man-days", "Total expense (SAR)", "Who worked there (days)"] : ["Unit", "Days worked", "Man-days", "Who worked there (days)"], 1, [1, 2]);
+    r++;
+    const unitFirst = r;
+    p.groups.forEach((g, gi) => {
+      const ref = unitRefs[gi];
+      summary.getCell(r, 1).value = g.name;
+      summary.getCell(r, 2).value = g.days;
+      summary.getCell(r, 3).value = ref.totalRow
+        ? { formula: worklogXref(ref.sheet, `D${ref.totalRow}`), result: g.manDays }
+        : g.manDays;
+      if(includeCost){
+        summary.getCell(r, 4).value = ref.totalRow ? { formula: worklogXref(ref.sheet, `E${ref.totalRow}`), result: g.cost } : g.cost;
+        summary.getCell(r, 4).numFmt = WORKLOG_MONEY;
+      }
+      const who = g.expense.length
+        ? g.expense.map(e => `${e.name} (${e.days})`).join(", ")
+        : (g.rows.flatMap(x => x.employees.split(", ")).filter((x, i, a) => x !== "None" && a.indexOf(x) === i).join(", ") || "-");
+      summary.getCell(r, cols).value = who;
+      for(let k = 1; k <= cols; k++){
+        const c = summary.getCell(r, k);
+        c.font = font();
+        c.border = WORKLOG_BOX;
+        c.alignment = { horizontal: k === 4 && includeCost ? "right" : (k === 1 || k === cols ? "left" : "center"), indent: (k === 4 && includeCost) || k === cols ? 1 : 0, vertical: "top", wrapText: k === 1 || k === cols };
+      }
+      r++;
+    });
+    const unitLast = r - 1;
+    summary.getCell(r, 1).value = "TOTAL (whole project)";
+    summary.getCell(r, 2).value = p.days;
+    summary.getCell(r, 3).value = { formula: `SUM(C${unitFirst}:C${unitLast})`, result: p.manDays };
+    if(includeCost){
+      summary.getCell(r, 4).value = { formula: `SUM(D${unitFirst}:D${unitLast})`, result: p.cost };
+      summary.getCell(r, 4).numFmt = WORKLOG_MONEY;
+    }
+    summary.getCell(r, cols).value = "Total days = days on which any unit worked (not a sum of the units)";
+    for(let k = 1; k <= cols; k++){
+      const c = summary.getCell(r, k);
+      c.font = font({ bold: k !== cols, italic: k === cols });
+      c.fill = WORKLOG_TOTAL_FILL;
+      c.border = WORKLOG_BOX;
+      c.alignment = { horizontal: k === 4 && includeCost ? "right" : (k === 1 || k === cols ? "left" : "center"), indent: (k === 4 && includeCost) || k === cols ? 1 : 0, vertical: "middle", wrapText: k === cols };
+    }
+    const summaryTotalRow = r;
+    r += 2;
+
+    if(includeCost){
+      band(summary, r, "BY EMPLOYEE (all units together)", cols); r++;
+      styleHeaderCells(summary.getRow(r), ["Employee", "Expense per day (SAR)", "Days worked", "Total expense (SAR)", "Days in each unit"], 1, [1, 2]);
+      r++;
+      const pf = r;
+      p.projectPeople.forEach(e => {
+        summary.getCell(r, 1).value = e.name;
+        summary.getCell(r, 2).value = e.rate;
+        summary.getCell(r, 2).numFmt = WORKLOG_MONEY;
+        summary.getCell(r, 3).value = e.days;
+        summary.getCell(r, 4).value = { formula: `B${r}*C${r}`, result: e.rate * e.days };
+        summary.getCell(r, 4).numFmt = WORKLOG_MONEY;
+        summary.getCell(r, 5).value = e.units.map(u => `${u.unit} (${u.days})`).join(", ");
+        for(let k = 1; k <= 5; k++){
+          const c = summary.getCell(r, k);
+          c.font = font();
+          c.border = WORKLOG_BOX;
+          c.alignment = { horizontal: k === 4 ? "right" : (k === 1 || k === 5 ? "left" : "center"), indent: k === 4 || k === 5 ? 1 : 0, vertical: "top", wrapText: k === 5 };
+        }
+        r++;
+      });
+      if(p.projectPeople.length){
+        summary.getCell(r, 1).value = "TOTAL EXPENSE";
+        summary.getCell(r, 3).value = { formula: `SUM(C${pf}:C${r - 1})`, result: p.manDays };
+        summary.getCell(r, 4).value = { formula: `SUM(D${pf}:D${r - 1})`, result: p.cost };
+        summary.getCell(r, 4).numFmt = WORKLOG_MONEY;
+        for(let k = 1; k <= 5; k++){
+          const c = summary.getCell(r, k);
+          c.font = font({ bold: true });
+          c.fill = WORKLOG_TOTAL_FILL;
+          c.border = WORKLOG_BOX;
+          c.alignment = { horizontal: k === 4 ? "right" : (k === 1 ? "left" : "center"), indent: k === 4 ? 1 : 0, vertical: "middle" };
+        }
+        r++;
+      }
+      r++;
+      if(p.noRate.length){ note(summary, r, `No expense per day is set for ${p.noRate.join(", ")}: counted as 0.`, cols); r++; }
+      if(p.sharedDays){
+        note(summary, r, `${p.sharedDays} person-day${p.sharedDays === 1 ? " was" : "s were"} listed in more than one unit on the same day; each unit counts it, the same way the Project Summary counts a unit's cost.`, cols);
+        r++;
+      }
+    }
+    overviewRows.push({ p, sheet: summary.name, manDaysRef: `C${summaryTotalRow}`, costRef: includeCost ? `D${summaryTotalRow}` : null });
+  }
+
+  if(overview){
+    const cols = includeCost ? 6 : 5;
+    overview.columns = [{ width: 36 }, { width: 16 }, { width: 16 }, { width: 14 }, { width: 14 }, { width: 22 }].slice(0, cols);
+    styleTitle(overview, `A1:${includeCost ? "F" : "E"}1`, "Project Work Logs - Overview");
+    styleHeaderCells(overview.getRow(2), ["Project", "First report", "Last report", "Working days", "Man-days"].concat(includeCost ? ["Total expense (SAR)"] : []), 1, [3, 4]);
+    overviewRows.forEach((o, i) => {
+      const row = overview.getRow(3 + i);
+      row.getCell(1).value = o.p.projectName;
+      if(o.p.first){ row.getCell(2).value = worklogUtcDate(o.p.first); row.getCell(2).numFmt = "dd-mm-yyyy"; }
+      if(o.p.last){ row.getCell(3).value = worklogUtcDate(o.p.last); row.getCell(3).numFmt = "dd-mm-yyyy"; }
+      row.getCell(4).value = o.p.days;
+      row.getCell(5).value = o.manDaysRef ? { formula: worklogXref(o.sheet, o.manDaysRef), result: o.p.manDays } : o.p.manDays;
+      if(includeCost){
+        row.getCell(6).value = o.costRef ? { formula: worklogXref(o.sheet, o.costRef), result: o.p.cost } : o.p.cost;
+        row.getCell(6).numFmt = WORKLOG_MONEY;
+      }
+      for(let c = 1; c <= cols; c++){
+        const cell = row.getCell(c);
+        cell.font = font();
+        cell.border = WORKLOG_BOX;
+        cell.alignment = { horizontal: c === 6 ? "right" : (c === 1 ? "left" : "center"), indent: c === 6 ? 1 : 0, vertical: "middle" };
+      }
+    });
+    if(includeCost){
+      const r = 3 + overviewRows.length;
+      overview.getCell(r, 1).value = "TOTAL";
+      overview.getCell(r, 5).value = { formula: `SUM(E3:E${r - 1})`, result: overviewRows.reduce((s, o) => s + o.p.manDays, 0) };
+      overview.getCell(r, 6).value = { formula: `SUM(F3:F${r - 1})`, result: overviewRows.reduce((s, o) => s + o.p.cost, 0) };
+      overview.getCell(r, 6).numFmt = WORKLOG_MONEY;
+      for(let c = 1; c <= cols; c++){
+        const cell = overview.getCell(r, c);
+        cell.font = font({ bold: true });
+        cell.fill = WORKLOG_TOTAL_FILL;
+        cell.border = WORKLOG_BOX;
+        cell.alignment = { horizontal: c === 6 ? "right" : (c === 1 ? "left" : "center"), indent: c === 6 ? 1 : 0, vertical: "middle" };
+      }
+    }
   }
   return wb;
 }
@@ -6420,6 +6748,7 @@ async function exportProjectWorkLog(projectId){
   if(!targets.length){ toast("There are no daily reports to export."); return; }
   const from = state.worklogFrom || "", to = state.worklogTo || "";
   if(from && to && from > to){ toast("The From date is after the To date."); return; }
+  const includeCost = state.worklogIncludeCost !== false;
 
   state.loading = true; render();
   try{
@@ -6427,36 +6756,36 @@ async function exportProjectWorkLog(projectId){
     const [reports, { data: emps }] = await Promise.all([
       fetchAllPages((a, b) => {
         let q = sb.from("ts_daily_reports")
-          .select("project_id, report_date, unit_name, team_member_ids, team_member_names, raw_notes, polished_notes, created_at")
+          .select("project_id, report_date, unit_id, unit_name, team_member_ids, team_member_names, raw_notes, polished_notes, created_at")
           .in("project_id", ids);
         if(from) q = q.gte("report_date", from);
         if(to) q = q.lte("report_date", to);
         return q.order("report_date", { ascending: true }).order("created_at", { ascending: true }).order("id", { ascending: true }).range(a, b);
       }),
-      sb.from("ts_employees").select("id, name, short_name")
+      sb.from("ts_employees").select("id, name, short_name, expenses_per_day")
     ]);
     const empById = {};
     (emps || []).forEach(e => { empById[e.id] = e; });
     const byProject = {};
     reports.forEach(r => { (byProject[r.project_id] || (byProject[r.project_id] = [])).push(r); });
 
-    const logs = targets
-      .map(p => ({ projectName: p.name, rows: worklogBuildRows(byProject[p.id] || [], empById) }))
-      .filter(l => l.rows.length);
-    if(!logs.length){
+    const analysed = targets
+      .map(p => worklogAnalyseProject(p.name, byProject[p.id] || [], empById))
+      .filter(a => a.days > 0);
+    if(!analysed.length){
       state.loading = false; render();
       toast("No daily reports in that date range.");
       return;
     }
-    const wb = buildProjectWorkLogWorkbook(logs);
+    const wb = buildProjectWorkLogWorkbook(analysed, { includeCost });
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const safe = (s) => String(s).replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-    const span = logs.length === 1 ? `${logs[0].rows[0].date}_to_${logs[0].rows[logs[0].rows.length - 1].date}` : todayLocalISO();
-    const filename = logs.length === 1 ? `Work_Log_${safe(logs[0].projectName) || "Project"}_${span}.xlsx` : `Project_Work_Logs_${span}.xlsx`;
+    const one = analysed.length === 1 ? analysed[0] : null;
+    const filename = one ? `Work_Log_${safe(one.projectName) || "Project"}_${one.first}_to_${one.last}.xlsx` : `Project_Work_Logs_${todayLocalISO()}.xlsx`;
     state.loading = false; render();
     await shareOrDownloadBlob(blob, filename, blob.type);
-    toast(logs.length === 1 ? "Work log exported." : `Exported ${logs.length} project work logs.`);
+    toast(one ? "Work log exported." : `Exported ${analysed.length} project work logs.`);
   }catch(e){
     console.error("Work log export error:", e);
     state.loading = false; render();
@@ -6481,7 +6810,7 @@ function renderProjectWorklogScreen(){
     <button class="link-btn" id="${backId}" style="margin-bottom:14px;">‹ Back</button>
     <div class="card">
       <h3>📋 Project Work Log</h3>
-      <div class="meta">A day-by-day log for each project, taken from the daily reports: who worked and the progress, from the first report to the last.</div>
+      <div class="meta">A day-by-day log for each project from the daily reports: who worked and the progress. A project with units gets a sheet for each unit, with the days worked, who worked there, and the expense.</div>
     </div>
     <div class="card" style="margin-top:12px;">
       <label style="margin-top:0;">From <span style="text-transform:none;font-weight:400;">(optional)</span></label>
@@ -6489,7 +6818,11 @@ function renderProjectWorklogScreen(){
       <label>To <span style="text-transform:none;font-weight:400;">(optional)</span></label>
       <input type="date" id="worklogToInput" value="${escapeHtml(state.worklogTo || "")}" max="${todayLocalISO()}">
       <div class="field-note">Leave both empty to include the whole project.</div>
-      ${projects.length > 1 ? `<button class="btn btn-primary" id="exportAllWorklogsBtn" style="width:100%;margin-top:12px;">📊 Export all projects (one sheet each)</button>` : ""}
+      <label style="display:flex;align-items:center;gap:10px;margin-top:14px;text-transform:none;font-weight:700;font-size:13px;cursor:pointer;">
+        <input type="checkbox" id="worklogCostInput" ${state.worklogIncludeCost !== false ? "checked" : ""} style="width:20px;height:20px;">
+        <span>💰 Include the expense calculation<br><span style="font-weight:400;color:var(--muted);font-size:11.5px;">Internal costs. Untick it for a copy you can share outside the company.</span></span>
+      </label>
+      ${projects.length > 1 ? `<button class="btn btn-primary" id="exportAllWorklogsBtn" style="width:100%;margin-top:12px;">📊 Export all projects (one workbook)</button>` : ""}
     </div>
     ${projects.length ? cards : `<div class="card" style="margin-top:12px;text-align:center;color:var(--muted);">No daily reports yet.</div>`}
   `;
@@ -11625,6 +11958,7 @@ function handleDelegatedClick(e){
 function handleDelegatedChange(e){
   if(e.target.id === "worklogFromInput"){ state.worklogFrom = e.target.value; return; }
   if(e.target.id === "worklogToInput"){ state.worklogTo = e.target.value; return; }
+  if(e.target.id === "worklogCostInput"){ state.worklogIncludeCost = !!e.target.checked; return; }
   if(e.target.id === "letterDateInput"){ if(state.letterDraft) state.letterDraft.letterDate = e.target.value; return; }
   const toggleManpowerEl = e.target.closest("[data-toggle-manpower]");
   if(toggleManpowerEl){
