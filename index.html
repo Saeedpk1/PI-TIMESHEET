@@ -6309,8 +6309,20 @@ function worklogExpenseRows(reports, empById){
   }).sort((a, b) => b.days - a.days || a.name.localeCompare(b.name));
 }
 
+// The invoice list keeps the same invoice under several dates (it is carried forward day to day).
+// Like the Project Summary: each invoice number counts once, using its latest saved version.
+function worklogDedupeInvoices(invoices){
+  const latest = {};
+  (invoices || []).forEach(v => {
+    const key = v.invoice_no || `no-number-${v.id}`;
+    if(!latest[key] || (v.report_date || "") >= (latest[key].report_date || "")) latest[key] = v;
+  });
+  return Object.values(latest);
+}
+
 // Everything the workbook needs about one project, worked out once.
-function worklogAnalyseProject(projectName, reports, empById){
+// finance (optional): { invoices, openingInvoices, openingExpenses } -> adds the project's profit summary.
+function worklogAnalyseProject(projectName, reports, empById, finance){
   const sorted = (reports || []).filter(r => r.report_date).slice().sort((a, b) =>
     String(a.report_date).localeCompare(String(b.report_date)) || String(a.created_at || "").localeCompare(String(b.created_at || "")));
   const unitKeys = [], byKey = new Map();
@@ -6356,11 +6368,30 @@ function worklogAnalyseProject(projectName, reports, empById){
     seen.forEach(s => { if(s.size > 1) sharedDays += s.size - 1; });
   }
   const noRate = [...new Set(groups.flatMap(g => g.expense.filter(e => e.noRate).map(e => e.name)))];
+  const cost = groups.reduce((s, g) => s + g.cost, 0);
+
+  // profit for the whole project: invoices (excluding VAT) against all expenses, as the Project Summary works it out
+  let profit = null;
+  if(finance){
+    const invoices = worklogDedupeInvoices(finance.invoices);
+    const invoicedSum = invoices.reduce((s, v) => s + (Number(v.amount_no_vat) || 0), 0);
+    const openingInvoices = Number(finance.openingInvoices) || 0, openingExpenses = Number(finance.openingExpenses) || 0;
+    const totalInvoiced = openingInvoices + invoicedSum, totalExpenses = openingExpenses + cost;
+    // the Project Summary counts a person again when he is in two reports of the same unit on the same day
+    const summaryLabour = sorted.reduce((s, r) => s + (r.team_member_ids || []).reduce((t, id) => t + (empById && empById[id] ? Number(empById[id].expenses_per_day) || 0 : 0), 0), 0);
+    profit = {
+      invoiceCount: invoices.length, invoicedSum, openingInvoices, totalInvoiced,
+      labour: cost, openingExpenses, totalExpenses,
+      profit: totalInvoiced - totalExpenses,
+      margin: totalInvoiced > 0 ? (totalInvoiced - totalExpenses) / totalInvoiced : null,
+      summaryLabour
+    };
+  }
   return {
-    projectName, mode, groups, projectPeople, sharedDays, noRate,
+    projectName, mode, groups, projectPeople, sharedDays, noRate, profit,
     first: dates[0] || null, last: dates[dates.length - 1] || null, days: dates.length,
     manDays: groups.reduce((s, g) => s + g.manDays, 0),
-    cost: groups.reduce((s, g) => s + g.cost, 0)
+    cost
   };
 }
 
@@ -6394,6 +6425,9 @@ const WORKLOG_HEAD_FILL = { type: "pattern", pattern: "solid", fgColor: { argb: 
 const WORKLOG_BAND_FILL = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCE6F2" } };
 const WORKLOG_TOTAL_FILL = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2CC" } };
 const WORKLOG_MONEY = "#,##0.00";
+const WORKLOG_PROFIT_FMT = "#,##0.00;[Red]-#,##0.00";
+const WORKLOG_RANGE_NOTE = "Profit and margin are shown only when the whole project is exported (no From/To dates): invoices are not dated by the day the work was done, so they could not be compared with part of the project.";
+const worklogMoney = (n) => Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function worklogUtcDate(iso){
   const [y, m, d] = String(iso).split("-").map(Number);
@@ -6407,6 +6441,7 @@ function worklogDmy(iso){
 // projects = worklogAnalyseProject results.  opts.includeCost: add the expense calculation (default yes).
 function buildProjectWorkLogWorkbook(projects, opts){
   const includeCost = !(opts && opts.includeCost === false);
+  const profitNote = (opts && (opts.profitNote || (opts.rangeLimited ? WORKLOG_RANGE_NOTE : null))) || null;
   const wb = new ExcelJS.Workbook();
   wb.creator = "PI Timesheet";
   wb.created = new Date();
@@ -6472,7 +6507,7 @@ function buildProjectWorkLogWorkbook(projects, opts){
       }
     });
     ws.pageSetup.printTitlesRow = "1:2";
-    const out = { totalRow: null, daysRow: null };
+    const out = { totalRow: null, daysRow: null, nextRow: 3 + group.rows.length };
     if(!includeCost) return out;
 
     let r = 3 + group.rows.length + 1;
@@ -6490,6 +6525,7 @@ function buildProjectWorkLogWorkbook(projects, opts){
 
     if(!group.expense.length){
       note(ws, r, "No employee records are linked to these reports, so no expense could be calculated.", 5);
+      out.nextRow = r + 1;
       return out;
     }
     r++;
@@ -6530,7 +6566,48 @@ function buildProjectWorkLogWorkbook(projects, opts){
     out.totalRow = r; r++;
     const missing = group.expense.filter(e => e.noRate).map(e => e.name);
     if(missing.length){ note(ws, r, `No expense per day is set for ${missing.join(", ")}: counted as 0.`, 5); r++; }
+    out.nextRow = r;
     return out;
+  };
+
+  // The project's profit: its invoices against all its expenses. Whole project only -- never split by unit.
+  const writeProfitBlock = (ws, startRow, p, geo, labourRef) => {
+    const pr = p.profit;
+    const vl = String.fromCharCode(64 + geo.valueCol);
+    const at = (n) => `${vl}${n}`;
+    let r = startRow;
+    band(ws, r, "PROFIT SUMMARY (whole project)", geo.cols); r++;
+    const line = (label, value, o) => {
+      o = o || {};
+      ws.mergeCells(r, 1, r, geo.labelTo);
+      ws.getCell(r, 1).value = label;
+      ws.getCell(r, geo.valueCol).value = value;
+      ws.getCell(r, geo.valueCol).numFmt = o.fmt || WORKLOG_MONEY;
+      for(let k = 1; k <= geo.cols; k++){
+        const cell = ws.getCell(r, k);
+        cell.font = font({ bold: !!o.bold });
+        cell.border = WORKLOG_BOX;
+        if(o.fill && k <= geo.valueCol) cell.fill = WORKLOG_TOTAL_FILL;
+        cell.alignment = { horizontal: k === geo.valueCol ? geo.valueAlign : "left", indent: k === geo.valueCol && geo.valueAlign === "right" ? 1 : 0, vertical: "middle" };
+      }
+      r++;
+      return r - 1;
+    };
+    const rInv = line(`Invoiced to date, excluding VAT (${pr.invoiceCount} invoice${pr.invoiceCount === 1 ? "" : "s"}, each counted once)`, pr.invoicedSum);
+    const rOpenInv = line("Opening invoices (from before the app)", pr.openingInvoices);
+    const rTotInv = line("TOTAL INVOICED", { formula: `${at(rInv)}+${at(rOpenInv)}`, result: pr.totalInvoiced }, { bold: true, fill: true });
+    const rLab = line("Labour expense (from the daily reports)", labourRef ? { formula: labourRef, result: pr.labour } : pr.labour);
+    const rOpenExp = line("Opening expenses (from before the app)", pr.openingExpenses);
+    const rTotExp = line("TOTAL EXPENSES", { formula: `${at(rLab)}+${at(rOpenExp)}`, result: pr.totalExpenses }, { bold: true, fill: true });
+    const rProfit = line("PROFIT", { formula: `${at(rTotInv)}-${at(rTotExp)}`, result: pr.profit }, { bold: true, fill: true, fmt: WORKLOG_PROFIT_FMT });
+    const rMargin = line("PROFIT MARGIN (profit / total invoiced)",
+      { formula: `IF(${at(rTotInv)}>0,${at(rProfit)}/${at(rTotInv)},"n/a")`, result: pr.margin === null ? "n/a" : pr.margin }, { bold: true, fill: true, fmt: "0.0%" });
+    if(pr.totalInvoiced <= 0){ note(ws, r, "No invoices are linked to this project yet, so there is no margin. An invoice is linked to its project in the Financial Report.", geo.cols); r++; }
+    if(Math.abs(pr.summaryLabour - pr.labour) > 0.005){
+      note(ws, r, `The Project Summary shows labour expense of ${worklogMoney(pr.summaryLabour)} because it counts a person again when he is listed in two reports of the same unit on the same day; here each person counts once per unit per day.`, geo.cols);
+      r++;
+    }
+    return { nextRow: r, invoicedRef: at(rTotInv), expensesRef: at(rTotExp), profitRef: at(rProfit), marginRef: at(rMargin) };
   };
 
   const overviewRows = [];
@@ -6544,7 +6621,10 @@ function buildProjectWorkLogWorkbook(projects, opts){
         pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
       });
       const t = writeLogSheet(ws, g, `${p.projectName} Project - Daily Work Log`);
-      overviewRows.push({ p, sheet: ws.name, manDaysRef: t.totalRow ? `D${t.totalRow}` : null, costRef: t.totalRow ? `E${t.totalRow}` : null });
+      let pb = null;
+      if(includeCost && p.profit) pb = writeProfitBlock(ws, t.nextRow + 1, p, { cols: 5, labelTo: 4, valueCol: 5, valueAlign: "left" }, t.totalRow ? `E${t.totalRow}` : null);
+      else if(includeCost && profitNote) note(ws, t.nextRow + 1, profitNote, 5);
+      overviewRows.push({ p, sheet: ws.name, pb, manDaysRef: t.totalRow ? `D${t.totalRow}` : null, costRef: t.totalRow ? `E${t.totalRow}` : null });
       continue;
     }
 
@@ -6618,6 +6698,15 @@ function buildProjectWorkLogWorkbook(projects, opts){
     const summaryTotalRow = r;
     r += 2;
 
+    let pb = null;
+    if(includeCost && p.profit){
+      pb = writeProfitBlock(summary, r, p, { cols, labelTo: 3, valueCol: 4, valueAlign: "right" }, `D${summaryTotalRow}`);
+      r = pb.nextRow + 1;
+    }else if(includeCost && profitNote){
+      note(summary, r, profitNote, cols);
+      r += 2;
+    }
+
     if(includeCost){
       band(summary, r, "BY EMPLOYEE (all units together)", cols); r++;
       styleHeaderCells(summary.getRow(r), ["Employee", "Expense per day (SAR)", "Days worked", "Total expense (SAR)", "Days in each unit"], 1, [1, 2]);
@@ -6660,14 +6749,21 @@ function buildProjectWorkLogWorkbook(projects, opts){
         r++;
       }
     }
-    overviewRows.push({ p, sheet: summary.name, manDaysRef: `C${summaryTotalRow}`, costRef: includeCost ? `D${summaryTotalRow}` : null });
+    overviewRows.push({ p, sheet: summary.name, pb, manDaysRef: `C${summaryTotalRow}`, costRef: includeCost ? `D${summaryTotalRow}` : null });
   }
 
   if(overview){
-    const cols = includeCost ? 6 : 5;
-    overview.columns = [{ width: 36 }, { width: 16 }, { width: 16 }, { width: 14 }, { width: 14 }, { width: 22 }].slice(0, cols);
-    styleTitle(overview, `A1:${includeCost ? "F" : "E"}1`, "Project Work Logs - Overview");
-    styleHeaderCells(overview.getRow(2), ["Project", "First report", "Last report", "Working days", "Man-days"].concat(includeCost ? ["Total expense (SAR)"] : []), 1, [3, 4]);
+    // with the profit summary the money columns read: expenses, invoiced, profit, margin
+    const withProfit = includeCost && overviewRows.length > 0 && overviewRows.every(o => o.pb);
+    const cols = withProfit ? 9 : (includeCost ? 6 : 5);
+    overview.columns = [{ width: 36 }, { width: 16 }, { width: 16 }, { width: 14 }, { width: 14 }, { width: 22 }, { width: 22 }, { width: 22 }, { width: 14 }].slice(0, cols);
+    styleTitle(overview, `A1:${String.fromCharCode(64 + cols)}1`, "Project Work Logs - Overview");
+    const heads = ["Project", "First report", "Last report", "Working days", "Man-days"];
+    if(withProfit) heads.push("Total expenses (SAR)", "Total invoiced (SAR)", "Profit (SAR)", "Margin");
+    else if(includeCost) heads.push("Total expense (SAR)");
+    styleHeaderCells(overview.getRow(2), heads, 1, withProfit ? [3, 4, 8] : [3, 4]);
+    const moneyCols = withProfit ? [6, 7, 8] : (includeCost ? [6] : []);
+    const alignFor = (c) => moneyCols.includes(c) ? "right" : (c === 1 ? "left" : "center");
     overviewRows.forEach((o, i) => {
       const row = overview.getRow(3 + i);
       row.getCell(1).value = o.p.projectName;
@@ -6675,7 +6771,14 @@ function buildProjectWorkLogWorkbook(projects, opts){
       if(o.p.last){ row.getCell(3).value = worklogUtcDate(o.p.last); row.getCell(3).numFmt = "dd-mm-yyyy"; }
       row.getCell(4).value = o.p.days;
       row.getCell(5).value = o.manDaysRef ? { formula: worklogXref(o.sheet, o.manDaysRef), result: o.p.manDays } : o.p.manDays;
-      if(includeCost){
+      if(withProfit){
+        const pr = o.p.profit;
+        row.getCell(6).value = { formula: worklogXref(o.sheet, o.pb.expensesRef), result: pr.totalExpenses };
+        row.getCell(7).value = { formula: worklogXref(o.sheet, o.pb.invoicedRef), result: pr.totalInvoiced };
+        row.getCell(8).value = { formula: worklogXref(o.sheet, o.pb.profitRef), result: pr.profit };
+        row.getCell(9).value = { formula: worklogXref(o.sheet, o.pb.marginRef), result: pr.margin === null ? "n/a" : pr.margin };
+        row.getCell(6).numFmt = WORKLOG_MONEY; row.getCell(7).numFmt = WORKLOG_MONEY; row.getCell(8).numFmt = WORKLOG_PROFIT_FMT; row.getCell(9).numFmt = "0.0%";
+      }else if(includeCost){
         row.getCell(6).value = o.costRef ? { formula: worklogXref(o.sheet, o.costRef), result: o.p.cost } : o.p.cost;
         row.getCell(6).numFmt = WORKLOG_MONEY;
       }
@@ -6683,21 +6786,30 @@ function buildProjectWorkLogWorkbook(projects, opts){
         const cell = row.getCell(c);
         cell.font = font();
         cell.border = WORKLOG_BOX;
-        cell.alignment = { horizontal: c === 6 ? "right" : (c === 1 ? "left" : "center"), indent: c === 6 ? 1 : 0, vertical: "middle" };
+        cell.alignment = { horizontal: alignFor(c), indent: moneyCols.includes(c) ? 1 : 0, vertical: "middle" };
       }
     });
     if(includeCost){
-      const r = 3 + overviewRows.length;
+      const r = 3 + overviewRows.length, last = r - 1;
       overview.getCell(r, 1).value = "TOTAL";
-      overview.getCell(r, 5).value = { formula: `SUM(E3:E${r - 1})`, result: overviewRows.reduce((s, o) => s + o.p.manDays, 0) };
-      overview.getCell(r, 6).value = { formula: `SUM(F3:F${r - 1})`, result: overviewRows.reduce((s, o) => s + o.p.cost, 0) };
-      overview.getCell(r, 6).numFmt = WORKLOG_MONEY;
+      overview.getCell(r, 5).value = { formula: `SUM(E3:E${last})`, result: overviewRows.reduce((s, o) => s + o.p.manDays, 0) };
+      if(withProfit){
+        const tExp = overviewRows.reduce((s, o) => s + o.p.profit.totalExpenses, 0), tInv = overviewRows.reduce((s, o) => s + o.p.profit.totalInvoiced, 0);
+        overview.getCell(r, 6).value = { formula: `SUM(F3:F${last})`, result: tExp };
+        overview.getCell(r, 7).value = { formula: `SUM(G3:G${last})`, result: tInv };
+        overview.getCell(r, 8).value = { formula: `SUM(H3:H${last})`, result: tInv - tExp };
+        overview.getCell(r, 9).value = { formula: `IF(G${r}>0,H${r}/G${r},"n/a")`, result: tInv > 0 ? (tInv - tExp) / tInv : "n/a" };
+        overview.getCell(r, 6).numFmt = WORKLOG_MONEY; overview.getCell(r, 7).numFmt = WORKLOG_MONEY; overview.getCell(r, 8).numFmt = WORKLOG_PROFIT_FMT; overview.getCell(r, 9).numFmt = "0.0%";
+      }else{
+        overview.getCell(r, 6).value = { formula: `SUM(F3:F${last})`, result: overviewRows.reduce((s, o) => s + o.p.cost, 0) };
+        overview.getCell(r, 6).numFmt = WORKLOG_MONEY;
+      }
       for(let c = 1; c <= cols; c++){
         const cell = overview.getCell(r, c);
         cell.font = font({ bold: true });
         cell.fill = WORKLOG_TOTAL_FILL;
         cell.border = WORKLOG_BOX;
-        cell.alignment = { horizontal: c === 6 ? "right" : (c === 1 ? "left" : "center"), indent: c === 6 ? 1 : 0, vertical: "middle" };
+        cell.alignment = { horizontal: alignFor(c), indent: moneyCols.includes(c) ? 1 : 0, vertical: "middle" };
       }
     }
   }
@@ -6769,15 +6881,42 @@ async function exportProjectWorkLog(projectId){
     const byProject = {};
     reports.forEach(r => { (byProject[r.project_id] || (byProject[r.project_id] = [])).push(r); });
 
+    // The profit summary compares the invoices with all expenses, so it needs the whole project -- not a slice of dates.
+    let finance = null, profitNote = null;
+    if(includeCost && (from || to)){
+      profitNote = WORKLOG_RANGE_NOTE;
+    }else if(includeCost){
+      try{
+        const [{ data: projRows, error: projError }, invoiceRows] = await Promise.all([
+          sb.from("ts_projects").select("*").in("id", ids),
+          fetchAllPages((a, b) => sb.from("ts_financial_invoices")
+            .select("id, project_id, invoice_no, amount_no_vat, report_date")
+            .in("project_id", ids)
+            .order("report_date", { ascending: true }).order("id", { ascending: true }).range(a, b))
+        ]);
+        if(projError) throw projError;
+        const projById = {};
+        (projRows || []).forEach(p => { projById[p.id] = p; });
+        finance = {};
+        ids.forEach(id => { finance[id] = { invoices: [], openingInvoices: projById[id] ? projById[id].opening_invoices : 0, openingExpenses: projById[id] ? projById[id].opening_expenses : 0 }; });
+        invoiceRows.forEach(v => { if(finance[v.project_id]) finance[v.project_id].invoices.push(v); });
+      }catch(e){
+        console.error("Could not read the invoices for the work log:", e);
+        finance = null;
+        profitNote = "The invoices could not be read, so the profit summary is not included in this file.";
+        toast("Could not read the invoices, so the profit summary is left out.");
+      }
+    }
+
     const analysed = targets
-      .map(p => worklogAnalyseProject(p.name, byProject[p.id] || [], empById))
+      .map(p => worklogAnalyseProject(p.name, byProject[p.id] || [], empById, finance ? finance[p.id] : null))
       .filter(a => a.days > 0);
     if(!analysed.length){
       state.loading = false; render();
       toast("No daily reports in that date range.");
       return;
     }
-    const wb = buildProjectWorkLogWorkbook(analysed, { includeCost });
+    const wb = buildProjectWorkLogWorkbook(analysed, { includeCost, profitNote });
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const safe = (s) => String(s).replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
@@ -6810,17 +6949,17 @@ function renderProjectWorklogScreen(){
     <button class="link-btn" id="${backId}" style="margin-bottom:14px;">‹ Back</button>
     <div class="card">
       <h3>📋 Project Work Log</h3>
-      <div class="meta">A day-by-day log for each project from the daily reports: who worked and the progress. A project with units gets a sheet for each unit, with the days worked, who worked there, and the expense.</div>
+      <div class="meta">A day-by-day log for each project from the daily reports: who worked and the progress. A project with units gets a sheet for each unit, with the days worked, who worked there, and the expense. The summary also shows the project's invoices, total expenses, profit and margin.</div>
     </div>
     <div class="card" style="margin-top:12px;">
       <label style="margin-top:0;">From <span style="text-transform:none;font-weight:400;">(optional)</span></label>
       <input type="date" id="worklogFromInput" value="${escapeHtml(state.worklogFrom || "")}" max="${todayLocalISO()}">
       <label>To <span style="text-transform:none;font-weight:400;">(optional)</span></label>
       <input type="date" id="worklogToInput" value="${escapeHtml(state.worklogTo || "")}" max="${todayLocalISO()}">
-      <div class="field-note">Leave both empty to include the whole project.</div>
+      <div class="field-note">Leave both empty to include the whole project. The profit summary (invoices against expenses) is added only for the whole project.</div>
       <label style="display:flex;align-items:center;gap:10px;margin-top:14px;text-transform:none;font-weight:700;font-size:13px;cursor:pointer;">
         <input type="checkbox" id="worklogCostInput" ${state.worklogIncludeCost !== false ? "checked" : ""} style="width:20px;height:20px;">
-        <span>💰 Include the expense calculation<br><span style="font-weight:400;color:var(--muted);font-size:11.5px;">Internal costs. Untick it for a copy you can share outside the company.</span></span>
+        <span>💰 Include expenses, invoices and profit<br><span style="font-weight:400;color:var(--muted);font-size:11.5px;">Internal money figures. Untick it for a copy you can share outside the company.</span></span>
       </label>
       ${projects.length > 1 ? `<button class="btn btn-primary" id="exportAllWorklogsBtn" style="width:100%;margin-top:12px;">📊 Export all projects (one workbook)</button>` : ""}
     </div>
