@@ -535,6 +535,9 @@ let state = {
   letters: [],
   myLetters: [],
   autoFilledDays: 0,
+  worklogProjects: [],
+  worklogFrom: "",
+  worklogTo: "",
   letterDraft: null,
   letterDbMissing: false,
   biometricSectionOpen: false,
@@ -6230,6 +6233,269 @@ async function loadAbsenceComparison(){
   render();
 }
 
+/* ---------------- Project work log (Excel) ----------------
+   From the daily reports: for each project, one row per working day -- who worked and the
+   progress -- from its first report to its last. Laid out like the "Daily Work Log" sheet. */
+
+const WORKLOG_WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function worklogWeekday(iso){
+  const [y, m, d] = String(iso).split("-").map(Number);
+  return WORKLOG_WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+}
+
+// One clean line from a note: bullets, numbering and trailing full stops are dropped, lines are joined with "; ".
+function worklogCleanNotes(text){
+  return String(text || "")
+    .split(/\r?\n/)
+    .map(l => l.replace(/^\s*(?:[•*·–—-]+\s*|\d+[.)]\s+)/, "").replace(/[\s.;,]+$/, "").trim())
+    .filter(Boolean)
+    .join("; ");
+}
+
+// Turns one project's reports into the rows of its log: one row per day, however many units reported that day.
+function worklogBuildRows(reports, empById){
+  const byDate = new Map();
+  for(const r of reports || []){
+    if(!r.report_date) continue;
+    if(!byDate.has(r.report_date)) byDate.set(r.report_date, []);
+    byDate.get(r.report_date).push(r);
+  }
+  return [...byDate.keys()].sort().map(date => {
+    const list = byDate.get(date).slice().sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")));
+    const names = [], seen = new Set(), notes = [];
+    const addName = (n) => {
+      const name = String(n || "").trim().toUpperCase();
+      if(name && !seen.has(name)){ seen.add(name); names.push(name); }
+    };
+    for(const r of list){
+      const saved = r.team_member_names || [];
+      if(saved.length) saved.forEach(addName);
+      else (r.team_member_ids || []).forEach(id => { const e = empById && empById[id]; if(e) addName(e.short_name || e.name); });
+      const text = worklogCleanNotes(r.polished_notes || r.raw_notes);
+      if(text) notes.push(r.unit_name ? `${r.unit_name}: ${text}` : text);
+    }
+    return { date, day: worklogWeekday(date), employees: names.length ? names.join(", ") : "None", count: names.length, notes: notes.join("; ") };
+  });
+}
+
+// Excel allows 31 characters and no  \ / ? * [ ] :  in a sheet name, and every name must be different.
+function worklogSheetName(name, taken){
+  let base = String(name || "Project").replace(/[\\\/?*\[\]:]/g, " ").replace(/\s+/g, " ").trim().slice(0, 31) || "Project";
+  let candidate = base, n = 2;
+  while(taken.has(candidate.toLowerCase())){
+    const suffix = ` (${n++})`;
+    candidate = base.slice(0, 31 - suffix.length) + suffix;
+  }
+  taken.add(candidate.toLowerCase());
+  return candidate;
+}
+
+const WORKLOG_THIN = { style: "thin", color: { argb: "FF000000" } };
+const WORKLOG_BOX = { top: WORKLOG_THIN, left: WORKLOG_THIN, bottom: WORKLOG_THIN, right: WORKLOG_THIN };
+const WORKLOG_HEAD_FILL = { type: "pattern", pattern: "solid", fgColor: { argb: "FF425D90" } };
+
+function worklogUtcDate(iso){
+  const [y, m, d] = String(iso).split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+// logs = [{ projectName, rows }]  ->  an ExcelJS workbook: a sheet per project (and an overview first when there are several)
+function buildProjectWorkLogWorkbook(logs){
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "PI Timesheet";
+  wb.created = new Date();
+  const taken = new Set();
+  const styleHeader = (row, labels, centerIdx) => {
+    labels.forEach((label, i) => {
+      const c = row.getCell(i + 1);
+      c.value = label;
+      c.font = { name: "Arial", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
+      c.fill = WORKLOG_HEAD_FILL;
+      c.border = WORKLOG_BOX;
+      c.alignment = { horizontal: centerIdx.includes(i) ? "center" : "left", vertical: "middle", wrapText: true };
+    });
+    row.height = 22;
+  };
+  const styleTitle = (ws, range, text) => {
+    ws.mergeCells(range);
+    const t = ws.getCell(range.split(":")[0]);
+    t.value = text;
+    t.font = { name: "Arial", size: 14, bold: true, color: { argb: "FF1A1B20" } };
+    t.alignment = { horizontal: "center", vertical: "middle" };
+    ws.getRow(1).height = 26;
+  };
+
+  if(logs.length > 1){
+    const ws = wb.addWorksheet(worklogSheetName("Overview", taken), { views: [{ state: "frozen", ySplit: 2 }] });
+    ws.columns = [{ width: 36 }, { width: 16 }, { width: 16 }, { width: 14 }, { width: 14 }];
+    styleTitle(ws, "A1:E1", "Project Work Logs - Overview");
+    styleHeader(ws.getRow(2), ["Project", "First report", "Last report", "Working days", "Man-days"], [3, 4]);
+    logs.forEach((log, i) => {
+      const row = ws.getRow(3 + i);
+      const first = log.rows[0] ? log.rows[0].date : null, last = log.rows.length ? log.rows[log.rows.length - 1].date : null;
+      row.getCell(1).value = log.projectName;
+      if(first){ row.getCell(2).value = worklogUtcDate(first); row.getCell(2).numFmt = "dd-mm-yyyy"; }
+      if(last){ row.getCell(3).value = worklogUtcDate(last); row.getCell(3).numFmt = "dd-mm-yyyy"; }
+      row.getCell(4).value = log.rows.length;
+      row.getCell(5).value = log.rows.reduce((s, r) => s + r.count, 0);
+      for(let c = 1; c <= 5; c++){
+        const cell = row.getCell(c);
+        cell.font = { name: "Arial", size: 10 };
+        cell.border = WORKLOG_BOX;
+        cell.alignment = { horizontal: c >= 4 ? "center" : "left", vertical: "middle" };
+      }
+    });
+  }
+
+  for(const log of logs){
+    const ws = wb.addWorksheet(worklogSheetName(log.projectName, taken), {
+      views: [{ state: "frozen", ySplit: 2 }],
+      pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
+    });
+    ws.columns = [{ width: 14 }, { width: 15 }, { width: 48 }, { width: 12 }, { width: 100 }];
+    styleTitle(ws, "A1:E1", `${log.projectName} Project - Daily Work Log`);
+    styleHeader(ws.getRow(2), ["Date", "Day of Week", "Employees Assigned", "Total Count", "Work Details/Notes"], [3]);
+    log.rows.forEach((r, i) => {
+      const row = ws.getRow(3 + i);
+      row.getCell(1).value = worklogUtcDate(r.date);
+      row.getCell(1).numFmt = "dd-mm-yyyy";
+      row.getCell(2).value = r.day;
+      row.getCell(3).value = r.employees;
+      row.getCell(4).value = r.count;
+      row.getCell(5).value = r.notes;
+      for(let c = 1; c <= 5; c++){
+        const cell = row.getCell(c);
+        cell.font = { name: "Arial", size: 10 };
+        cell.border = WORKLOG_BOX;
+        cell.alignment = { horizontal: c === 4 ? "center" : "left", vertical: "top", wrapText: c === 3 || c === 5 };
+      }
+    });
+    ws.pageSetup.printTitlesRow = "1:2";
+  }
+  return wb;
+}
+
+// Reads every row of a query, a page at a time (the database returns at most 1,000 rows per request,
+// so a long project would otherwise be silently cut short).
+async function fetchAllPages(makeQuery){
+  const PAGE = 1000, all = [];
+  for(let from = 0; ; from += PAGE){
+    const { data, error } = await makeQuery(from, from + PAGE - 1);
+    if(error) throw error;
+    all.push(...(data || []));
+    if(!data || data.length < PAGE) break;
+  }
+  return all;
+}
+
+async function loadProjectWorklogScreen(){
+  state.loading = true; render();
+  try{
+    const [{ data: projects, error: projError }, index] = await Promise.all([
+      sb.from("ts_projects").select("id, name, active").order("name"),
+      fetchAllPages((a, b) => sb.from("ts_daily_reports").select("project_id, report_date")
+        .order("report_date", { ascending: true }).order("id", { ascending: true }).range(a, b))
+    ]);
+    if(projError) throw projError;
+    const stats = {};
+    for(const r of index){
+      const s = stats[r.project_id] || (stats[r.project_id] = { first: r.report_date, last: r.report_date, dates: new Set() });
+      if(r.report_date < s.first) s.first = r.report_date;
+      if(r.report_date > s.last) s.last = r.report_date;
+      s.dates.add(r.report_date);
+    }
+    state.worklogProjects = (projects || []).filter(p => stats[p.id]).map(p => ({ ...p, first: stats[p.id].first, last: stats[p.id].last, days: stats[p.id].dates.size }));
+  }catch(e){
+    console.error("Could not load the project list for the work log:", e);
+    state.worklogProjects = [];
+    toast("Could not load the projects: " + (e && e.message ? e.message : "unknown error"));
+  }
+  state.loading = false;
+  render();
+}
+
+async function exportProjectWorkLog(projectId){
+  const targets = projectId === "all" ? state.worklogProjects : state.worklogProjects.filter(p => p.id === projectId);
+  if(!targets.length){ toast("There are no daily reports to export."); return; }
+  const from = state.worklogFrom || "", to = state.worklogTo || "";
+  if(from && to && from > to){ toast("The From date is after the To date."); return; }
+
+  state.loading = true; render();
+  try{
+    const ids = targets.map(p => p.id);
+    const [reports, { data: emps }] = await Promise.all([
+      fetchAllPages((a, b) => {
+        let q = sb.from("ts_daily_reports")
+          .select("project_id, report_date, unit_name, team_member_ids, team_member_names, raw_notes, polished_notes, created_at")
+          .in("project_id", ids);
+        if(from) q = q.gte("report_date", from);
+        if(to) q = q.lte("report_date", to);
+        return q.order("report_date", { ascending: true }).order("created_at", { ascending: true }).order("id", { ascending: true }).range(a, b);
+      }),
+      sb.from("ts_employees").select("id, name, short_name")
+    ]);
+    const empById = {};
+    (emps || []).forEach(e => { empById[e.id] = e; });
+    const byProject = {};
+    reports.forEach(r => { (byProject[r.project_id] || (byProject[r.project_id] = [])).push(r); });
+
+    const logs = targets
+      .map(p => ({ projectName: p.name, rows: worklogBuildRows(byProject[p.id] || [], empById) }))
+      .filter(l => l.rows.length);
+    if(!logs.length){
+      state.loading = false; render();
+      toast("No daily reports in that date range.");
+      return;
+    }
+    const wb = buildProjectWorkLogWorkbook(logs);
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const safe = (s) => String(s).replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    const span = logs.length === 1 ? `${logs[0].rows[0].date}_to_${logs[0].rows[logs[0].rows.length - 1].date}` : todayLocalISO();
+    const filename = logs.length === 1 ? `Work_Log_${safe(logs[0].projectName) || "Project"}_${span}.xlsx` : `Project_Work_Logs_${span}.xlsx`;
+    state.loading = false; render();
+    await shareOrDownloadBlob(blob, filename, blob.type);
+    toast(logs.length === 1 ? "Work log exported." : `Exported ${logs.length} project work logs.`);
+  }catch(e){
+    console.error("Work log export error:", e);
+    state.loading = false; render();
+    toast("Could not export: " + (e && e.message ? e.message : "unknown error"));
+  }
+}
+
+function renderProjectWorklogScreen(){
+  const backId = state.user.role === "ceo" ? "backToCeoHomeBtn" : "backToHrBtn";
+  const projects = state.worklogProjects || [];
+  const cards = projects.map(p => `
+    <div class="card" style="margin-top:10px;">
+      <div class="row-between" style="gap:10px;align-items:center;">
+        <div style="min-width:0;">
+          <div style="font-weight:800;color:var(--navy);word-break:break-word;">${escapeHtml(p.name)}${p.active ? "" : ` <span style="font-size:10.5px;font-weight:800;color:#6B7A8C;background:#EEF2F6;border-radius:999px;padding:2px 8px;margin-left:4px;">Finished</span>`}</div>
+          <div class="meta">${formatDateDMY(p.first)} → ${formatDateDMY(p.last)} • ${p.days} working day${p.days === 1 ? "" : "s"}</div>
+        </div>
+        <button class="btn btn-outline btn-sm" data-export-worklog="${escapeHtml(p.id)}" style="width:auto;white-space:nowrap;">📊 Excel</button>
+      </div>
+    </div>`).join("");
+  return `
+    <button class="link-btn" id="${backId}" style="margin-bottom:14px;">‹ Back</button>
+    <div class="card">
+      <h3>📋 Project Work Log</h3>
+      <div class="meta">A day-by-day log for each project, taken from the daily reports: who worked and the progress, from the first report to the last.</div>
+    </div>
+    <div class="card" style="margin-top:12px;">
+      <label style="margin-top:0;">From <span style="text-transform:none;font-weight:400;">(optional)</span></label>
+      <input type="date" id="worklogFromInput" value="${escapeHtml(state.worklogFrom || "")}" max="${todayLocalISO()}">
+      <label>To <span style="text-transform:none;font-weight:400;">(optional)</span></label>
+      <input type="date" id="worklogToInput" value="${escapeHtml(state.worklogTo || "")}" max="${todayLocalISO()}">
+      <div class="field-note">Leave both empty to include the whole project.</div>
+      ${projects.length > 1 ? `<button class="btn btn-primary" id="exportAllWorklogsBtn" style="width:100%;margin-top:12px;">📊 Export all projects (one sheet each)</button>` : ""}
+    </div>
+    ${projects.length ? cards : `<div class="card" style="margin-top:12px;text-align:center;color:var(--muted);">No daily reports yet.</div>`}
+  `;
+}
+
+
 async function exportAttendanceByProjectExcel(){
   const defaultMonth = state.hrMonth || monthKey(new Date());
   const monthStr = prompt("Month to export (YYYY-MM):", defaultMonth);
@@ -7294,6 +7560,7 @@ function render(){
   else if(state.view === "supervisor-review") body = renderSupervisorReview();
   else if(state.view === "supervisor-signature") body = renderSignaturePad();
   else if(state.view === "letter") body = renderLetterScreen();
+  else if(state.view === "project-worklog") body = renderProjectWorklogScreen();
   else if(state.view === "hr") body = renderHrView();
   else if(state.view === "manager-home") body = renderManagerHome();
   else if(state.view === "blank-timesheet") body = renderBlankTimesheetScreen();
@@ -9302,6 +9569,7 @@ function renderHrView(){
       ${hrTileLight("📋", "Add Daily<br>Report", "openDailyReportBtn", "#6B4E0A", "#F0D488")}
       ${hrTileLight("👁", "View Daily<br>Reports", "openCombinedReportsBtn", "#6B4E0A", "#F0D488")}
       ${hrTileLight("📊", "Attendance<br>by Project", "exportAttendanceByProjectBtn", "#6B4E0A", "#F0D488")}
+      ${hrTileLight("🗂️", "Project<br>Work Log", "openProjectWorklogBtn", "#6B4E0A", "#F0D488")}
     </div>
 
     <div class="hr-section-label" style="color:#0C3A66;">📄 Blank Timesheet</div>
@@ -9811,6 +10079,13 @@ function renderCeoHome(){
         <div class="body">
           <div class="title">Commission Tracker</div>
           <div class="desc">Rajesh's and your own commission, calculated monthly</div>
+        </div>
+      </div>
+      <div class="ceo-tile ceo-tile-more" id="openProjectWorklogBtn">
+        <div class="icon">🗂️</div>
+        <div class="body">
+          <div class="title">Project Work Log (Excel)</div>
+          <div class="desc">Day by day: who worked and the progress, for each project</div>
         </div>
       </div>
       <div class="ceo-tile ceo-tile-more" id="openSendAnnouncementBtn">
@@ -10715,6 +10990,15 @@ function handleDelegatedClick(e){
   const dlMyLetterEl = e.target.closest("[data-download-my-letter]");
   if(dlMyLetterEl){ openMyLetter(dlMyLetterEl.getAttribute("data-download-my-letter"), true); return; }
 
+  if(el("openProjectWorklogBtn")){
+    state.view = "project-worklog"; state.worklogFrom = ""; state.worklogTo = "";
+    loadProjectWorklogScreen();
+    return;
+  }
+  if(el("exportAllWorklogsBtn")){ exportProjectWorkLog("all"); return; }
+  const exportWorklogEl = e.target.closest("[data-export-worklog]");
+  if(exportWorklogEl){ exportProjectWorkLog(exportWorklogEl.getAttribute("data-export-worklog")); return; }
+
   if(el("logoutBtn")){ logout(); return; }
   if(el("loginBtn")){ doLogin(document.getElementById("loginIqama").value); return; }
   if(el("submitLoginPasswordBtn")){ submitLoginPassword(); return; }
@@ -11339,6 +11623,8 @@ function handleDelegatedClick(e){
 }
 
 function handleDelegatedChange(e){
+  if(e.target.id === "worklogFromInput"){ state.worklogFrom = e.target.value; return; }
+  if(e.target.id === "worklogToInput"){ state.worklogTo = e.target.value; return; }
   if(e.target.id === "letterDateInput"){ if(state.letterDraft) state.letterDraft.letterDate = e.target.value; return; }
   const toggleManpowerEl = e.target.closest("[data-toggle-manpower]");
   if(toggleManpowerEl){
