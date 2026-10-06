@@ -6426,7 +6426,7 @@ const WORKLOG_BAND_FILL = { type: "pattern", pattern: "solid", fgColor: { argb: 
 const WORKLOG_TOTAL_FILL = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2CC" } };
 const WORKLOG_MONEY = "#,##0.00";
 const WORKLOG_PROFIT_FMT = "#,##0.00;[Red]-#,##0.00";
-const WORKLOG_RANGE_NOTE = "Profit and margin are shown only when the whole project is exported (no From/To dates): invoices are not dated by the day the work was done, so they could not be compared with part of the project.";
+const WORKLOG_RANGE_NOTE = "Profit and margin are shown only for the whole project (from its first report to its last): invoices are not dated by the day the work was done, so they cannot be compared with part of the project. Leave From/To empty, or choose dates that cover the whole project.";
 const worklogMoney = (n) => Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function worklogUtcDate(iso){
@@ -6623,7 +6623,7 @@ function buildProjectWorkLogWorkbook(projects, opts){
       const t = writeLogSheet(ws, g, `${p.projectName} Project - Daily Work Log`);
       let pb = null;
       if(includeCost && p.profit) pb = writeProfitBlock(ws, t.nextRow + 1, p, { cols: 5, labelTo: 4, valueCol: 5, valueAlign: "left" }, t.totalRow ? `E${t.totalRow}` : null);
-      else if(includeCost && profitNote) note(ws, t.nextRow + 1, profitNote, 5);
+      else if(includeCost && (p.profitNote || profitNote)) note(ws, t.nextRow + 1, p.profitNote || profitNote, 5);
       overviewRows.push({ p, sheet: ws.name, pb, manDaysRef: t.totalRow ? `D${t.totalRow}` : null, costRef: t.totalRow ? `E${t.totalRow}` : null });
       continue;
     }
@@ -6702,8 +6702,8 @@ function buildProjectWorkLogWorkbook(projects, opts){
     if(includeCost && p.profit){
       pb = writeProfitBlock(summary, r, p, { cols, labelTo: 3, valueCol: 4, valueAlign: "right" }, `D${summaryTotalRow}`);
       r = pb.nextRow + 1;
-    }else if(includeCost && profitNote){
-      note(summary, r, profitNote, cols);
+    }else if(includeCost && (p.profitNote || profitNote)){
+      note(summary, r, p.profitNote || profitNote, cols);
       r += 2;
     }
 
@@ -6881,42 +6881,48 @@ async function exportProjectWorkLog(projectId){
     const byProject = {};
     reports.forEach(r => { (byProject[r.project_id] || (byProject[r.project_id] = [])).push(r); });
 
-    // The profit summary compares the invoices with all expenses, so it needs the whole project -- not a slice of dates.
-    let finance = null, profitNote = null;
-    if(includeCost && (from || to)){
-      profitNote = WORKLOG_RANGE_NOTE;
-    }else if(includeCost){
+    // The profit summary compares the invoices with all expenses, so it needs the WHOLE project -- not a slice of dates.
+    // Dates that reach from the project's first report to its last are the whole project.
+    const covers = (p) => (!from || from <= p.first) && (!to || to >= p.last);
+    const wholeIds = includeCost ? targets.filter(covers).map(p => p.id) : [];
+    let finance = null, financeProblem = false;
+    if(wholeIds.length){
       try{
         const [{ data: projRows, error: projError }, invoiceRows] = await Promise.all([
-          sb.from("ts_projects").select("*").in("id", ids),
+          sb.from("ts_projects").select("*").in("id", wholeIds),
           fetchAllPages((a, b) => sb.from("ts_financial_invoices")
             .select("id, project_id, invoice_no, amount_no_vat, report_date")
-            .in("project_id", ids)
+            .in("project_id", wholeIds)
             .order("report_date", { ascending: true }).order("id", { ascending: true }).range(a, b))
         ]);
         if(projError) throw projError;
         const projById = {};
         (projRows || []).forEach(p => { projById[p.id] = p; });
         finance = {};
-        ids.forEach(id => { finance[id] = { invoices: [], openingInvoices: projById[id] ? projById[id].opening_invoices : 0, openingExpenses: projById[id] ? projById[id].opening_expenses : 0 }; });
+        wholeIds.forEach(id => { finance[id] = { invoices: [], openingInvoices: projById[id] ? projById[id].opening_invoices : 0, openingExpenses: projById[id] ? projById[id].opening_expenses : 0 }; });
         invoiceRows.forEach(v => { if(finance[v.project_id]) finance[v.project_id].invoices.push(v); });
       }catch(e){
         console.error("Could not read the invoices for the work log:", e);
-        finance = null;
-        profitNote = "The invoices could not be read, so the profit summary is not included in this file.";
+        finance = null; financeProblem = true;
         toast("Could not read the invoices, so the profit summary is left out.");
       }
     }
 
     const analysed = targets
-      .map(p => worklogAnalyseProject(p.name, byProject[p.id] || [], empById, finance ? finance[p.id] : null))
+      .map(p => {
+        const a = worklogAnalyseProject(p.name, byProject[p.id] || [], empById, finance ? finance[p.id] : null);
+        if(includeCost && !a.profit){
+          a.profitNote = !covers(p) ? WORKLOG_RANGE_NOTE : (financeProblem ? "The invoices could not be read, so the profit summary is not included in this file." : null);
+        }
+        return a;
+      })
       .filter(a => a.days > 0);
     if(!analysed.length){
       state.loading = false; render();
       toast("No daily reports in that date range.");
       return;
     }
-    const wb = buildProjectWorkLogWorkbook(analysed, { includeCost, profitNote });
+    const wb = buildProjectWorkLogWorkbook(analysed, { includeCost });
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const safe = (s) => String(s).replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
@@ -6956,7 +6962,7 @@ function renderProjectWorklogScreen(){
       <input type="date" id="worklogFromInput" value="${escapeHtml(state.worklogFrom || "")}" max="${todayLocalISO()}">
       <label>To <span style="text-transform:none;font-weight:400;">(optional)</span></label>
       <input type="date" id="worklogToInput" value="${escapeHtml(state.worklogTo || "")}" max="${todayLocalISO()}">
-      <div class="field-note">Leave both empty to include the whole project. The profit summary (invoices against expenses) is added only for the whole project.</div>
+      <div class="field-note">Leave both empty to include the whole project. The profit summary (invoices against expenses) is added when the export covers the whole project: leave the dates empty, or choose dates from the project's first report to its last.</div>
       <label style="display:flex;align-items:center;gap:10px;margin-top:14px;text-transform:none;font-weight:700;font-size:13px;cursor:pointer;">
         <input type="checkbox" id="worklogCostInput" ${state.worklogIncludeCost !== false ? "checked" : ""} style="width:20px;height:20px;">
         <span>💰 Include expenses, invoices and profit<br><span style="font-weight:400;color:var(--muted);font-size:11.5px;">Internal money figures. Untick it for a copy you can share outside the company.</span></span>
