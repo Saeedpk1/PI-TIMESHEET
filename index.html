@@ -8089,11 +8089,17 @@ async function buildCombinedPdf(included, titleText, filename){
 }
 
 /* ---------------- rendering ---------------- */
+// Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
+const APP_VERSION = "6 Oct 2026 - attendance fix";
+function renderVersionTag(){
+  return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
+}
+
 function render(){
   const root = document.getElementById("root");
   if(!checkConfig()) return;
 
-  if(!state.user){ root.innerHTML = renderLogin(); return; }
+  if(!state.user){ root.innerHTML = renderLogin() + renderVersionTag(); return; }
 
   let header = renderHeader();
   let body = "";
@@ -8139,7 +8145,7 @@ function render(){
   else if(state.view === "ceo-timesheet-summary") body = renderCeoTimesheetSummary();
   else if(state.view === "ceo-view-timesheet") body = renderCeoViewTimesheet();
 
-  root.innerHTML = header + renderAnnouncementBanner() + renderHrTodoBanner() + `<main>${body}</main>` + renderPhotoOverlay();
+  root.innerHTML = header + renderAnnouncementBanner() + renderHrTodoBanner() + `<main>${body}</main>` + renderVersionTag() + renderPhotoOverlay();
   attachViewEvents();
   if(state.view === "supervisor-signature" || (state.view === "letter" && document.getElementById("sigCanvas"))) initSigPad();
   if(state.view === "leave-form") initLeaveSigPad();
