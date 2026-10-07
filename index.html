@@ -596,6 +596,7 @@ let state = {
   unitForecastDays: "",
   unitExpenseFrom: "",
   unitExpenseTo: "",
+  unitExpenseOpen: false,
   ceoMessageDraft: "",
   myCeoMessages: [],
   ceoInboxMessages: [],
@@ -825,7 +826,7 @@ function unitRangeExpenses(f, from, to){
 }
 
 async function loadUnitFinancials(unitId){
-  state.loading = true; state.viewingUnitId = unitId; state.unitForecastDays = ""; state.unitExpenseFrom = todayLocalISO(); state.unitExpenseTo = todayLocalISO(); render();
+  state.loading = true; state.viewingUnitId = unitId; state.unitForecastDays = ""; state.unitExpenseFrom = todayLocalISO(); state.unitExpenseTo = todayLocalISO(); state.unitExpenseOpen = false; render();
   const { data: unit } = await sb.from("ts_project_units").select("*, ts_projects:project_id(name)").eq("id", unitId).maybeSingle();
   const { data: reports } = await sb.from("ts_daily_reports").select("report_date, team_member_ids").eq("unit_id", unitId).order("report_date", { ascending: true });
 
@@ -10832,6 +10833,7 @@ function renderUnitFinancialReport(){
 
     ${(() => {
       const from = state.unitExpenseFrom, to = state.unitExpenseTo;
+      const open = !!state.unitExpenseOpen;
       const badRange = !!from && !!to && from > to;
       const r = (from && to && !badRange) ? unitRangeExpenses(f, from, to) : null;
       const today = todayLocalISO();
@@ -10839,8 +10841,12 @@ function renderUnitFinancialReport(){
       const periodText = from && to ? (from === to ? toDDMMYYYY(from) : `${toDDMMYYYY(from)} → ${toDDMMYYYY(to)}`) : "";
       return `
       <div class="card" style="margin-top:10px;padding:10px;border:2px solid #F0C766;background:#FFFBF0;">
-        <div style="font-weight:800;font-size:11.5px;color:#966109;">🧮 Expenses for a date or range</div>
-        <div class="meta" style="margin-bottom:8px;">Labour cost from the daily reports for the days you choose. Old expenses are not included.</div>
+        <div id="toggleUnitExpenseBtn" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;">
+          <div style="font-weight:800;font-size:11.5px;color:#966109;">🧮 Expenses for a date or range</div>
+          <span style="color:#966109;font-size:16px;font-weight:800;">${open ? "▲" : "▼"}</span>
+        </div>
+        ${open ? `
+        <div class="meta" style="margin:8px 0;">Labour cost from the daily reports for the days you choose. Old expenses are not included.</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">${chip("today", "Today")}${chip("yesterday", "Yesterday")}${chip("week", "Last 7 days")}${chip("month", "This month")}</div>
         <label style="margin-top:6px;">From</label>
         <input type="date" id="unitExpenseFromInput" value="${escapeHtml(from || "")}" max="${today}">
@@ -10872,6 +10878,7 @@ function renderUnitFinancialReport(){
         <div style="font-weight:800;font-size:10.5px;color:#966109;margin:12px 0 4px;">By person</div>
         <div style="font-size:12px;">${r.people.map(p => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 2px;border-bottom:1px solid #F0E3BF;"><span>${escapeHtml(p.name)} <span style="color:var(--muted);">• ${p.days} day${p.days === 1 ? "" : "s"} × ${fmtSAR(p.rate)}</span></span><b>${fmtSAR(p.cost)}</b></div>`).join("")}</div>
         `) : ""}
+        ` : ""}
       </div>`;
     })()}
 
@@ -11622,6 +11629,7 @@ function handleDelegatedClick(e){
   const exportWorklogEl = e.target.closest("[data-export-worklog]");
   if(exportWorklogEl){ exportProjectWorkLog(exportWorklogEl.getAttribute("data-export-worklog")); return; }
 
+  if(el("toggleUnitExpenseBtn")){ state.unitExpenseOpen = !state.unitExpenseOpen; render(); return; }
   const expenseRangeEl = e.target.closest("[data-unit-expense-range]");
   if(expenseRangeEl){
     const key = expenseRangeEl.getAttribute("data-unit-expense-range"), today = todayLocalISO();
