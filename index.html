@@ -578,6 +578,7 @@ let state = {
   financialReportDate: todayLocalISO(),
   financialDirty: false,
   employeeDirectory: [],
+  directoryShowFormer: false,
   directoryVacations: [],
   selectedDirectoryEmployeeId: null,
   myProfile: null,
@@ -2363,7 +2364,7 @@ function computeTotals(entries){
 async function loadSupervisorList(){
   state.loading = true; render();
   const mk = monthKey(state.monthDate);
-  const { data: staff } = await sb.from("ts_employees").select("*").eq("timesheet_supervisor_id", state.user.id).eq("active", true).order("name");
+  const { data: staff } = await employeesOnBooksForMonth(`${mk}-01`, q => q.select("*").eq("timesheet_supervisor_id", state.user.id).order("name"));
   const ids = (staff||[]).map(s=>s.id);
   let subs = [];
   if(ids.length){
@@ -2817,7 +2818,7 @@ async function loadCeoTimesheetSummary(){
   state.loading = true; render();
   const month = monthKey(new Date());
   const [{ data: employees }, { data: submissions }] = await Promise.all([
-    sb.from("ts_employees").select("id, name, short_name, supervisor_id, role").eq("active", true).order("short_name", { nullsFirst: false }).order("name"),
+    employeesOnBooksForMonth(`${month}-01`, q => q.select("id, name, short_name, supervisor_id, role").order("short_name", { nullsFirst: false }).order("name")),
     sb.from("ts_timesheet_submissions").select("employee_id, status, submitted_at").eq("month", month)
   ]);
   const statusByEmpId = {};
@@ -3329,7 +3330,7 @@ async function loadAbsencesForDate(date){
 
 async function saveAttendanceForDate(date){
   const ids = state.attendanceDraftIds;
-  const names = state.allEmployeesForReport.filter(e=>ids.includes(e.id)).map(e=>e.short_name || e.name);
+  const names = await namesForSavedIds(ids);
   state.loading = true; render();
   const { error } = await sb.from("ts_daily_absences").upsert({
     absence_date: date,
@@ -4675,10 +4676,78 @@ async function exportFinancialReportExcel(){
 }
 
 /* ---------------- Employee directory & self-service profile ---------------- */
+/* ---------------- Employees who left the company ----------------
+   HR / the Owner can remove someone who left: he disappears from every current list (daily reports,
+   attendance, vacation forms ...) and his login is switched off, but ALL his old data stays. For the month he
+   left, and any month before, the month-based screens and exports still include him. */
+
+// The people on the books during a month: still active, or left on/after its first day (so his last month's
+// attendance, salary and timesheet still include him). `build` adds the select and any extra filters, but no
+// active filter. If the database has no "left_date" yet, this is simply the active people, exactly as before.
+async function employeesOnBooksForMonth(monthStart, build){
+  const withLeft = await build(sb.from("ts_employees")).or(`active.eq.true,left_date.gte.${monthStart}`);
+  if(!withLeft.error) return withLeft;
+  return await build(sb.from("ts_employees")).eq("active", true);
+}
+
+// Names for a saved list of ids (a daily report's team, the absence list). Someone who has since left is no
+// longer in the active list, but an OLD report that includes him must keep his name, so look those up.
+async function namesForSavedIds(ids){
+  const active = state.allEmployeesForReport || [];
+  const names = active.filter(e => ids.includes(e.id)).map(e => e.short_name || e.name);
+  const missing = ids.filter(id => !active.some(e => e.id === id));
+  if(missing.length){
+    const { data } = await sb.from("ts_employees").select("id, name, short_name").in("id", missing);
+    (data || []).forEach(e => names.push(e.short_name || e.name));
+  }
+  return names;
+}
+
+function describeLeaveError(error){
+  const m = String((error && error.message) || "");
+  if(error && (error.code === "PGRST202" || /could not find the function|does not exist/i.test(m))) return "One-time setup needed: run add_employee_left.sql in Supabase, then try again.";
+  return m || "Could not save. Try again.";
+}
+
+async function leaveSelectedEmployee(){
+  const emp = state.employeeDirectory.find(e => e.id === state.selectedDirectoryEmployeeId);
+  if(!emp || !["hr", "ceo"].includes(state.user.role)) return;
+  const lastDay = promptDate(`Last working day of ${emp.name}`, todayLocalISO());
+  if(!lastDay) return; // cancelled, or left empty
+  if(lastDay > todayLocalISO()){ toast("The last working day cannot be in the future. Remove him on his last day."); return; }
+  const { count } = await sb.from("ts_employees").select("id", { count: "exact", head: true }).eq("timesheet_supervisor_id", emp.id).eq("active", true);
+  const supervises = count || 0;
+  const warning = supervises ? `\n\n⚠ He is the timesheet supervisor of ${supervises} ${supervises === 1 ? "person" : "people"}. They will have no supervisor until you assign another.` : "";
+  if(!confirm(`Remove ${emp.name}?\n\nLast working day: ${toDDMMYYYY(lastDay)}\n• He disappears from daily reports, attendance and other lists.\n• His login is switched off.\n• All his old data (reports, timesheets, salaries) is kept.${warning}`)) return;
+  state.loading = true; render();
+  const { error } = await sb.rpc("ts_employee_left", { p_employee: emp.id, p_left_date: lastDay });
+  state.loading = false;
+  if(error){ toast(describeLeaveError(error)); render(); return; }
+  toast(`${emp.name} removed. His old data is kept.`);
+  if(!state.directoryShowFormer) state.selectedDirectoryEmployeeId = null;
+  await loadEmployeeDirectory();
+}
+
+async function restoreSelectedEmployee(){
+  const emp = state.employeeDirectory.find(e => e.id === state.selectedDirectoryEmployeeId);
+  if(!emp || !["hr", "ceo"].includes(state.user.role)) return;
+  if(!confirm(`Restore ${emp.name}?\n\nHe will appear again in daily reports and other lists, and his login is switched back on.`)) return;
+  state.loading = true; render();
+  const { error } = await sb.rpc("ts_employee_restore", { p_employee: emp.id });
+  state.loading = false;
+  if(error){ toast(describeLeaveError(error)); render(); return; }
+  toast(`${emp.name} restored.`);
+  await loadEmployeeDirectory();
+}
+
 async function loadEmployeeDirectory(){
   state.loading = true; render();
+  // HR and the Owner can also see (and restore) people who left; everyone else sees only current employees
+  const canSeeFormer = !!state.user && (state.user.role === "hr" || state.user.role === "ceo");
+  let employeeQuery = sb.from("ts_employees").select("*").order("name");
+  if(!canSeeFormer) employeeQuery = employeeQuery.eq("active", true);
   const [{ data }, { data: vacations }] = await Promise.all([
-    sb.from("ts_employees").select("*").eq("active", true).order("name"),
+    employeeQuery,
     sb.from("ts_vacations").select("*").order("start_date", { ascending: false })
   ]);
   state.employeeDirectory = data || [];
@@ -5237,7 +5306,7 @@ async function saveDailyReport(){
   if(!d.projectId){ toast("Select a project."); return; }
   if(!d.teamIds.length){ toast("Select at least one person working in this unit."); return; }
   if(!d.rawText || !d.rawText.trim()){ toast("Write today's progress note."); return; }
-  const teamNames = state.allEmployeesForReport.filter(e=>d.teamIds.includes(e.id)).map(e=>e.short_name || e.name);
+  const teamNames = await namesForSavedIds(d.teamIds);
   const unit = state.reportUnits.find(u=>u.id===d.unitId);
   const payload = {
     supervisor_id: state.user.id,
@@ -6208,7 +6277,7 @@ async function loadAbsenceComparison(){
 
   state.loading = true; render();
   const [{ data: employees }, { data: entries }, { data: absenceRows }, { data: vacations }] = await Promise.all([
-    sb.from("ts_employees").select("id, name, short_name").eq("active", true).not("short_name", "is", null).order("name"),
+    employeesOnBooksForMonth(start, q => q.select("id, name, short_name").not("short_name", "is", null).order("name")),
     sb.from("ts_timesheet_entries").select("employee_id, entry_date, status").gte("entry_date", start).lte("entry_date", end),
     sb.from("ts_daily_absences").select("*").gte("absence_date", start).lte("absence_date", end),
     sb.from("ts_vacations").select("*").lte("start_date", end).gte("end_date", start)
@@ -7056,16 +7125,24 @@ async function exportAttendanceByProjectExcel(){
 
     // People who are not in the daily reports but are always on one project (set by HR) are listed too.
     let fixedColumnAvailable = true;
+    const attendanceMonthStart = `${year}-${mm}-01`;
     const loadAttendanceEmployees = async () => {
-      const withFixed = await sb.from("ts_employees")
-        .select("id, name, short_name, salary_group, joining_date, fixed_attendance_project_id")
-        .eq("active", true)
-        .or("short_name.not.is.null,fixed_attendance_project_id.not.is.null")
-        .order("name");
-      if(!withFixed.error) return withFixed;
-      fixedColumnAvailable = false;
-      // (the database doesn't have that column yet: carry on exactly as before)
-      return sb.from("ts_employees").select("id, name, short_name, salary_group").eq("active", true).not("short_name", "is", null).order("name");
+      // everyone on the books that month (a person who left that month is still in it). Richest columns first,
+      // so a database that lacks one of the newer columns carries on as before.
+      const columnSets = [
+        "id, name, short_name, salary_group, joining_date, fixed_attendance_project_id, left_date",
+        "id, name, short_name, salary_group, joining_date, fixed_attendance_project_id",
+        "id, name, short_name, salary_group"
+      ];
+      let result = null, used = 0;
+      for(used = 0; used < columnSets.length; used++){
+        result = await employeesOnBooksForMonth(attendanceMonthStart, q => q.select(columnSets[used]).order("name"));
+        if(!result.error) break;
+      }
+      if(result.error) return result;
+      if(used === 2) fixedColumnAvailable = false;
+      // listed: people with a short name (the daily-report people) and people HR has fixed on a project
+      return { data: (result.data || []).filter(e => e.short_name != null || e.fixed_attendance_project_id != null), error: null };
     };
     const [{ data: employees }, { data: reports }, { data: absenceRows }, { data: vacations }, { data: projects }, { data: otSubs }] = await Promise.all([
       loadAttendanceEmployees(),
@@ -7148,7 +7225,7 @@ async function exportAttendanceByProjectExcel(){
         else if(isOnVacation(emp.id, dateStr)) val = "VAC";
         else if(absentByDate[dateStr] && absentByDate[dateStr].has(emp.id)) val = "A";
         else if(dayProjectMap[`${dateStr}|${emp.id}`]) val = dayProjectMap[`${dateStr}|${emp.id}`];
-        else if(fixedProject && dateStr <= todayISO && (!emp.joining_date || dateStr >= emp.joining_date)) val = fixedProject;
+        else if(fixedProject && dateStr <= todayISO && (!emp.joining_date || dateStr >= emp.joining_date) && (!emp.left_date || dateStr <= emp.left_date)) val = fixedProject;
         // Matches the salary sheet's own convention: Friday and VAC
         // days count toward neither present nor absent -- only an
         // actual project assignment or an "A" mark does.
@@ -7384,8 +7461,8 @@ async function generateWpsPayroll(payrollGroup){
       state.hrmSupervisorId = mohammedId || null;
     }
 
-    const { data: allEmployees, error: empErr } = await sb.from("ts_employees")
-      .select("*").in("role", ["employee","supervisor"]).eq("active", true).order("name");
+    const { data: allEmployees, error: empErr } = await employeesOnBooksForMonth(`${state.hrMonth}-01`, q => q
+      .select("*").in("role", ["employee","supervisor"]).order("name"));
     if(empErr) throw empErr;
 
     // IBAN and bank code live in their own HR-only table now, separate
@@ -7535,8 +7612,8 @@ async function generateSalarySheet(){
 
     // Show every active employee, but track which ones have a fully approved
     // timesheet for this month so those rows can be highlighted.
-    const { data: employees, error: empErr } = await sb.from("ts_employees")
-      .select("*").in("role", ["employee","supervisor"]).eq("active", true).order("name");
+    const { data: employees, error: empErr } = await employeesOnBooksForMonth(start, q => q
+      .select("*").in("role", ["employee","supervisor"]).order("name"));
     if(empErr) throw empErr;
 
     const { data: approvedSubs, error: subErr } = await sb.from("ts_timesheet_submissions")
@@ -8121,7 +8198,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "6 Oct 2026 - attendance fix";
+const APP_VERSION = "8 Oct 2026 - left the company";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -8564,11 +8641,12 @@ function renderEmployeeDirectory(){
     <div class="empty-state"><div class="ic">👤</div><span class="spinner" style="margin-right:8px;"></span>Loading employee directory…</div>
     `;
   }
-  const nonSaudiList = state.employeeDirectory.filter(e => e.supervisor_id !== state.hrmSupervisorId);
-  const emp = nonSaudiList.find(e=>e.id===state.selectedDirectoryEmployeeId);
-  const options = nonSaudiList.map(e => `<option value="${e.id}" ${e.id===state.selectedDirectoryEmployeeId?"selected":""}>${e.name}</option>`).join("");
   const isHrUser = state.user.role === "hr";
   const isCeoUser = state.user.role === "ceo";
+  const formerCount = state.employeeDirectory.filter(e => e.active === false && e.supervisor_id !== state.hrmSupervisorId).length;
+  const nonSaudiList = state.employeeDirectory.filter(e => e.supervisor_id !== state.hrmSupervisorId && (state.directoryShowFormer || e.active !== false));
+  const emp = nonSaudiList.find(e=>e.id===state.selectedDirectoryEmployeeId);
+  const options = nonSaudiList.map(e => `<option value="${e.id}" ${e.id===state.selectedDirectoryEmployeeId?"selected":""}>${escapeHtml(e.name)}${e.active === false ? ` (left${e.left_date ? " " + toDDMMYYYY(e.left_date) : ""})` : ""}</option>`).join("");
   const backBtnId = isCeoUser ? "backToCeoHomeBtn" : (isHrUser ? "backToHrBtn" : (state.user.role === "manager" ? "backToManagerHomeBtn" : "backToSupervisorHomeBtn"));
 
   const row = (icon, label, value, dateForStatus) => {
@@ -8604,6 +8682,12 @@ function renderEmployeeDirectory(){
       <div style="position:relative;font-weight:800;font-size:19px;color:#fff;margin-top:12px;">${emp.name}</div>
       <div style="position:relative;font-size:12px;color:#BFDCF5;margin-top:4px;letter-spacing:0.3px;">${emp.employee_no || ""}${emp.project_site ? "  •  " + emp.project_site : ""}</div>
     </div>
+
+    ${emp.active === false ? `
+    <div style="background:#FDECEA;border:2px solid #C43B3B;border-radius:12px;padding:10px 12px;margin-top:12px;color:#8E2A2A;text-align:center;">
+      <div style="font-weight:800;font-size:13px;">🚪 Left the company${emp.left_date ? " on " + toDDMMYYYY(emp.left_date) : ""}</div>
+      <div style="font-weight:500;font-size:11.5px;margin-top:2px;">His old data is kept. He no longer appears in daily reports or other lists.</div>
+    </div>` : ""}
 
     ${section("👤 PERSONAL INFORMATION", "#1B5A96", "#EAF1FC",
       row("🌍", "Nationality", emp.nationality) +
@@ -8661,7 +8745,9 @@ function renderEmployeeDirectory(){
     )}
 
     <button class="btn btn-sm" id="exportProfilePdfBtn" style="width:100%;margin-top:16px;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff;border:none;font-weight:800;">⬇ Export as PDF</button>
-    ${(isHrUser || isCeoUser) ? `<button class="btn btn-sm btn-outline" id="resetEmployeePasswordBtn" data-employee-id="${emp.id}" style="width:100%;margin-top:8px;color:#C43B3B;border-color:#C43B3B;" ${state.loading ? "disabled" : ""}>🔑 Reset Login Password</button>` : ""}
+    ${((isHrUser || isCeoUser) && emp.active !== false) ? `<button class="btn btn-sm btn-outline" id="resetEmployeePasswordBtn" data-employee-id="${emp.id}" style="width:100%;margin-top:8px;color:#C43B3B;border-color:#C43B3B;" ${state.loading ? "disabled" : ""}>🔑 Reset Login Password</button>` : ""}
+    ${((isHrUser || isCeoUser) && emp.active !== false && emp.id !== state.user.id && emp.role !== "ceo" && !(emp.role === "hr" && !isCeoUser)) ? `<button class="btn btn-sm btn-outline" id="leaveEmployeeBtn" style="width:100%;margin-top:8px;color:#C43B3B;border-color:#C43B3B;" ${state.loading ? "disabled" : ""}>🚪 Left the company</button>` : ""}
+    ${((isHrUser || isCeoUser) && emp.active === false) ? `<button class="btn btn-sm btn-outline" id="restoreEmployeeBtn" style="width:100%;margin-top:16px;color:#1C8A4E;border-color:#1C8A4E;" ${state.loading ? "disabled" : ""}>↩ Restore (rehired)</button>` : ""}
     ${isHrUser ? `<div class="field-note" style="text-align:center;">To update dates, use "Renewals & Expiry" instead.</div>` : ""}
   ` : "";
 
@@ -8671,6 +8757,11 @@ function renderEmployeeDirectory(){
       <h3>👤 Employee Directory</h3>
       <div class="meta">Pick a name to view their full profile.</div>
     </div>
+    ${(isHrUser || isCeoUser) ? `
+    <label style="display:flex;align-items:center;gap:8px;margin:10px 0 0;text-transform:none;font-weight:600;font-size:12.5px;cursor:pointer;">
+      <input type="checkbox" id="directoryShowFormerInput" ${state.directoryShowFormer ? "checked" : ""} style="width:18px;height:18px;">
+      Show former employees${formerCount ? ` (${formerCount})` : ""}
+    </label>` : ""}
     <label style="margin-top:10px;">Employee</label>
     <select id="directoryEmployeeSelect">
       <option value="">Select employee</option>
@@ -11860,6 +11951,8 @@ function handleDelegatedClick(e){
     return;
   }
   if(el("exportProfilePdfBtn")){ generateEmployeeProfilePdf(); return; }
+  if(el("leaveEmployeeBtn")){ leaveSelectedEmployee(); return; }
+  if(el("restoreEmployeeBtn")){ restoreSelectedEmployee(); return; }
   const resetPwBtn = el("resetEmployeePasswordBtn");
   if(resetPwBtn){ resetEmployeePassword(resetPwBtn.getAttribute("data-employee-id")); return; }
   if(el("openVehicleDocumentsBtn")){
@@ -12277,6 +12370,7 @@ function handleDelegatedChange(e){
     toggleUnitManpower(unitId, projectId, toggleManpowerEl.checked);
     return;
   }
+  if(e.target.id === "directoryShowFormerInput"){ state.directoryShowFormer = !!e.target.checked; render(); return; }
   if(e.target.id === "directoryEmployeeSelect"){
     state.selectedDirectoryEmployeeId = e.target.value || null;
     render();
@@ -12557,8 +12651,15 @@ async function init(){
       // set yet, rather than trusting the cached session -- otherwise
       // anyone already logged in on their phone could skip the new
       // requirement indefinitely just by never logging out.
-      const { data: freshData } = await sb.rpc("login_refetch_by_id", { p_id: state.user.id });
+      const { data: freshData, error: freshError } = await sb.rpc("login_refetch_by_id", { p_id: state.user.id });
       const fresh = Array.isArray(freshData) ? freshData[0] : freshData;
+      // the lookup worked but finds no current employee: he has been removed, so end his session
+      // (a failed lookup, e.g. no internet, must NOT log anyone out)
+      if(!freshError && !fresh){
+        try{ await sb.auth.signOut(); }catch(_){}
+        failLogin("Your account is no longer active. Please contact HR.");
+        return;
+      }
       if(fresh && !fresh.password_hash){
         state.user = null;
         localStorage.removeItem("ts_user");
