@@ -7349,14 +7349,60 @@ async function exportAttendanceByProjectExcel(){
 }
 
 /* ---------------- Project Summary (overall, not per-unit) ---------------- */
+// ---- months, for the manpower projects' monthly view ----
+const SUMMARY_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function monthLabelFromKey(key){
+  const [y, m] = String(key).split("-").map(Number);
+  return `${SUMMARY_MONTHS[m - 1]} ${y}`;
+}
+function nextMonthKey(key){
+  const [y, m] = String(key).split("-").map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+// "Sep 2026", "September 2026", "2026-09", "09/2026" ... -> "2026-09" (null if it cannot be read).
+// With no year typed, the year of the date the invoice was saved is used (the year before, if that month is still ahead of it).
+function monthKeyFromText(text, fallbackISO){
+  const t = String(text || "").trim().toLowerCase();
+  if(!t) return null;
+  const pad = n => String(n).padStart(2, "0");
+  let m = t.match(/\b(20\d{2})\s*[-\/.]\s*(\d{1,2})\b/);
+  if(m && +m[2] >= 1 && +m[2] <= 12) return `${m[1]}-${pad(m[2])}`;
+  m = t.match(/\b(\d{1,2})\s*[-\/.]\s*(20\d{2})\b/);
+  if(m && +m[1] >= 1 && +m[1] <= 12) return `${m[2]}-${pad(m[1])}`;
+  const name = t.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*/);
+  if(!name) return null;
+  const month = SUMMARY_MONTHS.findIndex(x => x.toLowerCase() === name[1]) + 1;
+  const year = t.match(/\b(20\d{2})\b/);
+  if(year) return `${year[1]}-${pad(month)}`;
+  const fb = String(fallbackISO || "").slice(0, 7);
+  if(!/^\d{4}-\d{2}$/.test(fb)) return null;
+  let y = +fb.slice(0, 4);
+  if(month > +fb.slice(5, 7)) y -= 1;
+  return `${y}-${pad(month)}`;
+}
+
 async function loadProjectSummary(showArchived){
   state.loading = true; state.projectSummaryShowArchived = !!showArchived; render();
-  const [{ data: projects }, { data: units }, { data: reports }, { data: invoices }] = await Promise.all([
-    sb.from("ts_projects").select("*").eq("active", true).eq("hide_from_summary", !!showArchived).order("name"),
-    sb.from("ts_project_units").select("*").eq("active", true),
-    sb.from("ts_daily_reports").select("project_id, unit_id, team_member_ids"),
-    sb.from("ts_financial_invoices").select("*").not("project_id", "is", null).order("created_at", { ascending: true })
-  ]);
+  let projects, units, reports, invoices;
+  try{
+    // reports and invoices are read page by page: the database returns at most 1,000 rows per request,
+    // so one request would silently cut the totals short once there are more
+    const [projRes, unitRes, reportRows, invoiceRows] = await Promise.all([
+      sb.from("ts_projects").select("*").eq("active", true).eq("hide_from_summary", !!showArchived).order("name"),
+      sb.from("ts_project_units").select("*").eq("active", true),
+      fetchAllPages((a, b) => sb.from("ts_daily_reports").select("project_id, unit_id, team_member_ids, report_date")
+        .order("report_date", { ascending: true }).order("id", { ascending: true }).range(a, b)),
+      fetchAllPages((a, b) => sb.from("ts_financial_invoices").select("*").not("project_id", "is", null)
+        .order("created_at", { ascending: true }).order("id", { ascending: true }).range(a, b))
+    ]);
+    projects = projRes.data; units = unitRes.data; reports = reportRows; invoices = invoiceRows;
+  }catch(e){
+    console.error("Project summary load error:", e);
+    state.loading = false;
+    toast("Could not load the project summary: " + (e && e.message ? e.message : "unknown error"));
+    render();
+    return;
+  }
 
   const allEmpIds = [...new Set((reports || []).flatMap(r => r.team_member_ids || []))];
   let rateById = {}, claimRateById = {};
@@ -7369,6 +7415,11 @@ async function loadProjectSummary(showArchived){
   }
 
   const manpowerUnitIds = new Set((units || []).filter(u => u.is_manpower).map(u => u.id));
+  const manpowerUnitCount = {}, fixedUnitCount = {};
+  (units || []).forEach(u => {
+    if(u.is_manpower) manpowerUnitCount[u.project_id] = (manpowerUnitCount[u.project_id] || 0) + 1;
+    else fixedUnitCount[u.project_id] = (fixedUnitCount[u.project_id] || 0) + 1;
+  });
 
   // PO Value combines two things: fixed-price units' PO, plus (for
   // manpower units, which have no fixed PO) the claim value accrued so
@@ -7379,14 +7430,17 @@ async function loadProjectSummary(showArchived){
     poByProject[u.project_id] = (poByProject[u.project_id] || 0) + Number(u.po_value || 0);
   });
 
-  const expensesByProject = {};
-  const claimByProject = {};
+  const expensesByProject = {}, claimByProject = {};
+  const expensesByProjectMonth = {}, claimByProjectMonth = {};
   (reports || []).forEach(r => {
     const cost = (r.team_member_ids || []).reduce((s,id) => s + (rateById[id] || 0), 0);
+    const mk = String(r.report_date || "").slice(0, 7);
     expensesByProject[r.project_id] = (expensesByProject[r.project_id] || 0) + cost;
+    (expensesByProjectMonth[r.project_id] || (expensesByProjectMonth[r.project_id] = {}))[mk] = ((expensesByProjectMonth[r.project_id] || {})[mk] || 0) + cost;
     if(manpowerUnitIds.has(r.unit_id)){
       const claim = (r.team_member_ids || []).reduce((s,id) => s + ((claimRateById[id] || 0) * 8), 0);
       claimByProject[r.project_id] = (claimByProject[r.project_id] || 0) + claim;
+      (claimByProjectMonth[r.project_id] || (claimByProjectMonth[r.project_id] = {}))[mk] = ((claimByProjectMonth[r.project_id] || {})[mk] || 0) + claim;
     }
   });
 
@@ -7402,10 +7456,13 @@ async function loadProjectSummary(showArchived){
 
   const invoicesByProject = {};
   dedupedInvoices.forEach(v => {
+    // the month an invoice is FOR: what was typed, or (if it cannot be read) the month it was saved
+    v._month = monthKeyFromText(v.invoice_month, v.report_date) || String(v.report_date || "").slice(0, 7) || "";
     if(!invoicesByProject[v.project_id]) invoicesByProject[v.project_id] = [];
     invoicesByProject[v.project_id].push(v);
   });
 
+  const thisMonth = todayLocalISO().slice(0, 7);
   state.projectSummaryRows = (projects || []).map(p => {
     const projectInvoices = invoicesByProject[p.id] || [];
     const invoicesSum = projectInvoices.reduce((s,v)=>s+Number(v.amount_no_vat||0),0);
@@ -7420,11 +7477,38 @@ async function loadProjectSummary(showArchived){
     // current best estimate of what's been earned so far.
     const marginBasis = invoicesTotal > 0 ? invoicesTotal : claimValue;
     const margin = marginBasis > 0 ? (marginBasis - expenses) / marginBasis : null;
-    return {
+    const row = {
       id: p.id, name: p.name, startingDate: p.starting_date,
       poValue, unitsPoSum, claimValue, expenses, invoicesTotal, balance, margin, invoices: projectInvoices,
-      openingPo: p.opening_po_value, openingExpenses: p.opening_expenses, openingInvoices: p.opening_invoices
+      openingPo: p.opening_po_value, openingExpenses: p.opening_expenses, openingInvoices: p.opening_invoices,
+      monthly: false
     };
+
+    // A project billed only by manpower claim (like Qiddiya) is shown for ONE month: the month of its latest invoice,
+    // so the next month's invoice moves it on. With no invoice yet, the current month. Everything since the start
+    // stays available (row.since). Projects with a fixed PO keep their whole-project figures.
+    const manpowerOnly = (manpowerUnitCount[p.id] || 0) > 0 && !(fixedUnitCount[p.id] || 0) && !Number(p.opening_po_value || 0);
+    if(manpowerOnly){
+      const invoiceMonths = projectInvoices.map(v => v._month).filter(Boolean).sort();
+      const latestInvoiceMonthKey = invoiceMonths.length ? invoiceMonths[invoiceMonths.length - 1] : null;
+      const monthKey = latestInvoiceMonthKey || thisMonth;
+      const claimMonth = (claimByProjectMonth[p.id] || {})[monthKey] || 0;
+      const expensesMonth = (expensesByProjectMonth[p.id] || {})[monthKey] || 0;
+      const invoicesMonth = projectInvoices.filter(v => v._month === monthKey).reduce((s, v) => s + Number(v.amount_no_vat || 0), 0);
+      const basis = invoicesMonth > 0 ? invoicesMonth : claimMonth;
+      row.since = { poValue, expenses, invoicesTotal, balance, margin };
+      row.monthly = true;
+      row.monthKey = monthKey;
+      row.monthLabel = monthLabelFromKey(monthKey);
+      row.latestInvoiceMonthKey = latestInvoiceMonthKey;
+      row.claimByMonth = claimByProjectMonth[p.id] || {};
+      row.poValue = claimMonth;
+      row.expenses = expensesMonth;
+      row.invoicesTotal = invoicesMonth;
+      row.balance = claimMonth - invoicesMonth;
+      row.margin = basis > 0 ? (basis - expensesMonth) / basis : null;
+    }
+    return row;
   });
   state.loading = false;
   render();
@@ -7490,14 +7574,26 @@ async function raiseInvoiceFromClaim(projectId){
   const p = state.projectSummaryRows.find(x=>x.id===projectId);
   if(!p) return;
   if(!p.claimValue){ toast("No manpower claim value accrued yet for this project."); return; }
-  const suggested = Math.round(p.claimValue * 100) / 100;
+
+  // A monthly (manpower) project is invoiced one month at a time: the claim of THAT month.
+  let monthKey = null, claim = p.claimValue;
+  if(p.monthly){
+    const suggestedKey = p.latestInvoiceMonthKey ? nextMonthKey(p.latestInvoiceMonthKey) : todayLocalISO().slice(0, 7);
+    const typed = prompt("Month to invoice (e.g. Sep 2026):", monthLabelFromKey(suggestedKey));
+    if(typed === null) return;
+    monthKey = monthKeyFromText(typed, todayLocalISO());
+    if(!monthKey){ toast("Could not read that month. Use a format like Sep 2026."); return; }
+    claim = (p.claimByMonth && p.claimByMonth[monthKey]) || 0;
+    if(!claim){ toast(`No manpower claim for ${monthLabelFromKey(monthKey)} yet.`); return; }
+  }
+  const suggested = Math.round(claim * 100) / 100;
   const description = (prompt("Description for this invoice:", p.name) || "").trim();
   if(!description) return;
   const invoiceNo = (prompt("Invoice No:") || "").trim();
-  const actualInput = prompt(`Claim value so far: SAR ${suggested.toLocaleString()}. Enter the actual invoice amount to save (w/o VAT):`, suggested);
+  const actualInput = prompt(`Claim value${monthKey ? " for " + monthLabelFromKey(monthKey) : " so far"}: SAR ${suggested.toLocaleString()}. Enter the actual invoice amount to save (w/o VAT):`, suggested);
   if(actualInput === null) return;
   const actualAmount = Number(actualInput) || 0;
-  const month = new Date().toLocaleDateString(undefined, { month: "short", year: "numeric" });
+  const month = monthLabelFromKey(monthKey || todayLocalISO().slice(0, 7));
   state.loading = true; render();
   const { error } = await sb.from("ts_financial_invoices").insert({
     description, invoice_no: invoiceNo, amount_no_vat: actualAmount,
@@ -7505,7 +7601,7 @@ async function raiseInvoiceFromClaim(projectId){
     invoice_month: month, project_id: projectId, report_date: todayLocalISO()
   });
   state.loading = false;
-  toast(error ? "Could not save invoice." : "Invoice saved for this project's claim.");
+  toast(error ? "Could not save invoice." : `Invoice saved for ${month}.`);
   await loadProjectSummary(state.projectSummaryShowArchived);
 }
 
@@ -8267,7 +8363,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "12 Oct 2026 - quote typing fix";
+const APP_VERSION = "24 Oct 2026 - monthly project summary";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -8995,7 +9091,7 @@ function renderProjectSummary(){
       : `<button data-archive-project="${p.id}" style="border:none;background:none;padding:2px;font-size:14px;cursor:pointer;color:#333;">🗄</button>`;
     const claimBtn = (!showingArchived && p.claimValue > 0) ? `<button data-raise-invoice-claim="${p.id}" style="border:none;background:none;padding:2px;font-size:14px;cursor:pointer;color:#333;">📥</button>` : "";
     return [
-      `<span data-toggle-project-invoices="${p.id}" style="cursor:pointer;font-weight:700;">${p.name} ${p.invoices.length ? "▾" : ""}</span>`,
+      `<span data-toggle-project-invoices="${p.id}" style="cursor:pointer;font-weight:700;">${p.name} ${(p.invoices.length || p.monthly) ? "▾" : ""}</span>${p.monthly ? `<div style="font-size:8px;font-weight:700;color:#1B5A96;margin-top:1px;">📅 ${p.monthLabel}</div>` : ""}`,
       fmtAcct(p.poValue),
       fmtAcct(p.expenses),
       fmtAcct(p.invoicesTotal),
@@ -9015,9 +9111,14 @@ function renderProjectSummary(){
           <tr style="background:${ri%2===0?"#fff":"#F7F7F7"};">${rows[ri].map((c,i)=>`<td style="padding:4px 6px;text-align:${i===0?"left":"right"};vertical-align:middle;white-space:nowrap;border:1px solid #CCC;color:#111;">${c.content}</td>`).join("")}</tr>
           ${state.expandedProjectSummaryId === p.id ? `
           <tr><td colspan="${headers.length}" style="padding:6px 10px;background:#fff;border:1px solid #CCC;white-space:normal;">
+            ${p.monthly ? `
+              <div style="font-size:9.5px;padding:2px 0 6px;color:#111;">
+                <div style="font-weight:800;margin-bottom:2px;">Since the start</div>
+                <div>Claim ${fmtAcct(p.since.poValue)} · Expenses ${fmtAcct(p.since.expenses)} · Invoices ${fmtAcct(p.since.invoicesTotal)} · Balance ${fmtAcct(p.since.balance)} · Margin ${p.since.margin === null ? "-" : (p.since.margin*100).toFixed(1) + "%"}</div>
+              </div>` : ""}
             ${p.invoices.length ? p.invoices.map((v,i) => `
               <div style="display:flex;justify-content:space-between;font-size:9.5px;padding:3px 0;border-top:1px dashed #CCC;gap:10px;color:#111;">
-                <span>${i+1}. ${v.description || "-"}${v.invoice_no ? " · " + v.invoice_no : ""}</span>
+                <span>${i+1}. ${v.description || "-"}${v.invoice_no ? " · " + v.invoice_no : ""}${v.invoice_month ? ` · <span style="color:#555;">${v.invoice_month}</span>` : ""}</span>
                 <span style="font-weight:700;white-space:nowrap;">${fmt(v.amount_no_vat)}</span>
               </div>`).join("") : `<div class="meta">No invoices raised yet.</div>`}
           </td></tr>` : ""}
@@ -9034,7 +9135,7 @@ function renderProjectSummary(){
       <div class="meta" style="color:#BFDCF5;position:relative;">PO Value (w/o VAT) · Expenses · Invoices · Balance · Margin</div>
     </div>
     <button class="btn btn-sm" id="toggleProjectSummaryArchiveBtn" style="width:100%;margin-bottom:12px;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff;border:none;font-weight:800;">${showingArchived ? "📋 View Current Projects" : "📜 View History (completed/archived)"}</button>
-    ${canEdit ? `<div class="field-note" style="margin-bottom:10px;">${showingArchived ? "Tap ↩ to bring a project back to the current list." : "PO Value combines each unit's fixed PO plus any manpower claim value accrued so far. Expenses come from Daily Progress Reports; Invoices come from the Financial Report. Tap a project's name to see its invoice list. Tap ✎ to set starting date or adjust opening Expenses/Invoices. Tap 📥 to save the accrued manpower claim as an actual invoice at month-end. Tap 🗄 to hide a project from Project Summary — it stays fully available in Daily Reports and Timesheets."}</div>` : `<div class="field-note" style="margin-bottom:10px;">Tap a project's name to see its invoice list.</div>`}
+    ${canEdit ? `<div class="field-note" style="margin-bottom:10px;">${showingArchived ? "Tap ↩ to bring a project back to the current list." : "PO Value combines each unit's fixed PO plus any manpower claim value accrued so far. Expenses come from Daily Progress Reports; Invoices come from the Financial Report. Tap a project's name to see its invoice list. Tap ✎ to set starting date or adjust opening Expenses/Invoices. A manpower project (marked 📅) shows ONE month: the month of its latest invoice, then moves to the next month when you add that month's invoice; tap its name to see the totals since the start. Tap 📥 to save a month's manpower claim as an actual invoice. Tap 🗄 to hide a project from Project Summary — it stays fully available in Daily Reports and Timesheets."}</div>` : `<div class="field-note" style="margin-bottom:10px;">Tap a project's name to see its invoice list. A manpower project (📅) shows one month: the month of its latest invoice.</div>`}
     ${state.projectSummaryRows.length ? table : `<div class="empty-state"><div class="ic">📊</div>${showingArchived ? "No projects in History." : "No active projects found."}</div>`}
   `;
 }
