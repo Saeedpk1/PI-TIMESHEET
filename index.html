@@ -456,6 +456,90 @@ table.ps-table tr.ps-expand td{white-space:normal;text-align:left;background:#F7
 .ps-chip b{display:block;font-size:12.5px;color:#0F3556;}
 .ps-empty{padding:18px;text-align:center;color:#6A7B8F;font-size:12px;}
 .ps-note{font-size:10.5px;color:#5B6B7C;padding:8px 14px 12px;line-height:1.5;}
+
+/* ======== Certificates: the "crystal" look (frosted glass, colour, glossy buttons) ======== */
+body.cr-active{
+  background:
+    radial-gradient(700px 420px at 6% -4%, rgba(255,122,196,.50), transparent 62%),
+    radial-gradient(640px 460px at 104% 2%, rgba(64,196,255,.55), transparent 58%),
+    radial-gradient(760px 520px at 55% 108%, rgba(150,118,255,.50), transparent 62%),
+    radial-gradient(520px 380px at -8% 62%, rgba(72,226,190,.42), transparent 60%),
+    linear-gradient(165deg,#EAF3FF 0%,#F3EBFF 48%,#E3F8F5 100%);
+  background-attachment:fixed;
+}
+body.cr-active .app{background:transparent !important}
+body.cr-active header.top{background:linear-gradient(135deg,rgba(15,53,86,.92),rgba(27,90,150,.88));backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.cr-page{max-width:560px;margin:0 auto}
+.cr-glass{position:relative;overflow:hidden;background:linear-gradient(135deg,rgba(255,255,255,.80),rgba(255,255,255,.46));border:1px solid rgba(255,255,255,.88);border-radius:22px;padding:15px 16px;margin-bottom:14px;
+  box-shadow:0 12px 34px rgba(70,80,170,.17),0 2px 6px rgba(70,80,170,.08),inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(255,255,255,.35);
+  backdrop-filter:blur(18px) saturate(180%);-webkit-backdrop-filter:blur(18px) saturate(180%)}
+.cr-glass::before{content:"";position:absolute;left:-20%;top:-60%;width:70%;height:160%;background:linear-gradient(115deg,rgba(255,255,255,.55),rgba(255,255,255,0) 55%);transform:rotate(8deg);pointer-events:none}
+.cr-glass>*{position:relative}
+.cr-tap{cursor:pointer;transition:transform .15s ease,box-shadow .15s ease}.cr-tap:active{transform:scale(.99)}
+.cr-hero{position:relative;overflow:hidden;border-radius:24px;padding:18px 18px 16px;margin-bottom:14px;color:#fff;
+  background:linear-gradient(135deg,#6A3DF0 0%,#2E7BFF 52%,#19C7D8 100%);
+  box-shadow:0 14px 34px rgba(60,80,220,.35),inset 0 1px 0 rgba(255,255,255,.55),inset 0 -2px 0 rgba(0,0,0,.10)}
+.cr-hero::before{content:"";position:absolute;right:-40px;top:-60px;width:190px;height:190px;border-radius:50%;background:radial-gradient(circle at 35% 35%,rgba(255,255,255,.55),rgba(255,255,255,0) 70%)}
+.cr-hero::after{content:"";position:absolute;left:0;right:0;top:0;height:46%;background:linear-gradient(180deg,rgba(255,255,255,.30),rgba(255,255,255,0))}
+.cr-hero>*{position:relative;z-index:1}.cr-hero h2{font-size:19px;font-weight:800;margin:0;text-shadow:0 1px 3px rgba(0,0,0,.25)}.cr-hero .sub{font-size:12px;opacity:.92;margin-top:3px}
+/* glossy buttons */
+.cr-btn{position:relative;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:none;border-radius:18px;padding:14px 18px;font-size:15px;font-weight:800;letter-spacing:.2px;color:#fff;cursor:pointer;overflow:hidden;margin-top:10px;text-shadow:0 1px 2px rgba(0,0,0,.28);
+  box-shadow:0 10px 22px var(--crs,rgba(46,123,255,.42)),inset 0 1px 0 rgba(255,255,255,.65),inset 0 -3px 0 rgba(0,0,0,.14);transition:transform .12s ease,box-shadow .12s ease,filter .12s ease}
+.cr-btn::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:50%;border-radius:16px 16px 60% 60%/16px 16px 14px 14px;background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.08));pointer-events:none}
+.cr-btn>*{position:relative}.cr-btn:active{transform:translateY(2px) scale(.985);box-shadow:0 4px 10px var(--crs,rgba(46,123,255,.35)),inset 0 1px 0 rgba(255,255,255,.5),inset 0 -1px 0 rgba(0,0,0,.14)}
+.cr-btn[disabled]{filter:grayscale(.7) opacity(.55);cursor:not-allowed}
+.cr-btn.sm{width:auto;display:inline-flex;padding:9px 15px;font-size:12.5px;border-radius:14px;margin:8px 8px 0 0}
+.cr-blue{background:linear-gradient(135deg,#43A0FF,#1D5FE8 70%,#1546B8)}
+.cr-green{--crs:rgba(18,170,100,.42);background:linear-gradient(135deg,#3FE0A0,#12A864 70%,#0B7F4B)}
+.cr-gold{--crs:rgba(240,150,20,.42);background:linear-gradient(135deg,#FFC94A,#F29A13 70%,#C97A06)}
+.cr-rose{--crs:rgba(240,70,110,.40);background:linear-gradient(135deg,#FF7DA0,#E8335F 70%,#B91F47)}
+.cr-violet{--crs:rgba(130,80,240,.42);background:linear-gradient(135deg,#B08CFF,#7A45F0 70%,#5527C4)}
+.cr-glassbtn{--crs:rgba(70,90,160,.20);color:#17375E;text-shadow:none;background:linear-gradient(135deg,rgba(255,255,255,.95),rgba(225,236,255,.70));border:1px solid rgba(255,255,255,.95)}
+.cr-glassbtn::before{background:linear-gradient(180deg,rgba(255,255,255,.85),rgba(255,255,255,.1))}
+/* chips and segmented controls */
+.cr-chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 11px;font-size:11px;font-weight:800;white-space:nowrap;border:1px solid rgba(255,255,255,.8);box-shadow:inset 0 1px 0 rgba(255,255,255,.8),0 2px 6px rgba(60,70,150,.12)}
+.cr-chip.gray{background:linear-gradient(135deg,#F2F4F8,#DFE5EE);color:#4A5A6E}.cr-chip.amber{background:linear-gradient(135deg,#FFF1CC,#FFD982);color:#8A5A00}
+.cr-chip.green{background:linear-gradient(135deg,#D9FBE8,#9BEFC1);color:#0C6B3D}.cr-chip.rose{background:linear-gradient(135deg,#FFE0E8,#FFB0C4);color:#A5173F}
+.cr-seg{display:flex;gap:4px;padding:4px;border-radius:16px;background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.85);box-shadow:inset 0 2px 5px rgba(60,70,150,.10);overflow-x:auto}
+.cr-seg button{flex:1;white-space:nowrap;border:none;background:transparent;border-radius:12px;padding:9px 12px;font-size:12.5px;font-weight:800;color:#4A5A78;cursor:pointer}
+.cr-seg button.on{color:#fff;background:linear-gradient(135deg,#6A3DF0,#2E7BFF);box-shadow:0 5px 12px rgba(80,90,240,.38),inset 0 1px 0 rgba(255,255,255,.55)}
+.cr-seg button small{opacity:.85;font-weight:700}
+.cr-pick{display:flex;align-items:center;gap:12px;border-radius:18px;padding:12px 14px;margin-top:8px;cursor:pointer;background:rgba(255,255,255,.55);border:2px solid rgba(255,255,255,.9);box-shadow:0 4px 12px rgba(60,70,150,.08)}
+.cr-pick.on{border-color:#6A8CFF;background:linear-gradient(135deg,rgba(255,255,255,.95),rgba(224,232,255,.8));box-shadow:0 0 0 4px rgba(106,140,255,.20),0 8px 18px rgba(60,80,220,.18)}
+.cr-pick .ic{font-size:24px;flex:none}.cr-pick b{display:block;font-size:13.5px;color:#17375E}.cr-pick span{font-size:11px;color:#5B6B7C}
+.cr-mo{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.cr-mo button{min-width:44px;height:44px;border-radius:15px;border:1px solid rgba(255,255,255,.95);background:linear-gradient(135deg,rgba(255,255,255,.95),rgba(224,234,255,.7));font-size:15px;font-weight:800;color:#2B4A78;cursor:pointer;box-shadow:0 4px 10px rgba(60,70,150,.12),inset 0 1px 0 #fff;padding:0 10px}
+.cr-mo button.on{color:#fff;border-color:transparent;background:linear-gradient(135deg,#6A3DF0,#2E7BFF);box-shadow:0 7px 16px rgba(80,90,240,.42),inset 0 1px 0 rgba(255,255,255,.6)}
+/* fields */
+.cr-label{display:block;font-size:10.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:#4A5A78;margin:12px 0 5px}
+.cr-glass .cr-label:first-child{margin-top:0}
+.cr-in{width:100%;border:1.5px solid rgba(255,255,255,.95);background:rgba(255,255,255,.72);border-radius:14px;padding:11px 13px;font-size:14px;color:#152436;outline:none;box-shadow:inset 0 2px 5px rgba(60,70,150,.08),0 1px 0 rgba(255,255,255,.8);font-family:inherit}
+.cr-in:focus{border-color:#6A8CFF;box-shadow:0 0 0 4px rgba(106,140,255,.22),inset 0 2px 5px rgba(60,70,150,.06)}
+.cr-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.cr-name{font-weight:800;font-size:14.5px;color:#0F2F55}.cr-sub{font-size:12px;color:#44546A;margin-top:2px}.cr-sub2{font-size:10.8px;color:#6A7B8F;margin-top:3px}
+.cr-info{background:linear-gradient(135deg,rgba(234,243,255,.9),rgba(243,235,255,.8));border:1px solid rgba(255,255,255,.9);border-radius:14px;padding:9px 12px;font-size:11.5px;line-height:1.55;color:#35506B;margin-top:8px}
+.cr-warn{background:linear-gradient(135deg,#FFF6DA,#FFE9B0);border:1px solid #FFE08A;color:#7A5200;border-radius:14px;padding:9px 12px;font-size:11.5px;line-height:1.5;margin-top:8px;font-weight:600}
+.cr-note{background:linear-gradient(135deg,#FFE9EF,#FFD3DE);border:1px solid #FFC0D0;color:#8E1B3C;border-radius:14px;padding:9px 12px;font-size:12px;line-height:1.5;margin-top:9px}
+.cr-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.cr-three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.cr-total{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:10px 13px;border-radius:14px;background:linear-gradient(135deg,#E3F4F2,#DDE8FF);font-weight:800;color:#17375E;font-size:13px}
+.cr-check{align-items:flex-start;gap:10px;cursor:pointer}.cr-check input{width:20px;height:20px;margin-top:1px;accent-color:#6A3DF0;flex:none}
+/* certificate preview */
+.cr-prevbox{display:flex;justify-content:center;padding:10px;border-radius:20px;background:linear-gradient(135deg,rgba(255,255,255,.65),rgba(255,255,255,.3));border:1px solid rgba(255,255,255,.9)}
+.cr-prev-wrap{position:relative;overflow:hidden;border-radius:6px;box-shadow:0 16px 40px rgba(40,50,120,.28),0 2px 6px rgba(40,50,120,.15);background:#fff}
+.cr-prev-inner{position:absolute;left:0;top:0;transform-origin:0 0;width:595px;height:842px}
+.cr-swatch{height:34px;border-radius:12px;border:1px solid rgba(255,255,255,.9);box-shadow:inset 0 1px 0 rgba(255,255,255,.6)}
+.cr-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:linear-gradient(135deg,#FF7DA0,#E8335F);color:#fff;font-size:11px;font-weight:800;margin-left:6px;box-shadow:0 3px 8px rgba(232,51,95,.4)}
+.cr-tile{position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;border-radius:20px;padding:14px 16px;margin-bottom:10px;cursor:pointer;color:#fff;
+  background:linear-gradient(135deg,#8B5CF6,#3B82F6 60%,#22D3EE);box-shadow:0 10px 24px rgba(80,90,240,.35),inset 0 1px 0 rgba(255,255,255,.6),inset 0 -3px 0 rgba(0,0,0,.12)}
+.cr-tile::before{content:"";position:absolute;left:0;right:0;top:0;height:48%;background:linear-gradient(180deg,rgba(255,255,255,.34),rgba(255,255,255,0))}
+.cr-tile>*{position:relative}.cr-tile .ic{font-size:28px}.cr-tile .t{font-weight:800;font-size:15px;text-shadow:0 1px 2px rgba(0,0,0,.25)}.cr-tile .d{font-size:11.5px;opacity:.92;margin-top:2px}
+
+label.cr-check{display:flex;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:#27405F;margin:11px 0 0}
+label.cr-btn{text-transform:none;letter-spacing:.2px;color:#fff;font-weight:800;margin:10px 0 0}
+label.cr-btn.cr-glassbtn{color:#17375E}
+label.cr-btn.sm{display:inline-flex;font-size:12.5px;margin:8px 8px 0 0}
+.cr-mo{gap:6px}.cr-mo button{min-width:38px;height:42px;padding:0 8px}
+.cr-seg.tabs button{padding:9px 7px;font-size:12px;flex:1 1 auto}
 </style>
 </head>
 <body>
@@ -619,6 +703,11 @@ let state = {
   hrTodoIsNew: false,
   projectSummaryShowArchived: false,
   manpowerSheetProjectId: "all",
+  certs: [], certsLoaded: false, certsError: "", certFilter: "all", certFilterTouched: false,
+  certDraft: null, certBusy: false, certMonthsNote: "", certRememberJob: false, certJobTitleMissing: false,
+  certReviewId: null, certReviewStyle: "classic", certEmployees: [], certEmployeesLoaded: false,
+  letterheads: {}, letterheadsMissing: false, letterheadsEdit: null,
+  ownerName: "", ownerSignature: null, certWaitingCount: 0,
   financialReportDate: todayLocalISO(),
   financialDirty: false,
   employeeDirectory: [],
@@ -2937,6 +3026,7 @@ async function loadCeoLeaveRequests(){
   state.savedSignature = sig ? sig.signature_data : null;
   state.loading = false;
   render();
+  loadCertWaitingCount();
 }
 
 async function approveLeaveCeo(reqId){
@@ -8416,7 +8506,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "24 Oct 2026 - manpower and lump sum summary";
+const APP_VERSION = "29 Oct 2026 - certificates";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -8462,6 +8552,10 @@ function render(){
   else if(state.view === "monthly-profit") body = renderMonthlyProfitScreen();
   else if(state.view === "project-summary") body = renderProjectSummary();
   else if(state.view === "manpower-monthly-sheet") body = renderManpowerMonthlySheet();
+  else if(state.view === "certificates") body = renderCertificates();
+  else if(state.view === "certificate-form") body = renderCertificateForm();
+  else if(state.view === "certificate-review") body = renderCertificateReview();
+  else if(state.view === "certificate-letterheads") body = renderCertificateLetterheads();
   else if(state.view === "send-announcement") body = renderSendAnnouncement();
   else if(state.view === "send-hr-todo") body = renderSendHrTodo();
   else if(state.view === "employee-directory") body = renderEmployeeDirectory();
@@ -8475,6 +8569,8 @@ function render(){
 
   root.innerHTML = header + renderAnnouncementBanner() + renderHrTodoBanner() + `<main>${body}</main>` + renderVersionTag() + renderPhotoOverlay();
   attachViewEvents();
+  document.body.classList.toggle("cr-active", CERT_VIEWS.includes(state.view));
+  if(CERT_VIEWS.includes(state.view)) certFitAll();
   if(state.view === "supervisor-signature" || (state.view === "letter" && document.getElementById("sigCanvas"))) initSigPad();
   if(state.view === "leave-form") initLeaveSigPad();
 }
@@ -9122,6 +9218,1040 @@ function renderSendHrTodo(){
         </div>`).join("") : `<div class="empty-state" style="padding:10px;"><div class="ic">📝</div>Nothing sent yet.</div>`}
     </div>
   `;
+}
+
+// ======================================================================
+// Salary & employment certificates: core logic
+// ======================================================================
+const CERT_VIEWS = ["certificates", "certificate-form", "certificate-review", "certificate-letterheads"];
+const CERT_PURPOSES = [
+  { label: "Bank loan", phrase: "a bank loan application" },
+  { label: "Personal use", phrase: "personal use" },
+  { label: "Visa application", phrase: "a visa application" },
+  { label: "Rent / lease", phrase: "a rent or lease application" },
+  { label: "Embassy / consulate", phrase: "submission to an embassy or consulate" },
+  { label: "Other", phrase: "" }
+];
+const CERT_BANKS = { RJHI: "Al Rajhi Bank", NCBK: "Saudi National Bank", RIBL: "Riyad Bank", BSFR: "Banque Saudi Fransi", SABB: "Saudi Awwal Bank", ARNB: "Arab National Bank", SIBC: "Saudi Investment Bank", ALBI: "Bank Albilad", INMA: "Alinma Bank" };
+const CERT_MONTHS_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+// what a letterhead looks like until HR saves something different on the Letterheads screen
+const LETTERHEAD_DEFAULTS = {
+  "PI": { display_name: "Professional Installation Co", tagline: "Saudi Arabia", address: "", phone: "", email: "", website: "", accent: "#1B5A96", accent2: "#0A6E69", logo_data: null, stamp_data: null },
+  "Al falak": { display_name: "Al Falak Elevators", tagline: "Saudi Arabia", address: "", phone: "", email: "", website: "alfalaksa.com", accent: "#C2570C", accent2: "#E58A2B", logo_data: null, stamp_data: null }
+};
+
+function certEsc(s){ return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function certRound2(n){ return Math.round((Number(n) || 0) * 100) / 100; }
+function certMoney(n){ return (Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+// "2026-10-24" -> "24 October 2026" (fixed English, whatever the phone's language is)
+function certDateLong(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+  return m ? `${+m[3]} ${CERT_MONTHS_FULL[+m[2] - 1]} ${m[1]}` : "";
+}
+function certDateShort(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+  return m ? `${+m[3]} ${CERT_MONTHS_FULL[+m[2] - 1].slice(0, 3)} ${m[1]}` : "";
+}
+function certMonthLabel(key){
+  const m = /^(\d{4})-(\d{2})/.exec(String(key || ""));
+  return m ? `${CERT_MONTHS_FULL[+m[2] - 1]} ${m[1]}` : String(key || "");
+}
+const CERT_ONES = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+const CERT_TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+function certNumberWords(n){
+  n = Math.floor(Math.abs(Number(n) || 0));
+  if(n === 0) return "zero";
+  const below1000 = (x) => {
+    let s = "";
+    if(x >= 100){ s += CERT_ONES[Math.floor(x / 100)] + " hundred"; x %= 100; if(x) s += " "; }
+    if(x >= 20){ s += CERT_TENS[Math.floor(x / 10)]; if(x % 10) s += "-" + CERT_ONES[x % 10]; }
+    else if(x > 0) s += CERT_ONES[x];
+    return s;
+  };
+  const parts = [];
+  [[1e9, "billion"], [1e6, "million"], [1e3, "thousand"]].forEach(([size, name]) => {
+    if(n >= size){ parts.push(below1000(Math.floor(n / size)) + " " + name); n %= size; }
+  });
+  if(n > 0) parts.push(below1000(n));
+  return parts.join(" ");
+}
+// 3500 -> "Three thousand five hundred Saudi Riyals only"
+function certAmountWords(amount){
+  const r = certRound2(amount), riyals = Math.floor(r + 1e-9), halalas = Math.round((r - riyals) * 100);
+  let s = certNumberWords(riyals) + " Saudi Riyal" + (riyals === 1 ? "" : "s");
+  if(halalas) s += " and " + certNumberWords(halalas) + " Halala" + (halalas === 1 ? "" : "s");
+  s += " only";
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+// whole months between two dates (the day of the month counts: 1 Mar to 24 Oct = 7 months)
+function certServiceMonths(joiningISO, asOfISO){
+  const a = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(joiningISO || "")), b = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(asOfISO || ""));
+  if(!a || !b) return null;
+  let m = (+b[1] - +a[1]) * 12 + (+b[2] - +a[2]);
+  if(+b[3] < +a[3]) m -= 1;
+  return Math.max(m, 0);
+}
+function certServiceText(joiningISO, asOfISO){
+  const m = certServiceMonths(joiningISO, asOfISO);
+  if(m === null) return "";
+  const y = Math.floor(m / 12), mo = m % 12, out = [];
+  if(y) out.push(`${y} year${y === 1 ? "" : "s"}`);
+  if(mo) out.push(`${mo} month${mo === 1 ? "" : "s"}`);
+  return out.length ? out.join(", ") : "less than a month";
+}
+function certServiceShort(joiningISO, asOfISO){
+  const m = certServiceMonths(joiningISO, asOfISO);
+  if(m === null) return "";
+  const y = Math.floor(m / 12), mo = m % 12, out = [];
+  if(y) out.push(`${y} yr${y === 1 ? "" : "s"}`);
+  if(mo) out.push(`${mo} mo${mo === 1 ? "" : "s"}`);
+  return out.length ? out.join(" ") : "< 1 mo";
+}
+
+
+// ---- nationality: the files hold country names, in Arabic or English; a certificate needs the English demonym ----
+const CERT_NATIONALITIES = {
+  "الهند": "Indian", "india": "Indian", "باكستان": "Pakistani", "pakistan": "Pakistani", "مصر": "Egyptian", "egypt": "Egyptian",
+  "نيبال": "Nepalese", "nepal": "Nepalese", "اثيوبيا": "Ethiopian", "ethiopia": "Ethiopian", "بنجلاديش": "Bangladeshi", "بنغلاديش": "Bangladeshi", "bangladesh": "Bangladeshi",
+  "لبنان": "Lebanese", "lebanon": "Lebanese", "سوريا": "Syrian", "syria": "Syrian", "سريلانكا": "Sri Lankan", "sri lanka": "Sri Lankan",
+  "اندونيسيا": "Indonesian", "indonesia": "Indonesian", "اليمن": "Yemeni", "yemen": "Yemeni", "المغرب": "Moroccan", "morocco": "Moroccan",
+  "الفلبين": "Filipino", "philippines": "Filipino", "السودان": "Sudanese", "sudan": "Sudanese", "الاردن": "Jordanian", "jordan": "Jordanian",
+  "السعودية": "Saudi", "saudi arabia": "Saudi", "saudi": "Saudi", "kenya": "Kenyan", "كينيا": "Kenyan", "uganda": "Ugandan", "اوغندا": "Ugandan",
+  "nigeria": "Nigerian", "نيجيريا": "Nigerian", "china": "Chinese", "الصين": "Chinese", "turkey": "Turkish", "تركيا": "Turkish", "iraq": "Iraqi", "العراق": "Iraqi",
+  "palestine": "Palestinian", "فلسطين": "Palestinian", "tunisia": "Tunisian", "تونس": "Tunisian", "algeria": "Algerian", "الجزائر": "Algerian"
+};
+function certHasArabic(s){ return /[\u0600-\u06FF]/.test(String(s || "")); }
+function certNationalityEnglish(v){
+  const raw = String(v == null ? "" : v).trim();
+  if(!raw) return "";
+  // Arabic spellings vary (أ إ آ ا), so compare them without those differences and without the Arabic "the"
+  const key = raw.toLowerCase().replace(/[أإآ]/g, "ا").replace(/ـ/g, "").replace(/\s+/g, " ");
+  return CERT_NATIONALITIES[key] || CERT_NATIONALITIES[key.replace(/^ال/, "")] || raw;
+}
+
+// ---- colours from a letterhead ----
+function certHex(h){ const m = /^#?([0-9a-f]{6})$/i.exec(String(h || "").trim()); return m ? "#" + m[1].toUpperCase() : null; }
+function certMix(a, b, t){
+  const p = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const x = p(a), y = p(b);
+  return "#" + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join("").toUpperCase();
+}
+function certPalette(lh){
+  const main = certHex(lh.accent) || "#1B5A96", second = certHex(lh.accent2) || "#0A6E69";
+  return {
+    main, second,
+    dark: certMix(main, "#000000", 0.45), dark2: certMix(main, "#000000", 0.25),
+    mainTint: certMix(main, "#FFFFFF", 0.93), mainTint2: certMix(main, "#FFFFFF", 0.85),
+    secondTint: certMix(second, "#FFFFFF", 0.88), line: certMix(main, "#FFFFFF", 0.8),
+    gold: "#C9A24B", goldTint: "#F8EFD6", goldDark: "#8A7436"
+  };
+}
+
+// ---- letterheads ----
+function certCompanyOf(emp){ return emp && emp.salary_group === "Al falak" ? "Al falak" : "PI"; }
+function certLetterhead(company){
+  const base = LETTERHEAD_DEFAULTS[company] || LETTERHEAD_DEFAULTS.PI;
+  const saved = (state.letterheads && state.letterheads[company]) || {};
+  const out = { ...base };
+  Object.keys(base).forEach(k => { if(saved[k] !== undefined && saved[k] !== null && String(saved[k]).trim() !== "") out[k] = saved[k]; });
+  if(company === "PI" && !out.logo_data) out.logo_data = LOGO_DATA_URI;   // PI's own logo until another is saved
+  return out;
+}
+async function loadLetterheads(){
+  const { data, error } = await sb.from("ts_company_letterheads").select("*");
+  if(error){ state.letterheadsMissing = true; return false; }
+  state.letterheadsMissing = false;
+  state.letterheads = {};
+  (data || []).forEach(r => { state.letterheads[r.company] = r; });
+  return true;
+}
+
+// ---- the salary the certificate prints, and the months it can show ----
+// The contract breakdown used for the bank file (basic / housing / other), or, when that is empty, the salary sheet's basic + other allowance.
+function certSalaryParts(emp){
+  const wb = Number(emp.wps_basic) || 0, wh = Number(emp.wps_housing) || 0, wo = Number(emp.wps_other) || 0;
+  if(wb + wh + wo > 0) return { basic: wb, housing: wh, other: wo };
+  return { basic: Number(emp.basic_salary) || 0, housing: 0, other: Number(emp.other_allowance) || 0 };
+}
+// One month, worked out the way the Salary Sheet does it:
+// net = basic + other allowance + overtime (basic / 208 x hours x 1.25) - absence (basic / 26 x absent days)
+function certMonthPay(emp, otHours, absentDays){
+  const basic = Number(emp.basic_salary) || 0, other = Number(emp.other_allowance) || 0;
+  const fixed = certRound2(basic + other);
+  const overtime = certRound2(basic / 208 * (Number(otHours) || 0) * 1.25);
+  const deductions = certRound2(basic / 26 * (Number(absentDays) || 0));
+  return { fixed, overtime, deductions, net: certRound2(fixed + overtime - deductions), ot_hours: Number(otHours) || 0, absent_days: Number(absentDays) || 0 };
+}
+// The latest APPROVED months (before this month), newest first. Fewer come back if he has fewer approved months.
+async function certLoadPayHistory(emp, count){
+  count = Math.max(0, Math.min(6, Math.floor(Number(count) || 0)));
+  if(!count) return { months: [], error: null };
+  const thisMonth = todayLocalISO().slice(0, 7);
+  const { data: subs, error } = await sb.from("ts_timesheet_submissions").select("month, status, approved_ot_hours")
+    .eq("employee_id", emp.id).eq("status", "approved").lt("month", thisMonth).order("month", { ascending: false }).limit(count);
+  if(error) return { months: [], error };
+  const months = [];
+  for(const s of (subs || [])){
+    const [y, m] = String(s.month).split("-").map(Number);
+    const last = new Date(y, m, 0).getDate();
+    const { data: entries, error: e2 } = await sb.from("ts_timesheet_entries").select("status")
+      .eq("employee_id", emp.id).gte("entry_date", `${s.month}-01`).lte("entry_date", `${s.month}-${String(last).padStart(2, "0")}`);
+    if(e2) return { months: [], error: e2 };
+    const absent = (entries || []).filter(r => r.status === "Absent").length;   // sick days are not deducted, as in the Salary Sheet
+    months.push({ key: s.month, label: certMonthLabel(s.month), ...certMonthPay(emp, Number(s.approved_ot_hours) || 0, absent) });
+  }
+  return { months, error: null };
+}
+function certAverageNet(months){ return months.length ? certRound2(months.reduce((t, m) => t + m.net, 0) / months.length) : 0; }
+
+function certPurposePhrase(purpose){
+  const p = String(purpose || "").trim();
+  if(!p) return "";
+  const known = CERT_PURPOSES.find(x => x.label === p);
+  return known ? known.phrase : p;
+}
+function certBankNameFromCode(code){ const c = String(code || "").toUpperCase().trim(); return CERT_BANKS[c] || (c ? c : ""); }
+function certStatusInfo(status){
+  return ({
+    draft: { text: "Draft", cls: "gray" },
+    sent: { text: "With the Owner", cls: "amber" },
+    signed: { text: "Signed", cls: "green" },
+    returned: { text: "Returned", cls: "rose" }
+  })[status] || { text: status, cls: "gray" };
+}
+
+// ======================================================================
+// Certificate pages (one A4 page, 595 x 842 CSS px): the Classic and the Modern style
+// ======================================================================
+const CERT_CSS = `<style>
+.cf,.cf *{box-sizing:border-box;margin:0;padding:0}
+.cf{width:595px;height:842px;position:relative;background:#fff;overflow:hidden;font-family:"Segoe UI",Roboto,"Helvetica Neue",Arial,"DejaVu Sans",sans-serif;color:#1E2A3A;text-align:left}
+.cf b{font-weight:700}
+.cf img{display:block}
+/* ---- shared ---- */
+.cf-mono{display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;background:linear-gradient(135deg,var(--cm),var(--cs))}
+.cf-stamp{width:80px;height:80px;border:2px dashed #9AA8B8;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:8px;color:#9AA8B8;line-height:1.3;flex:none}
+.cf-stampimg{max-width:96px;max-height:96px;width:auto;height:auto}
+.cf-sigimg{max-width:170px;max-height:50px;width:auto;height:auto;margin-bottom:2px}
+.cf-sigph{width:170px;height:44px;border:1.5px dashed #B7C4D3;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:8.6px;color:#9AA8B8;margin-bottom:3px}
+.cf-signm{font-weight:800;font-size:11.5px;color:var(--cd);border-top:1.2px solid var(--cd);padding-top:4px;width:190px}
+.cf-signrl{font-size:9.4px;color:#5B6B7C;margin-top:1px}
+.cf-for{font-size:9px;color:#6A7B8F;margin-bottom:3px}
+/* ---- classic ---- */
+.cf-topbar{height:9px;background:linear-gradient(90deg,var(--cd) 0%,var(--cm) 62%,var(--gold) 62%,var(--gold) 100%)}
+.cf-frame{position:absolute;left:14px;right:14px;top:14px;bottom:14px;border:1.2px solid var(--gold);border-radius:3px}
+.cf-frame2{position:absolute;left:19px;right:19px;top:19px;bottom:19px;border:.6px solid var(--cline);border-radius:2px}
+.cf-corner{position:absolute;width:20px;height:20px;border:2.5px solid var(--gold)}
+.cf-wm{position:absolute;left:50%;top:52%;margin-left:-145px;margin-top:-145px;width:290px;opacity:.04}
+.cf-in{position:absolute;left:46px;right:46px;top:34px;bottom:30px}
+.cf-lh{display:flex;align-items:center;gap:12px;padding-bottom:11px;border-bottom:1.5px solid var(--cm);position:relative}
+.cf-lh::after{content:"";position:absolute;left:0;bottom:-4.5px;width:92px;height:3px;background:var(--gold)}
+.cf-lh img.cf-logo{width:auto;height:42px;max-width:150px;border-radius:6px}
+.cf-co{font-weight:800;font-size:14.5px;color:var(--cd)}
+.cf-tag{font-size:8.5px;color:#6A7B8F;letter-spacing:1.3px;text-transform:uppercase;margin-top:2px}
+.cf-pills{display:flex;justify-content:space-between;margin:14px 0 0}
+.cf-pill{font-size:9.4px;color:#35506B;background:var(--cmt);border:1px solid var(--cline);border-radius:999px;padding:4px 12px}.cf-pill b{color:var(--cd)}
+.cf-to{margin:11px 0 0;font-size:10.4px;line-height:1.55;color:#223247}
+.cf-ttl{text-align:center;margin:14px 0 11px}
+.cf-ttl .t{display:inline-flex;align-items:center;gap:13px;font-size:19.5px;font-weight:800;letter-spacing:3px;color:var(--cd)}
+.cf-ttl .t i{display:block;width:40px;height:1.6px;background:linear-gradient(90deg,transparent,var(--gold))}.cf-ttl .t i:last-child{background:linear-gradient(270deg,transparent,var(--gold))}
+.cf-ttl .s{font-size:9.2px;letter-spacing:1.5px;color:var(--goldd);margin-top:4px;font-weight:700}
+.cf-p{font-size:10.9px;line-height:1.72;margin-bottom:9px;text-align:justify;color:#223247}.cf-p b{color:var(--cd)}.cf-p b.nm{color:var(--cm)}
+.cf-tw{border-radius:9px;overflow:hidden;border:1px solid var(--cline);margin:3px 0 10px;background:#fff}
+.cf-ct{width:100%;border-collapse:collapse;font-size:10.6px}
+.cf-ct tr:first-child{background:var(--cd2)}
+.cf-ct th{background:transparent;color:#fff;font-size:8.8px;text-transform:uppercase;letter-spacing:.8px;padding:6px 10px;text-align:left}
+.cf-ct tr{background:#fff}.cf-ct tr:nth-child(odd){background:var(--cmt)}.cf-ct tr:first-child{background:var(--cd2)}
+.cf-ct td{padding:6px 10px;border-top:1px solid var(--cline);background:transparent}.cf-ct tr:first-child th{border:none}.cf-ct .n{text-align:right}.cf-ct th.n{text-align:right}
+.cf-ct tr.tot{background:var(--goldt)}.cf-ct tr.tot td{font-weight:800;color:var(--cd);border-top:1.5px solid var(--gold)}
+.cf-sec{font-size:9px;font-weight:800;letter-spacing:1.1px;color:var(--goldd);margin:2px 0 5px}
+.cf-sign{position:absolute;left:0;right:0;bottom:30px;display:flex;justify-content:space-between;align-items:flex-end}
+.cf-foot{position:absolute;left:0;right:0;bottom:0;font-size:8.4px;color:#7B8896;display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--cline);padding-top:6px}
+/* ---- modern ---- */
+.cf-hd{height:128px;background:linear-gradient(135deg,var(--cs),var(--cm));position:relative;overflow:hidden;color:#fff;padding:22px 36px}
+.cf-hd::before{content:"";position:absolute;right:-50px;top:-70px;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,.08)}
+.cf-hd .row{display:flex;align-items:center;gap:12px;position:relative;z-index:1}
+.cf-hd .logo{width:auto;height:40px;max-width:120px;border-radius:10px;background:#fff;padding:3px}
+.cf-hd .r{margin-left:auto;text-align:right}.cf-hd .r .a{font-weight:800;font-size:13px;letter-spacing:1.5px;white-space:nowrap}
+.cf-hd .r .b{display:inline-block;margin-top:5px;font-size:8.6px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);border-radius:999px;padding:3px 10px}
+.cf-pc{position:relative;margin:-40px 30px 0;background:#fff;border-radius:15px;box-shadow:0 8px 24px rgba(15,53,86,.16);padding:12px 15px;z-index:3}
+.cf-av{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,var(--cs),var(--cm));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;box-shadow:0 0 0 4px var(--cst);flex:none}
+.cf-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.cf-chip{font-size:8.6px;background:var(--cmt);color:#35506B;border-radius:8px;padding:3px 8px}.cf-chip b{color:var(--cd)}
+.cf-tiles{display:grid;grid-template-columns:1.05fr 1.15fr 1.15fr;gap:8px;margin:16px 30px 0}
+.cf-k{border-radius:13px;padding:11px 12px;display:flex;gap:8px;align-items:center}
+.cf-k .ic{width:27px;height:27px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:13px;flex:none}
+.cf-k .l{font-size:7.8px;text-transform:uppercase;letter-spacing:.6px;opacity:.85;white-space:nowrap}.cf-k .v{font-size:13.5px;font-weight:800;margin-top:1px}
+.cf-cols{display:grid;grid-template-columns:1.25fr 1fr;gap:11px;margin:16px 30px 0}
+.cf-box{background:#fff;border:1px solid var(--cline);border-radius:13px;overflow:hidden;box-shadow:0 2px 8px rgba(15,53,86,.06)}
+.cf-bh{font-size:8.4px;font-weight:800;letter-spacing:.9px;padding:6px 12px}
+.cf-ln{display:flex;justify-content:space-between;gap:8px;font-size:10px;padding:7px 12px;border-top:1px solid var(--cmt2)}.cf-ln.t{background:var(--cmt);font-weight:800;color:var(--cd)}
+.cf-hist{margin:16px 30px 0}
+.cf-mt{width:100%;border-collapse:collapse;font-size:9.8px}.cf-mt th{font-size:7.8px;text-transform:uppercase;letter-spacing:.6px;color:#35506B;background:var(--cmt);padding:5px 10px;text-align:left;border-bottom:1px solid var(--cline)}
+.cf-mt td{padding:8px 10px;border-bottom:1px solid var(--cmt2)}.cf-mt .n{text-align:right}.cf-mt th.n{text-align:right}
+.cf-mb{height:7px;background:var(--cmt2);border-radius:999px;overflow:hidden}.cf-mb>div{height:100%;background:linear-gradient(90deg,var(--cm),var(--cs));border-radius:999px}
+.cf-net{margin:16px 30px 0;border-radius:15px;background:linear-gradient(135deg,var(--cs),var(--cm));color:#fff;padding:12px 17px;display:flex;justify-content:space-between;align-items:center}
+.cf-net .l{font-size:8.6px;letter-spacing:1.3px;opacity:.9}.cf-net .w{font-size:9.6px;margin-top:3px}.cf-net .amt{font-size:24px;font-weight:800}.cf-net .amt small{font-size:10.5px;margin-left:3px}
+.cf-mp{margin:14px 34px 0;font-size:9.8px;line-height:1.6;color:#4B5B6E;text-align:justify}
+.cf-msign{position:absolute;left:30px;right:30px;bottom:46px;display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+.cf-ref{display:flex;gap:12px;border:1px solid var(--cline);border-radius:11px;padding:7px 11px;background:#fff}
+.cf-ref div{font-size:8px;color:#6A7B8F;line-height:1.5}.cf-ref b{display:block;font-size:9.4px;color:var(--cd)}
+.cf-ft{position:absolute;left:0;right:0;bottom:0;height:32px;background:var(--cmt);border-top:2px solid var(--gold);display:flex;justify-content:space-between;align-items:center;gap:12px;padding:0 30px;font-size:8.4px;color:#5B6B7C}
+/* long text: the page quietly tightens itself so nothing meets the signature */
+.cf.cf-s1 .cf-p{font-size:10.2px;line-height:1.55;margin-bottom:6px}.cf.cf-s1 .cf-ct td,.cf.cf-s1 .cf-ct th{padding:4px 10px}.cf.cf-s1 .cf-mt td{padding:5px 10px}.cf.cf-s1 .cf-ln{padding:5px 12px}
+.cf.cf-s2 .cf-p{font-size:9.6px;line-height:1.45;margin-bottom:4px}.cf.cf-s2 .cf-ct{font-size:9.6px}.cf.cf-s2 .cf-tw{margin-bottom:6px}.cf.cf-s2 .cf-ct td,.cf.cf-s2 .cf-ct th{padding:3px 10px}.cf.cf-s2 .cf-mt{font-size:9px}.cf.cf-s2 .cf-mt td{padding:3px 10px}.cf.cf-s2 .cf-ln{padding:3px 12px}.cf.cf-s2 .cf-tiles,.cf.cf-s2 .cf-cols,.cf.cf-s2 .cf-hist,.cf.cf-s2 .cf-net{margin-top:9px}
+</style>`;
+
+function certInitials(name){
+  const w = String(name || "").trim().split(/\s+/).filter(Boolean);
+  return ((w[0] || "?").charAt(0) + (w.length > 1 ? w[1].charAt(0) : "")).toUpperCase();
+}
+function certLogoHtml(lh, size, cls){
+  if(lh.logo_data) return `<img class="${cls}" src="${lh.logo_data}" alt="">`;
+  return `<div class="cf-mono" style="width:${size}px;height:${size}px;border-radius:${Math.round(size / 4)}px;font-size:${Math.round(size * 0.4)}px;">${certEsc(certInitials(lh.display_name))}</div>`;
+}
+function certFooterText(lh){ return [lh.display_name, lh.address, lh.phone, lh.email, lh.website].map(x => String(x || "").trim()).filter(Boolean).join(" · "); }
+
+// the sentences, shared by both styles
+function certTexts(c, lh, salary){
+  const ms = c.title_prefix === "Ms.", pre = ms ? "Ms." : "Mr.", his = ms ? "her" : "his", His = ms ? "Her" : "His";
+  const name = certEsc(String(c.employee_name || "").toUpperCase()), company = certEsc(lh.display_name);
+  const job = certEsc(String(c.job_title || "").trim()), nat = certEsc(String(c.nationality || "").trim());
+  const joined = certDateLong(c.joining_date), iqama = certEsc(c.iqama_number || "");
+  const bank = c.addressed_to === "bank";
+  const payLine = (salary && c.show_bank_account && c.pay_bank_name)
+    ? ` ${His} salary is paid monthly by bank transfer to ${his} <b>${certEsc(c.pay_bank_name)}</b> account${c.iban_last4 ? ` (IBAN ending <b>…${certEsc(c.iban_last4)}</b>)` : ""}.` : "";
+  const tail = salary ? ` ${His} monthly salary is as follows:` : "";
+  const intro = bank
+    ? `We certify that <b class="nm">${pre} ${name}</b> (Iqama No. <b>${iqama}</b>${nat ? `, ${nat}` : ""}) has been employed by <b>${company}</b>${job ? ` as <b>${job}</b>` : ""}${joined ? ` since <b>${joined}</b>` : ""} and remains in service.${payLine}${tail}`
+    : `This is to certify that <b class="nm">${pre} ${name}</b>, holder of Iqama No. <b>${iqama}</b>${nat ? `, Nationality <b>${nat}</b>` : ""}, is employed with <b>${company}</b>${job ? ` as <b>${job}</b>` : ""}${joined ? ` since <b>${joined}</b>` : ""}, and is still in service as of the date of this certificate.${payLine}${tail}`;
+  const phrase = certPurposePhrase(c.purpose);
+  const closing = `Issued at the employee's request${phrase ? ` for <b>${certEsc(phrase)}</b>` : ""}, without any liability on the company towards third parties.`;
+  const subject = bank ? (salary ? "Salary certificate" : "Employment certificate") : "";
+  return { intro, closing, bank, bankName: certEsc(c.bank_name || ""), subject, his, His, pre, name };
+}
+function certSignBlock(c, lh, modern){
+  const sig = c.signature_data ? `<img class="cf-sigimg" src="${c.signature_data}" alt="">` : `<div class="cf-sigph">Owner's signature</div>`;
+  const who = certEsc(c.signed_by_name || (state && state.ownerName) || "Authorised signatory");
+  const stamp = lh.stamp_data ? `<img class="cf-stampimg" src="${lh.stamp_data}" alt="">` : `<div class="cf-stamp">Company<br>stamp</div>`;
+  return `<div><div class="cf-for">For and on behalf of ${certEsc(lh.display_name)}</div>${sig}<div class="cf-signm">${who}</div><div class="cf-signrl">Owner / CEO</div></div>${stamp}`;
+}
+
+function certClassicHtml(c, lh, T, months, parts, salary){
+  const n = months.length, compact = n >= 5, total = parts.basic + parts.housing + parts.other;
+  const rows = [["Basic salary", parts.basic]];
+  if(parts.housing > 0) rows.push(["Housing allowance", parts.housing]);
+  if(parts.other > 0) rows.push(["Other allowance", parts.other]);
+  const salaryTable = !salary ? "" : (compact
+    ? `<div class="cf-tw"><table class="cf-ct"><tr>${rows.map(r => `<th class="n">${r[0]}</th>`).join("")}<th class="n">Total monthly (SAR)</th></tr><tr>${rows.map(r => `<td class="n">${certMoney(r[1])}</td>`).join("")}<td class="n" style="font-weight:800;color:var(--cd)">${certMoney(total)}</td></tr></table></div>`
+    : `<div class="cf-tw"><table class="cf-ct"><tr><th>Description</th><th class="n">Amount (SAR)</th></tr>${rows.map(r => `<tr><td>${r[0]}</td><td class="n">${certMoney(r[1])}</td></tr>`).join("")}<tr class="tot"><td>Total monthly salary</td><td class="n">${certMoney(total)}</td></tr></table></div>`);
+  const monthsTable = (!salary || !n) ? "" : `<div class="cf-sec">SALARY PAID IN THE LAST ${n === 1 ? "MONTH" : n + " MONTHS"}</div>
+    <div class="cf-tw"><table class="cf-ct"><tr><th>Month</th><th class="n">Fixed salary</th><th class="n">Overtime</th><th class="n">Deductions</th><th class="n">Net paid (SAR)</th></tr>${months.map(m => `<tr><td>${certEsc(m.label)}</td><td class="n">${certMoney(m.fixed)}</td><td class="n">${m.overtime ? "+" + certMoney(m.overtime) : "–"}</td><td class="n">${m.deductions ? "−" + certMoney(m.deductions) : "–"}</td><td class="n" style="font-weight:800">${certMoney(m.net)}</td></tr>`).join("")}${n > 1 ? `<tr class="tot"><td colspan="4">Average net salary over ${n} months</td><td class="n">${certMoney(certAverageNet(months))}</td></tr>` : ""}</table></div>`;
+  const title = salary ? "SALARY CERTIFICATE" : "EMPLOYMENT CERTIFICATE";
+  const sub = T.bank ? `TO: THE MANAGER${T.bankName ? " · " + T.bankName.toUpperCase() : ""}` : "TO WHOM IT MAY CONCERN";
+  const wm = lh.logo_data ? `<img class="cf-wm" src="${lh.logo_data}" alt="">` : "";
+  const corner = (pos) => `<div class="cf-corner" style="${pos}"></div>`;
+  return `<div class="cf-topbar"></div><div class="cf-frame"></div><div class="cf-frame2"></div>
+${corner("left:11px;top:11px;border-right:none;border-bottom:none")}${corner("right:11px;top:11px;border-left:none;border-bottom:none")}${corner("left:11px;bottom:11px;border-right:none;border-top:none")}${corner("right:11px;bottom:11px;border-left:none;border-top:none")}${wm}
+<div class="cf-in"><div class="cf-flow">
+<div class="cf-lh">${certLogoHtml(lh, 42, "cf-logo")}<div><div class="cf-co">${certEsc(lh.display_name)}</div>${lh.tagline ? `<div class="cf-tag">${certEsc(lh.tagline)}</div>` : ""}</div></div>
+<div class="cf-pills"><span class="cf-pill">Ref <b>${certEsc(c.ref_no || "—")}</b></span><span class="cf-pill">Date <b>${certDateLong(c.issue_date)}</b></span></div>
+<div class="cf-ttl"><div class="t"><i></i>${title}<i></i></div><div class="s">${sub}</div></div>
+<p class="cf-p">${T.intro}</p>${salaryTable}${monthsTable}
+<p class="cf-p" style="margin-bottom:0">${T.closing}</p></div>
+<div class="cf-sign">${certSignBlock(c, lh, false)}</div>
+<div class="cf-foot"><span>${certEsc(certFooterText(lh))}</span><span style="white-space:nowrap">Page 1 of 1</span></div></div>`;
+}
+
+function certModernHtml(c, lh, T, months, parts, salary){
+  const n = months.length, total = parts.basic + parts.housing + parts.other, avg = certAverageNet(months);
+  const asOf = c.issue_date || todayLocalISO(), service = certServiceShort(c.joining_date, asOf);
+  const job = String(c.job_title || "").trim();
+  const title = !salary ? "EMPLOYMENT CERTIFICATE" : (n ? "PAYROLL CERTIFICATE" : "SALARY CERTIFICATE");
+  const bankChip = T.bank ? `<span class="cf-chip" style="background:var(--goldt);color:var(--goldd);">To: The Manager · <b style="color:var(--goldd)">${T.bankName || "Bank"}</b></span>` : "";
+  const header = `<div class="cf-hd"><div class="row">${lh.logo_data ? `<img class="logo" src="${lh.logo_data}" alt="">` : certLogoHtml(lh, 40, "logo")}<div><div style="font-weight:800;font-size:14.5px;white-space:nowrap">${certEsc(lh.display_name)}</div>${lh.tagline ? `<div style="font-size:8.6px;opacity:.85;margin-top:2px">${certEsc(lh.tagline)}</div>` : ""}</div><div class="r"><div class="a">${title}</div><div class="b">Ref ${certEsc(c.ref_no || "—")} · ${certDateShort(c.issue_date)}</div></div></div></div>`;
+  const card = `<div class="cf-pc"><div style="display:flex;gap:13px;align-items:center"><div class="cf-av">${certEsc(certInitials(c.employee_name))}</div><div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px;color:var(--cd)">${certEsc(String(c.employee_name || "").toUpperCase())}</div><div style="font-size:9.4px;color:#6A7B8F;margin-top:1px">${certEsc(job || "Employee")}${c.joining_date ? " · Joined " + certDateShort(c.joining_date) : ""}${service ? " · " + service : ""}</div></div><div style="background:#E1F5EA;color:#12713F;border-radius:999px;padding:4px 11px;font-size:9.4px;font-weight:800;white-space:nowrap">● Active</div></div>
+<div class="cf-chips">${bankChip}${c.employee_no ? `<span class="cf-chip">Emp. no. <b>${certEsc(c.employee_no)}</b></span>` : ""}<span class="cf-chip">Iqama <b>${certEsc(c.iqama_number || "")}</b></span>${c.nationality ? `<span class="cf-chip">Nationality <b>${certEsc(c.nationality)}</b></span>` : ""}</div></div>`;
+  let middle = "";
+  if(salary){
+    const third = (c.show_bank_account && c.pay_bank_name)
+      ? `<div class="cf-k" style="background:#FFF1D2;color:#8A5A00"><div class="ic" style="background:rgba(138,90,0,.14)">🏦</div><div><div class="l">Paid by transfer</div><div class="v" style="font-size:11px">${certEsc(c.pay_bank_name)}${c.iban_last4 ? " · …" + certEsc(c.iban_last4) : ""}</div></div></div>`
+      : `<div class="cf-k" style="background:#E1F5EA;color:#12713F"><div class="ic" style="background:rgba(18,113,63,.14)">✔</div><div><div class="l">Status</div><div class="v" style="font-size:12px">Active, in service</div></div></div>`;
+    const second = n
+      ? `<div class="cf-k" style="background:var(--cst);color:var(--cd)"><div class="ic" style="background:rgba(0,0,0,.07)">📊</div><div><div class="l">Avg net · ${n} month${n === 1 ? "" : "s"}</div><div class="v" style="font-size:12.5px">${certMoney(avg)}</div></div></div>`
+      : `<div class="cf-k" style="background:var(--cst);color:var(--cd)"><div class="ic" style="background:rgba(0,0,0,.07)">🕒</div><div><div class="l">Service</div><div class="v" style="font-size:12.5px">${certEsc(certServiceShort(c.joining_date, asOf) || "–")}</div></div></div>`;
+    const rows = [["Basic salary", parts.basic]];
+    if(parts.housing > 0) rows.push(["Housing allowance", parts.housing]);
+    if(parts.other > 0) rows.push(["Other allowance", parts.other]);
+    const earnings = `<div class="cf-box"><div class="cf-bh" style="background:var(--cst);color:var(--cd)">EARNINGS</div>${rows.map(r => `<div class="cf-ln"><span>${r[0]}</span><b>${certMoney(r[1])}</b></div>`).join("")}<div class="cf-ln t"><span>Gross monthly salary</span><span>${certMoney(total)}</span></div><div style="padding:5px 12px 6px;font-size:8.4px;color:#6A7B8F;font-style:italic">${certAmountWords(total)}</div></div>`;
+    const right = (c.show_bank_account && c.pay_bank_name)
+      ? `<div class="cf-box"><div class="cf-bh" style="background:#FFF1D2;color:#8A5A00">PAYMENT</div><div class="cf-ln"><span>Bank</span><b>${certEsc(c.pay_bank_name)}</b></div>${c.iban_last4 ? `<div class="cf-ln"><span>IBAN ending</span><b>…${certEsc(c.iban_last4)}</b></div>` : ""}<div class="cf-ln"><span>Method</span><b>Bank transfer</b></div></div>`
+      : `<div class="cf-box"><div class="cf-bh" style="background:var(--cmt2);color:var(--cd)">EMPLOYMENT</div>${c.employee_no ? `<div class="cf-ln"><span>Employee no.</span><b>${certEsc(c.employee_no)}</b></div>` : ""}<div class="cf-ln"><span>Joined</span><b>${certDateShort(c.joining_date) || "–"}</b></div><div class="cf-ln"><span>Service</span><b>${certEsc(certServiceText(c.joining_date, asOf) || "–")}</b></div></div>`;
+    const hist = !n ? "" : `<div class="cf-box cf-hist"><div class="cf-bh" style="background:var(--cmt2);color:var(--cd);display:flex;justify-content:space-between"><span>SALARY PAID IN THE LAST ${n === 1 ? "MONTH" : n + " MONTHS"} (SAR)</span>${n > 1 ? `<span style="color:var(--cs)">Average net ${certMoney(avg)}</span>` : ""}</div>
+      <table class="cf-mt"><tr><th>Month</th><th class="n">Fixed</th><th class="n">Overtime</th><th class="n">Deductions</th><th class="n">Net paid</th><th></th></tr>${months.map(m => `<tr><td style="font-weight:700">${certEsc(m.label)}</td><td class="n">${certMoney(m.fixed)}</td><td class="n" style="color:${m.overtime ? "#12713F" : "#9AA8B8"}">${m.overtime ? "+" + certMoney(m.overtime) : "–"}</td><td class="n" style="color:${m.deductions ? "#B3261E" : "#9AA8B8"}">${m.deductions ? "−" + certMoney(m.deductions) : "–"}</td><td class="n" style="font-weight:800;color:var(--cd)">${certMoney(m.net)}</td><td style="width:22%"><div class="cf-mb"><div style="width:${Math.max(4, Math.min(100, m.net / Math.max(total, ...months.map(x => x.net), 1) * 100)).toFixed(1)}%"></div></div></td></tr>`).join("")}</table></div>`;
+    const band = n ? "" : `<div class="cf-net"><div><div class="l">MONTHLY SALARY</div><div class="w">${certAmountWords(total)}</div></div><div class="amt">${certMoney(total)}<small>SAR</small></div></div>`;
+    middle = `<div class="cf-tiles"><div class="cf-k" style="background:linear-gradient(135deg,var(--cs),var(--cm));color:#fff"><div class="ic">💰</div><div><div class="l">Monthly salary</div><div class="v">SAR ${certMoney(total).replace(/\.00$/, "")}</div></div></div>${second}${third}</div>
+      <div class="cf-cols">${earnings}${right}</div>${hist}${band}`;
+  }else{
+    const asOf2 = asOf;
+    middle = `<div class="cf-tiles"><div class="cf-k" style="background:linear-gradient(135deg,var(--cs),var(--cm));color:#fff"><div class="ic">📅</div><div><div class="l">Date of joining</div><div class="v" style="font-size:12.5px">${certDateShort(c.joining_date) || "–"}</div></div></div><div class="cf-k" style="background:var(--cst);color:var(--cd)"><div class="ic" style="background:rgba(0,0,0,.07)">🕒</div><div><div class="l">Service</div><div class="v" style="font-size:12.5px">${certEsc(certServiceShort(c.joining_date, asOf2) || "–")}</div></div></div><div class="cf-k" style="background:#E1F5EA;color:#12713F"><div class="ic" style="background:rgba(18,113,63,.14)">✔</div><div><div class="l">Status</div><div class="v" style="font-size:12px">Active, in service</div></div></div></div>
+      <div class="cf-box" style="margin:16px 30px 0"><div class="cf-bh" style="background:var(--cmt2);color:var(--cd)">EMPLOYMENT DETAILS</div>${c.employee_no ? `<div class="cf-ln"><span>Employee no.</span><b>${certEsc(c.employee_no)}</b></div>` : ""}<div class="cf-ln"><span>Iqama no.</span><b>${certEsc(c.iqama_number || "")}</b></div><div class="cf-ln"><span>Job title</span><b>${certEsc(job || "–")}</b></div><div class="cf-ln"><span>Employer</span><b>${certEsc(lh.display_name)}</b></div></div>`;
+  }
+  const valid = new Date((c.issue_date || todayLocalISO()) + "T00:00:00"); valid.setDate(valid.getDate() + 30);
+  const validISO = `${valid.getFullYear()}-${String(valid.getMonth() + 1).padStart(2, "0")}-${String(valid.getDate()).padStart(2, "0")}`;
+  const ref = `<div class="cf-ref"><div>Reference<b>${certEsc(c.ref_no || "—")}</b></div><div>Issued<b>${certDateShort(c.issue_date)}</b></div><div>Valid until<b>${certDateShort(validISO)}</b></div></div>`;
+  return `${header}${card}<div class="cf-flow">${middle}<p class="cf-mp">${T.intro.replace(/ His monthly salary is as follows:| Her monthly salary is as follows:/, "")} ${T.closing}</p></div>
+<div class="cf-msign"><div>${certSignBlock(c, lh, true).split('<div class="cf-stamp')[0].split('<img class="cf-stampimg')[0]}</div>${ref}${lh.stamp_data ? `<img class="cf-stampimg" src="${lh.stamp_data}" alt="">` : `<div class="cf-stamp">Company<br>stamp</div>`}</div>
+<div class="cf-ft"><span>${certEsc(certFooterText(lh))}</span><span style="white-space:nowrap">Page 1 of 1</span></div>`;
+}
+
+// One certificate page as HTML. c = a certificate row (or an unsaved draft), style = "classic" | "modern".
+function certificateHtml(c, lh, style){
+  const salary = c.cert_type !== "employment";
+  const parts = { basic: Number(c.basic_salary) || 0, housing: Number(c.housing_allowance) || 0, other: Number(c.other_allowance) || 0 };
+  const months = salary && Array.isArray(c.months_data) ? c.months_data.slice(0, 6) : [];
+  const P = certPalette(lh), T = certTexts(c, lh, salary), modern = style === "modern";
+  const vars = `--cd:${P.dark};--cd2:${P.dark2};--cm:${P.main};--cs:${P.second};--cmt:${P.mainTint};--cmt2:${P.mainTint2};--cst:${P.secondTint};--cline:${P.line};--gold:${P.gold};--goldt:${P.goldTint};--goldd:${P.goldDark}`;
+  return `<div class="cf" data-limit="${modern ? 662 : 655}" style="${vars}">${CERT_CSS}${modern ? certModernHtml(c, lh, T, months, parts, salary) : certClassicHtml(c, lh, T, months, parts, salary)}</div>`;
+}
+// If a very long name / bank / purpose pushes the text towards the signature, tighten the page a little (twice at most).
+function certFit(root){
+  const page = root && (root.classList && root.classList.contains("cf") ? root : root.querySelector(".cf"));
+  if(!page) return;
+  const flow = page.querySelector(".cf-flow");
+  if(!flow) return;
+  const limit = Number(page.getAttribute("data-limit")) || 655;
+  const bottom = () => { const pr = page.getBoundingClientRect(), fr = flow.getBoundingClientRect(), k = pr.width ? pr.width / 595 : 1; return (fr.bottom - pr.top) / k; };
+  for(const cls of ["cf-s1", "cf-s2"]){
+    if(bottom() <= limit) return;
+    page.classList.add(cls);
+  }
+}
+
+// ---------------- the PDF: the same page, drawn by the browser, placed on an A4 sheet ----------------
+async function certRenderToCanvas(c, lh, style){
+  const host = document.createElement("div");
+  host.style.cssText = "position:absolute;left:-10000px;top:0;width:595px;height:842px;background:#fff;";
+  host.innerHTML = certificateHtml(c, lh, style);
+  document.body.appendChild(host);
+  try{
+    certFit(host);
+    const imgs = Array.from(host.querySelectorAll("img"));
+    await Promise.all(imgs.map(im => (im.complete && im.naturalWidth) ? Promise.resolve() : new Promise(r => { im.onload = im.onerror = r; })));
+    if(document.fonts && document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
+    return await html2canvas(host.firstElementChild, { scale: 3, backgroundColor: "#ffffff", useCORS: true, logging: false, width: 595, height: 842, windowWidth: 595, windowHeight: 842, scrollX: 0, scrollY: 0 });
+  } finally { host.remove(); }
+}
+async function buildCertificatePdfBlob(c, lh, style){
+  if(typeof html2canvas !== "function" || !window.jspdf) throw new Error("The PDF tools did not load. Check the internet connection and try again.");
+  const canvas = await certRenderToCanvas(c, lh, style);
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "pt", format: "a4", compress: true });
+  doc.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, 595.28, 841.89);
+  try{ doc.setProperties({ title: `${c.cert_type === "employment" ? "Employment" : "Salary"} certificate ${c.ref_no || ""}`.trim(), subject: c.employee_name || "", author: lh.display_name || "" }); }catch(e){}
+  return doc.output("blob");
+}
+
+// ======================================================================
+// Certificates: data, actions and screens
+// ======================================================================
+function certIsOwner(){ return !!state.user && state.user.role === "ceo"; }
+function certCanUse(){ return !!state.user && ["hr", "ceo"].includes(state.user.role); }
+function certErr(error){
+  const m = String((error && error.message) || error || "");
+  if(/does not exist|schema cache|could not find the table/i.test(m)) return "Certificates are not set up yet. Run add_certificates.sql in Supabase first.";
+  return m || "Something went wrong.";
+}
+function certNum(v){ const n = Number(String(v == null ? "" : v).replace(/,/g, "")); return isFinite(n) ? n : 0; }
+function certTypeName(c){ return c.cert_type === "employment" ? "Employment certificate" : "Salary certificate"; }
+function certCompanyName(company){ return certLetterhead(company).display_name; }
+function certPdfName(c){
+  const ref = String(c.ref_no || "draft").replace(/[^A-Za-z0-9]+/g, "-");
+  const who = String(c.employee_name || "").toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return `${c.cert_type === "employment" ? "Employment" : "Salary"}_Certificate_${ref}${who ? "_" + who : ""}.pdf`;
+}
+function replaceCert(row){
+  if(!row) return;
+  const i = state.certs.findIndex(x => x.id === row.id);
+  if(i >= 0) state.certs[i] = row; else state.certs.unshift(row);
+  state.certWaitingCount = state.certs.filter(c => c.status === "sent").length;
+}
+
+// ---------- loading ----------
+async function loadOwnerName(){
+  if(state.ownerName) return;
+  const { data } = await sb.from("ts_employees").select("name").eq("role", "ceo").limit(1);
+  if(data && data[0] && data[0].name) state.ownerName = data[0].name;
+}
+async function loadOwnerSignature(){
+  if(!certIsOwner()) return;
+  const { data } = await sb.from("ts_supervisor_signatures").select("signature_data").eq("supervisor_id", state.user.id).maybeSingle();
+  state.ownerSignature = data ? data.signature_data : (state.savedSignature || null);
+}
+async function loadCertificates(){
+  const [res] = await Promise.all([
+    sb.from("ts_certificates").select("*").order("created_at", { ascending: false }),
+    loadLetterheads(), loadOwnerName(), loadOwnerSignature()
+  ]);
+  if(res.error){ state.certsError = certErr(res.error); state.certs = []; }
+  else { state.certsError = ""; state.certs = res.data || []; }
+  state.certsLoaded = true; state.loading = false;
+  state.certWaitingCount = state.certs.filter(c => c.status === "sent").length;
+  render();
+}
+async function loadCertWaitingCount(){
+  if(!certIsOwner()) return;
+  const { count, error } = await sb.from("ts_certificates").select("id", { count: "exact", head: true }).eq("status", "sent");
+  if(error) return;
+  const n = count || 0;
+  if(n !== state.certWaitingCount){ state.certWaitingCount = n; if(state.view === "ceo-home") render(); }
+}
+async function loadCertEmployees(){
+  if(state.certEmployeesLoaded) return;
+  const base = "id, name, short_name, employee_no, iqama_number, nationality, joining_date, salary_group, basic_salary, wps_basic, wps_housing, wps_other";
+  let res = await sb.from("ts_employees").select(base + ", other_allowance, job_title").eq("active", true).order("name");
+  state.certJobTitleMissing = false;
+  if(res.error){
+    state.certJobTitleMissing = true;
+    res = await sb.from("ts_employees").select(base + ", other_allowance").eq("active", true).order("name");
+    if(res.error) res = await sb.from("ts_employees").select(base).eq("active", true).order("name");
+  }
+  state.certEmployees = res.data || [];
+  state.certEmployeesLoaded = true;
+}
+
+// ---------- opening screens ----------
+async function openCertificates(){
+  if(!certCanUse()) return;
+  state.view = "certificates";
+  if(!state.certFilterTouched) state.certFilter = certIsOwner() ? "sent" : "all";
+  state.loading = true; render();
+  await loadCertificates();
+}
+function certNewDraft(){
+  return { id: null, ref_no: "", employee_id: "", company: "PI", cert_type: "salary", title_prefix: "Mr.", employee_name: "", employee_no: "", iqama_number: "", nationality: "", job_title: "", joining_date: "",
+    basic_salary: "", housing_allowance: "", other_allowance: "", months_count: 0, months_data: [], show_bank_account: false, pay_bank_name: "", iban_last4: "",
+    addressed_to: "general", bank_name: "", purpose: "Bank loan", issue_date: todayLocalISO(), suggested_style: "classic", status: "draft" };
+}
+async function certStartNew(){
+  state.loading = true; render();
+  await loadCertEmployees();
+  state.certDraft = certNewDraft(); state.certMonthsNote = ""; state.certRememberJob = false;
+  state.loading = false; state.view = "certificate-form"; render();
+}
+async function certEditExisting(id){
+  const c = state.certs.find(x => x.id === id);
+  if(!c || !["draft", "returned"].includes(c.status)) return;
+  state.loading = true; render();
+  await loadCertEmployees();
+  state.certDraft = { ...c, months_data: Array.isArray(c.months_data) ? c.months_data : [], basic_salary: c.basic_salary == null ? "" : c.basic_salary, housing_allowance: c.housing_allowance == null ? "" : c.housing_allowance, other_allowance: c.other_allowance == null ? "" : c.other_allowance };
+  state.certMonthsNote = ""; state.certRememberJob = false;
+  state.loading = false; state.view = "certificate-form"; render();
+}
+function certOpenReview(id){
+  const c = state.certs.find(x => x.id === id);
+  if(!c) return;
+  state.certReviewId = id;
+  state.certReviewStyle = c.style || c.suggested_style || "classic";
+  state.view = "certificate-review"; render();
+}
+async function openLetterheads(){
+  await loadLetterheads();
+  const edit = {};
+  ["PI", "Al falak"].forEach(co => {
+    const lh = certLetterhead(co), saved = state.letterheads[co] || {};
+    edit[co] = { ...lh, _savedLogo: saved.logo_data || null, _logoSet: false };
+  });
+  state.letterheadsEdit = edit;
+  state.view = "certificate-letterheads"; render();
+}
+
+// ---------- preparing a certificate ----------
+async function certPickEmployee(id){
+  const d = state.certDraft, e = state.certEmployees.find(x => x.id === id);
+  if(!d) return;
+  if(!e){ d.employee_id = ""; render(); return; }
+  d.employee_id = e.id; d.company = certCompanyOf(e);
+  d.employee_name = e.name || ""; d.employee_no = e.employee_no || ""; d.iqama_number = e.iqama_number || ""; d.nationality = certNationalityEnglish(e.nationality); d.joining_date = e.joining_date || "";
+  d.job_title = e.job_title || "";
+  const p = certSalaryParts(e); d.basic_salary = p.basic; d.housing_allowance = p.housing; d.other_allowance = p.other;
+  state.certRememberJob = !e.job_title;
+  state.certBusy = true; render();
+  let bank = null;
+  try{ const r = await sb.from("ts_employee_bank_details").select("iban, bank_code").eq("employee_id", e.id).maybeSingle(); bank = r.data || null; }catch(err){ bank = null; }
+  d.pay_bank_name = bank ? certBankNameFromCode(bank.bank_code) : "";
+  d.iban_last4 = bank && bank.iban ? String(bank.iban).replace(/\s+/g, "").slice(-4) : "";
+  d.show_bank_account = !!d.pay_bank_name;
+  await certRefreshMonths();
+  state.certBusy = false; render();
+}
+async function certRefreshMonths(){
+  const d = state.certDraft;
+  state.certMonthsNote = "";
+  if(!d) return;
+  const e = state.certEmployees.find(x => x.id === d.employee_id);
+  if(!e || d.cert_type !== "salary" || !Number(d.months_count)){ d.months_data = []; return; }
+  const h = await certLoadPayHistory(e, d.months_count);
+  if(h.error){ d.months_data = []; state.certMonthsNote = "Could not read his approved months: " + certErr(h.error); return; }
+  d.months_data = h.months;
+  if(h.months.length < Number(d.months_count)){
+    state.certMonthsNote = h.months.length
+      ? `Only ${h.months.length} approved month${h.months.length === 1 ? " was" : "s were"} found for him, so the certificate will show ${h.months.length === 1 ? "that month" : "those months"}.`
+      : "He has no approved months yet, so no history can be shown.";
+  }
+}
+async function certSetMonths(n){
+  const d = state.certDraft; if(!d) return;
+  d.months_count = n;
+  state.certBusy = true; render();
+  await certRefreshMonths();
+  state.certBusy = false; render();
+}
+function certSalaryMismatch(d){
+  if(!d || d.cert_type !== "salary" || !d.months_data || !d.months_data.length) return "";
+  const e = state.certEmployees.find(x => x.id === d.employee_id);
+  if(!e) return "";
+  const printed = certNum(d.basic_salary) + certNum(d.housing_allowance) + certNum(d.other_allowance);
+  const used = certRound2((Number(e.basic_salary) || 0) + (Number(e.other_allowance) || 0));
+  if(Math.abs(printed - used) < 0.005) return "";
+  return `The monthly salary above is ${certMoney(printed)}, but the months table uses his salary-sheet pay of ${certMoney(used)} (basic + other allowance). Check that both are right before you send it.`;
+}
+function certDraftToRow(d){
+  const salary = d.cert_type === "salary";
+  return {
+    employee_id: d.employee_id, company: d.company, cert_type: d.cert_type, title_prefix: d.title_prefix,
+    employee_name: String(d.employee_name || "").trim(), employee_no: d.employee_no || null, iqama_number: d.iqama_number || null,
+    nationality: String(d.nationality || "").trim() || null, job_title: String(d.job_title || "").trim() || null, joining_date: d.joining_date || null,
+    basic_salary: salary ? certNum(d.basic_salary) : null, housing_allowance: salary ? certNum(d.housing_allowance) : null, other_allowance: salary ? certNum(d.other_allowance) : null,
+    months_count: salary ? (Number(d.months_count) || 0) : 0, months_data: salary ? (d.months_data || []) : [],
+    show_bank_account: salary && !!d.show_bank_account && !!d.pay_bank_name, pay_bank_name: (salary && d.show_bank_account) ? (d.pay_bank_name || null) : null, iban_last4: (salary && d.show_bank_account) ? (d.iban_last4 || null) : null,
+    addressed_to: d.addressed_to, bank_name: d.addressed_to === "bank" ? (String(d.bank_name || "").trim() || null) : null,
+    purpose: String(d.purpose || "").trim() || null, issue_date: d.issue_date || todayLocalISO(), suggested_style: d.suggested_style || "classic"
+  };
+}
+function certValidate(d, send){
+  if(!d.employee_id) return "Choose the employee first.";
+  if(!String(d.employee_name || "").trim()) return "The employee's name is missing.";
+  if(!String(d.iqama_number || "").trim()) return "His iqama number is missing. Add it in the Employee Directory first.";
+  if(d.cert_type === "salary" && certNum(d.basic_salary) + certNum(d.housing_allowance) + certNum(d.other_allowance) <= 0) return "Enter his monthly salary.";
+  if(d.addressed_to === "bank" && !String(d.bank_name || "").trim()) return "Write the bank's name.";
+  if(send && certHasArabic(d.nationality)) return "Write his nationality in English (for example: Indian) before sending.";
+  if(send && certHasArabic(d.job_title)) return "Write his job title in English before sending.";
+  return "";
+}
+async function certSave(send){
+  const d = state.certDraft; if(!d || state.certBusy) return;
+  const bad = certValidate(d, send); if(bad){ toast(bad); return; }
+  state.certBusy = true; render();
+  const payload = certDraftToRow(d);
+  let res = d.id ? await sb.from("ts_certificates").update(payload).eq("id", d.id).select().single()
+                 : await sb.from("ts_certificates").insert(payload).select().single();
+  if(!res.error && res.data){ d.id = res.data.id; d.ref_no = res.data.ref_no; }
+  if(!res.error && send) res = await sb.from("ts_certificates").update({ status: "sent" }).eq("id", d.id).select().single();
+  if(res.error){ state.certBusy = false; toast(certErr(res.error)); render(); return; }
+  if(state.certRememberJob && String(d.job_title || "").trim() && !state.certJobTitleMissing){
+    const jt = String(d.job_title).trim();
+    const r2 = await sb.from("ts_employees").update({ job_title: jt }).eq("id", d.employee_id);
+    if(!r2.error){ const e = state.certEmployees.find(x => x.id === d.employee_id); if(e) e.job_title = jt; }
+  }
+  toast(send ? `Sent to the Owner: ${res.data.ref_no}.` : `Saved as a draft: ${res.data.ref_no}.`);
+  state.certDraft = null; state.certBusy = false; state.view = "certificates";
+  if(send && !certIsOwner()) state.certFilter = "sent"; else if(!send) state.certFilter = "draft";
+  state.certFilterTouched = true;
+  await loadCertificates();
+}
+
+// ---------- actions on an existing certificate ----------
+async function certTransition(id, patch, okMessage){
+  state.certBusy = true; render();
+  const { data, error } = await sb.from("ts_certificates").update(patch).eq("id", id).select().single();
+  state.certBusy = false;
+  if(error){ toast(certErr(error)); render(); return false; }
+  replaceCert(data); if(okMessage) toast(okMessage); render();
+  return true;
+}
+async function certTakeBack(id){
+  if(!confirm("Take this certificate back from the Owner? You can edit it and send it again.")) return;
+  await certTransition(id, { status: "draft" }, "Taken back. It is a draft again.");
+}
+async function certDelete(id){
+  const c = state.certs.find(x => x.id === id);
+  if(!c || !confirm(`Delete this draft for ${c.employee_name}? Its number ${c.ref_no} will not be used again.`)) return;
+  state.certBusy = true; render();
+  const { data, error } = await sb.from("ts_certificates").delete().eq("id", id).select();
+  state.certBusy = false;
+  if(error){ toast(certErr(error)); render(); return; }
+  if(!data || !data.length){ toast("It could not be deleted (only drafts and returned certificates can be)."); render(); return; }
+  state.certs = state.certs.filter(x => x.id !== id); toast("Deleted."); render();
+}
+async function certApprove(id){
+  const c = state.certs.find(x => x.id === id);
+  if(!c || !certIsOwner() || !["sent", "draft"].includes(c.status)) return;
+  if(!state.ownerSignature){ toast("Draw and save your signature first (My Signature)."); return; }
+  const style = state.certReviewStyle || c.suggested_style || "classic";
+  if(!confirm(`Sign the certificate for ${c.employee_name} in the ${style === "modern" ? "Modern" : "Classic"} style? Once signed it is locked.`)) return;
+  const ok = await certTransition(id, { status: "signed", style, signature_data: state.ownerSignature, signed_by_name: state.user.name }, null);
+  if(!ok) return;
+  toast(`Signed: ${c.ref_no}.`);
+  state.view = "certificates"; state.certFilter = "signed"; state.certFilterTouched = true; render();
+}
+async function certReturn(id){
+  const c = state.certs.find(x => x.id === id);
+  if(!c || !certIsOwner() || c.status !== "sent") return;
+  const note = (prompt("What should HR fix? This note goes back to HR with the certificate.") || "").trim();
+  if(!note) return;
+  const ok = await certTransition(id, { status: "returned", return_note: note }, "Returned to HR with your note.");
+  if(ok){ state.view = "certificates"; state.certFilter = "sent"; state.certFilterTouched = true; render(); }
+}
+async function certWithdrawSignature(id){
+  if(!certIsOwner()) return;
+  if(!confirm("Withdraw your signature? The certificate goes back to a draft and can be edited and signed again.")) return;
+  await certTransition(id, { status: "draft" }, "Signature withdrawn.");
+}
+
+// ---------- PDF ----------
+async function certMakePdf(c, style, extra){
+  return await buildCertificatePdfBlob({ ...c, ...(extra || {}) }, certLetterhead(c.company), style);
+}
+async function certOpenPdf(c, style, extra){
+  try{
+    toast("Preparing the PDF…");
+    const blob = await certMakePdf(c, style, extra);
+    const url = URL.createObjectURL(blob), win = window.open(url, "_blank");
+    if(!win) await shareOrDownloadBlob(blob, certPdfName(c), "application/pdf");
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }catch(err){ toast("Could not make the PDF: " + (err && err.message ? err.message : "unknown error")); }
+}
+async function certSharePdf(c){
+  try{
+    toast("Preparing the PDF…");
+    const blob = await certMakePdf(c, c.style || c.suggested_style || "classic");
+    await shareOrDownloadBlob(blob, certPdfName(c), "application/pdf");
+  }catch(err){ toast("Could not make the PDF: " + (err && err.message ? err.message : "unknown error")); }
+}
+
+// ---------- letterheads ----------
+async function certImageToDataUrl(file, maxPx){
+  const url = URL.createObjectURL(file);
+  try{
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("That file is not a picture.")); i.src = url; });
+    const k = Math.min(1, maxPx / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * k)), h = Math.max(1, Math.round(img.naturalHeight * k));
+    const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+    cv.getContext("2d").drawImage(img, 0, 0, w, h);
+    return cv.toDataURL("image/png");
+  } finally { URL.revokeObjectURL(url); }
+}
+async function saveLetterhead(company){
+  const v = state.letterheadsEdit && state.letterheadsEdit[company];
+  if(!v) return;
+  const t = (x) => String(x || "").trim() || null;
+  if(!t(v.display_name)){ toast("Write the company name."); return; }
+  const row = { company, display_name: t(v.display_name), tagline: t(v.tagline), address: t(v.address), phone: t(v.phone), email: t(v.email), website: t(v.website),
+    accent: certHex(v.accent) || null, accent2: certHex(v.accent2) || null,
+    logo_data: v._logoSet ? (v.logo_data || null) : (v._savedLogo || null), stamp_data: v.stamp_data || null };
+  state.certBusy = true; render();
+  const { data, error } = await sb.from("ts_company_letterheads").upsert(row, { onConflict: "company" }).select().single();
+  state.certBusy = false;
+  if(error){ toast(certErr(error)); render(); return; }
+  state.letterheads[company] = data;
+  const lh = certLetterhead(company);
+  state.letterheadsEdit[company] = { ...lh, _savedLogo: data.logo_data || null, _logoSet: false };
+  toast(`${lh.display_name}: letterhead saved.`); render();
+}
+
+// ---------- screens ----------
+function certBackId(){ return certIsOwner() ? "backToCeoHomeBtn" : "backToHrBtn"; }
+function certSetupCard(msg){
+  return `<div class="cr-glass"><div style="font-weight:800;font-size:14px;color:#8A5A00;">⚙ One-time setup needed</div><div class="cr-sub" style="margin-top:6px;">${certEsc(msg)}</div><div class="cr-info">In Supabase open <b>SQL Editor</b>, paste the file <b>add_certificates.sql</b>, press Run, then open this page again.</div></div>`;
+}
+function certPreviewHtml(c, style, extra){
+  const lh = certLetterhead(c.company || "PI");
+  const avail = (document.documentElement && document.documentElement.clientWidth) || 390;
+  const w = Math.round(Math.min(595, Math.max(240, avail - 84))), k = w / 595;
+  const data = { ...c, ...(extra || {}) };
+  if(!data.ref_no) data.ref_no = "Pending";
+  return `<div class="cr-prev-wrap" style="width:${w}px;height:${Math.round(842 * k)}px;"><div class="cr-prev-inner" style="transform:scale(${k.toFixed(4)});">${certificateHtml(data, lh, style)}</div></div>`;
+}
+// the preview is sized to the box it actually sits in, then tightened if its text is long
+function certResizePreviews(){
+  document.querySelectorAll(".cr-prevbox").forEach(box => {
+    const wrap = box.querySelector(".cr-prev-wrap"), inner = box.querySelector(".cr-prev-inner");
+    if(!wrap || !inner) return;
+    const cs = getComputedStyle(box), avail = box.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+    if(!avail || avail < 120) return;
+    const w = Math.min(595, Math.floor(avail)), k = w / 595;
+    wrap.style.width = w + "px"; wrap.style.height = Math.round(842 * k) + "px"; inner.style.transform = "scale(" + k.toFixed(4) + ")";
+  });
+}
+function certFitAll(){ certResizePreviews(); document.querySelectorAll(".cr-prev-inner").forEach(n => certFit(n)); }
+function certUpdatePreview(){
+  const box = document.getElementById("certPreviewBox");
+  if(!box || !state.certDraft) return;
+  box.innerHTML = certPreviewHtml(state.certDraft, state.certDraft.suggested_style || "classic");
+  certFitAll();
+}
+function certUpdateTotals(){
+  const d = state.certDraft; if(!d) return;
+  const total = certNum(d.basic_salary) + certNum(d.housing_allowance) + certNum(d.other_allowance);
+  const t = document.getElementById("certTotalText"), w = document.getElementById("certWordsText");
+  if(t) t.textContent = "SAR " + certMoney(total);
+  if(w) w.textContent = total > 0 ? certAmountWords(total) : "";
+}
+
+function renderCertificates(){
+  const owner = certIsOwner();
+  const hero = `<div class="cr-hero"><h2>${owner ? "✍ Certificates" : "📄 Certificates"}</h2><div class="sub">${owner ? "Review each certificate, choose its style and sign" : "Prepare, send to the Owner, and download when signed"}</div></div>`;
+  const back = `<button class="link-btn" id="${certBackId()}" style="margin-bottom:12px;">‹ Back</button>`;
+  if(state.certsError) return `<div class="cr-page">${back}${hero}${certSetupCard(state.certsError)}</div>`;
+  const list = state.certs, filter = state.certFilter || "all";
+  const n = (s) => list.filter(c => c.status === s).length;
+  const tabs = [["all", "All", list.length], ["draft", "Draft", n("draft")], ["sent", "Owner", n("sent")], ["signed", "Signed", n("signed")], ["returned", "Returned", n("returned")]];
+  const shown = filter === "all" ? list : list.filter(c => c.status === filter);
+  const card = (c) => {
+    const st = certStatusInfo(c.status), acts = [];
+    if(owner && c.status === "sent") acts.push(`<button class="cr-btn sm cr-green" data-cert-act="review" data-cert-id="${c.id}">✍ Review &amp; sign</button>`);
+    if(!owner && ["draft", "returned"].includes(c.status)) acts.push(`<button class="cr-btn sm cr-blue" data-cert-act="edit" data-cert-id="${c.id}">✎ Edit</button>`);
+    if(["draft", "returned"].includes(c.status)) acts.push(`<button class="cr-btn sm cr-glassbtn" data-cert-act="delete" data-cert-id="${c.id}">🗑 Delete</button>`);
+    if(owner && ["draft", "returned"].includes(c.status)) acts.unshift(`<button class="cr-btn sm cr-blue" data-cert-act="edit" data-cert-id="${c.id}">✎ Edit</button>`);
+    if(!owner && c.status === "sent") acts.push(`<button class="cr-btn sm cr-gold" data-cert-act="takeback" data-cert-id="${c.id}">↩ Take back</button>`);
+    if(c.status === "signed"){
+      acts.push(`<button class="cr-btn sm cr-violet" data-cert-act="pdf" data-cert-id="${c.id}">📄 Open PDF</button>`);
+      acts.push(`<button class="cr-btn sm cr-green" data-cert-act="share" data-cert-id="${c.id}">⬇ Download / share</button>`);
+      if(owner) acts.push(`<button class="cr-btn sm cr-glassbtn" data-cert-act="withdraw" data-cert-id="${c.id}">Withdraw signature</button>`);
+    }
+    if(!owner && c.status === "sent") acts.push(`<button class="cr-btn sm cr-glassbtn" data-cert-act="review" data-cert-id="${c.id}">👁 View</button>`);
+    return `<div class="cr-glass cr-tap" data-cert-open="${c.id}">
+      <div class="cr-row"><div><div class="cr-name">${certEsc(c.employee_name)}</div><div class="cr-sub">${certTypeName(c)}${c.purpose ? " · " + certEsc(c.purpose) : ""}</div>
+      <div class="cr-sub2">${certEsc(c.ref_no || "")} · ${certDateShort(c.issue_date)} · ${certEsc(certCompanyName(c.company))}${c.status === "signed" && c.style ? " · " + (c.style === "modern" ? "Modern" : "Classic") + " style" : ""}</div></div><span class="cr-chip ${st.cls}">${st.text}</span></div>
+      ${c.status === "returned" && c.return_note ? `<div class="cr-note"><b>Owner's note:</b> ${certEsc(c.return_note)}</div>` : ""}
+      ${acts.length ? `<div>${acts.join("")}</div>` : ""}</div>`;
+  };
+  return `<div class="cr-page">${back}${hero}
+    <button class="cr-btn cr-blue" id="certNewBtn" style="margin-top:0;margin-bottom:12px;">＋ Prepare a certificate</button>
+    <div class="cr-seg tabs" style="margin-bottom:12px;">${tabs.map(([k, label, count]) => `<button class="${filter === k ? "on" : ""}" data-cert-filter="${k}">${label} <small>${count}</small></button>`).join("")}</div>
+    ${shown.length ? shown.map(card).join("") : `<div class="cr-glass" style="text-align:center;padding:26px 16px;"><div style="font-size:34px;">📄</div><div class="cr-name" style="margin-top:6px;">${filter === "sent" && owner ? "Nothing is waiting for your signature" : "No certificates here yet"}</div><div class="cr-sub">${filter === "all" || !list.length ? "Tap “Prepare a certificate” to make the first one." : "Try another tab above."}</div></div>`}
+    <button class="cr-btn cr-glassbtn" id="certLetterheadsBtn">🏢 Letterheads (PI and Al Falak)</button>
+  </div>`;
+}
+
+function renderCertificateForm(){
+  const d = state.certDraft;
+  if(!d) return "";
+  const busy = state.certBusy, editing = !!d.id, salary = d.cert_type === "salary";
+  const emp = state.certEmployees.find(e => e.id === d.employee_id);
+  const total = certNum(d.basic_salary) + certNum(d.housing_allowance) + certNum(d.other_allowance);
+  const known = CERT_PURPOSES.some(p => p.label === d.purpose && p.label !== "Other");
+  const purposeSel = known ? d.purpose : "Other";
+  const mismatch = certSalaryMismatch(d);
+  const lh = certLetterhead(d.company);
+  const empBlock = editing
+    ? `<div class="cr-name">${certEsc(d.employee_name)}</div><div class="cr-sub2">${certEsc(d.ref_no)} · ${certEsc(lh.display_name)}</div>`
+    : `<select class="cr-in" id="certEmpSelect"><option value="">Choose the employee…</option>${state.certEmployees.map(e => `<option value="${e.id}" ${e.id === d.employee_id ? "selected" : ""}>${certEsc(e.name)}${certCompanyOf(e) === "Al falak" ? " (Al Falak)" : ""}</option>`).join("")}</select>`;
+  const info = d.employee_id ? `<div class="cr-info"><b>From his file:</b> Iqama ${certEsc(d.iqama_number || "–")} · joined ${certDateShort(d.joining_date) || "date not set"}${d.employee_no ? " · no. " + certEsc(d.employee_no) : ""}<br><b>Letterhead:</b> ${certEsc(lh.display_name)}</div>` : "";
+  return `<div class="cr-page">
+    <button class="link-btn" id="certBackBtn" style="margin-bottom:12px;">‹ Certificates</button>
+    <div class="cr-hero"><h2>${editing ? "✎ Edit certificate" : "📄 Prepare a certificate"}</h2><div class="sub">${editing ? "Change what is needed, then save or send it again" : "Fill it in, check the preview, then send it to the Owner"}</div></div>
+    ${d.status === "returned" && d.return_note ? `<div class="cr-note" style="margin-bottom:12px;"><b>Returned by the Owner:</b> ${certEsc(d.return_note)}</div>` : ""}
+
+    <div class="cr-glass">
+      <label class="cr-label">Employee</label>${empBlock}${info}
+      <div class="cr-two"><div><label class="cr-label">Title</label><div class="cr-seg"><button class="${d.title_prefix === "Mr." ? "on" : ""}" data-cert-title="Mr.">Mr.</button><button class="${d.title_prefix === "Ms." ? "on" : ""}" data-cert-title="Ms.">Ms.</button></div></div>
+      <div><label class="cr-label">Date on certificate</label><input class="cr-in" type="date" data-cert-field="issue_date" value="${certEsc(d.issue_date)}"></div></div>
+      <div class="cr-two"><div><label class="cr-label">Job title</label><input class="cr-in" type="text" data-cert-field="job_title" value="${certEsc(d.job_title)}" placeholder="For example: Technician"></div>
+      <div><label class="cr-label">Nationality</label><input class="cr-in" type="text" data-cert-field="nationality" value="${certEsc(d.nationality)}" placeholder="For example: Indian"></div></div>
+      ${certHasArabic(d.nationality) ? `<div class="cr-warn">His nationality is written in Arabic in his file. Type it in English (for example: Indian) so the certificate reads correctly.</div>` : ""}
+      ${!state.certJobTitleMissing && d.employee_id && !editing ? `<label class="cr-check"><input type="checkbox" data-cert-field="remember_job" ${state.certRememberJob ? "checked" : ""}><span>Remember this as his job title in his file</span></label>` : ""}
+    </div>
+
+    <div class="cr-glass">
+      <label class="cr-label">Type of certificate</label>
+      <div class="cr-pick ${salary ? "on" : ""}" data-cert-type="salary"><span class="ic">💰</span><div><b>Salary certificate</b><span>Shows his monthly salary, and optionally the months paid</span></div></div>
+      <div class="cr-pick ${!salary ? "on" : ""}" data-cert-type="employment"><span class="ic">🪪</span><div><b>Employment certificate</b><span>Confirms he works here; no salary shown</span></div></div>
+      <label class="cr-label">Addressed to</label>
+      <div class="cr-seg"><button class="${d.addressed_to === "general" ? "on" : ""}" data-cert-addr="general">To whom it may concern</button><button class="${d.addressed_to === "bank" ? "on" : ""}" data-cert-addr="bank">A bank</button></div>
+      ${d.addressed_to === "bank" ? `<label class="cr-label">Bank name and branch</label><input class="cr-in" type="text" data-cert-field="bank_name" value="${certEsc(d.bank_name)}" placeholder="For example: Al Rajhi Bank, Dammam">` : ""}
+      <label class="cr-label">Purpose</label>
+      <select class="cr-in" id="certPurposeSelect">${CERT_PURPOSES.map(p => `<option value="${certEsc(p.label)}" ${p.label === purposeSel ? "selected" : ""}>${certEsc(p.label)}</option>`).join("")}</select>
+      ${purposeSel === "Other" ? `<input class="cr-in" style="margin-top:8px;" type="text" data-cert-field="purpose" value="${certEsc(d.purpose === "Other" ? "" : d.purpose)}" placeholder="What is it for?">` : ""}
+    </div>
+
+    ${salary ? `<div class="cr-glass">
+      <label class="cr-label">Monthly salary (SAR)</label>
+      <div class="cr-three"><div><div class="cr-sub2">Basic</div><input class="cr-in" inputmode="decimal" data-cert-field="basic_salary" value="${certEsc(d.basic_salary)}" placeholder="0"></div>
+      <div><div class="cr-sub2">Housing</div><input class="cr-in" inputmode="decimal" data-cert-field="housing_allowance" value="${certEsc(d.housing_allowance)}" placeholder="0"></div>
+      <div><div class="cr-sub2">Other</div><input class="cr-in" inputmode="decimal" data-cert-field="other_allowance" value="${certEsc(d.other_allowance)}" placeholder="0"></div></div>
+      <div class="cr-total"><span id="certTotalText">SAR ${certMoney(total)}</span><span id="certWordsText" style="font-size:10.5px;font-weight:600;text-align:right;">${total > 0 ? certAmountWords(total) : ""}</span></div>
+      ${d.pay_bank_name ? `<label class="cr-check"><input type="checkbox" data-cert-field="show_bank_account" ${d.show_bank_account ? "checked" : ""}><span>Say that the salary is paid by bank transfer to his <b>${certEsc(d.pay_bank_name)}</b> account${d.iban_last4 ? " (last 4 digits …" + certEsc(d.iban_last4) + ")" : ""}</span></label>` : ""}
+      <label class="cr-label">Show the salary paid in the last … months</label>
+      <div class="cr-mo">${[0, 1, 2, 3, 4, 5, 6].map(m => `<button class="${Number(d.months_count) === m ? "on" : ""}" data-cert-months="${m}">${m === 0 ? "None" : m}</button>`).join("")}</div>
+      ${Number(d.months_count) > 0 && d.employee_id ? `<div class="cr-info"><b>Will show:</b> ${d.months_data && d.months_data.length ? d.months_data.map(m => certEsc(m.label) + " (" + certMoney(m.net) + ")").join(", ") + `. Average ${certMoney(certAverageNet(d.months_data))}.` : "no months yet."} Worked out from his approved timesheets, the same way as the Salary Sheet.</div>` : ""}
+      ${Number(d.months_count) > 0 && !d.employee_id ? `<div class="cr-info">Choose the employee to see which months are available.</div>` : ""}
+      ${state.certMonthsNote ? `<div class="cr-warn">${certEsc(state.certMonthsNote)}</div>` : ""}
+      ${mismatch ? `<div class="cr-warn">${certEsc(mismatch)}</div>` : ""}
+      ${Number(d.months_count) > 0 && d.employee_id ? `<button class="cr-btn sm cr-glassbtn" data-cert-recalc="1">↻ Recalculate the months</button>` : ""}
+    </div>` : ""}
+
+    <div class="cr-glass">
+      <label class="cr-label">Suggested style for the Owner</label>
+      <div class="cr-seg"><button class="${d.suggested_style === "classic" ? "on" : ""}" data-cert-sugstyle="classic">Classic</button><button class="${d.suggested_style === "modern" ? "on" : ""}" data-cert-sugstyle="modern">Modern</button></div>
+      <div class="cr-sub2" style="margin-top:6px;">The Owner makes the final choice when he signs.</div>
+      <div class="cr-prevbox" id="certPreviewBox" style="margin-top:12px;">${certPreviewHtml(d, d.suggested_style || "classic")}</div>
+    </div>
+
+    <button class="cr-btn cr-glassbtn" data-cert-act="previewpdf" ${busy ? "disabled" : ""}>👁 Preview the PDF</button>
+    <button class="cr-btn cr-violet" data-cert-act="savedraft" ${busy ? "disabled" : ""}>💾 Save as draft</button>
+    <button class="cr-btn cr-green" data-cert-act="send" ${busy ? "disabled" : ""}>${busy ? "Working…" : "📨 Send to the Owner for approval"}</button>
+  </div>`;
+}
+
+function renderCertificateReview(){
+  const c = state.certs.find(x => x.id === state.certReviewId);
+  if(!c) return `<div class="cr-page"><button class="link-btn" id="certBackBtn" style="margin-bottom:12px;">‹ Certificates</button><div class="cr-glass">That certificate was not found.</div></div>`;
+  const owner = certIsOwner(), signed = c.status === "signed", st = certStatusInfo(c.status);
+  const style = signed ? (c.style || "classic") : (state.certReviewStyle || c.suggested_style || "classic");
+  const canSign = owner && ["sent", "draft"].includes(c.status), busy = state.certBusy;
+  const extra = signed ? {} : (owner ? { signature_data: state.ownerSignature || null, signed_by_name: state.user.name } : {});
+  const styleCard = (key, icon, name, note) => `<div class="cr-pick ${style === key ? "on" : ""}" ${canSign ? `data-cert-style="${key}"` : ""} style="${canSign ? "" : "cursor:default;"}"><span class="ic">${icon}</span><div><b>${name}${c.suggested_style === key ? ` <span class="cr-chip gray" style="margin-left:4px;">HR suggests</span>` : ""}</b><span>${note}</span></div></div>`;
+  return `<div class="cr-page">
+    <button class="link-btn" id="certBackBtn" style="margin-bottom:12px;">‹ Certificates</button>
+    <div class="cr-hero"><h2>${signed ? "✔ Signed certificate" : (owner ? "✍ Review &amp; sign" : "👁 Certificate")}</h2><div class="sub">${certEsc(c.employee_name)} · ${certTypeName(c)}</div></div>
+    <div class="cr-glass"><div class="cr-row"><div><div class="cr-name">${certEsc(c.ref_no)}</div><div class="cr-sub">${certEsc(certCompanyName(c.company))}${c.purpose ? " · " + certEsc(c.purpose) : ""}</div>
+      <div class="cr-sub2">Prepared by ${certEsc(c.created_by_name || "HR")} on ${certDateShort(c.created_at && c.created_at.slice(0, 10))}${signed ? " · signed " + certDateShort(c.signed_at && c.signed_at.slice(0, 10)) + " by " + certEsc(c.signed_by_name || "") : ""}</div></div><span class="cr-chip ${st.cls}">${st.text}</span></div>
+      ${c.status === "returned" && c.return_note ? `<div class="cr-note"><b>Owner's note:</b> ${certEsc(c.return_note)}</div>` : ""}</div>
+    <div class="cr-glass"><label class="cr-label">${canSign ? "Which style do you want to sign?" : "Style"}</label>
+      ${styleCard("classic", "🏛", "Classic", "Formal letter with a gold frame")}${styleCard("modern", "💎", "Modern", "Payroll statement with colour cards")}
+      <div class="cr-prevbox" id="certReviewPreview" style="margin-top:12px;">${certPreviewHtml(c, style, extra)}</div>
+      ${canSign && !state.ownerSignature ? `<div class="cr-warn">You have not saved your signature yet. The certificate will show an empty box until you do.</div><button class="cr-btn cr-gold" id="sigSettingsBtn">✍ Add my signature</button>` : ""}</div>
+    ${canSign ? `<button class="cr-btn cr-green" data-cert-act="approve" data-cert-id="${c.id}" ${(busy || !state.ownerSignature) ? "disabled" : ""}>${busy ? "Working…" : "✔ Approve &amp; sign in the " + (style === "modern" ? "Modern" : "Classic") + " style"}</button>
+      ${c.status === "sent" ? `<button class="cr-btn cr-rose" data-cert-act="return" data-cert-id="${c.id}" ${busy ? "disabled" : ""}>↩ Return to HR with a note</button>` : ""}` : ""}
+    <button class="cr-btn cr-glassbtn" data-cert-act="pdf" data-cert-id="${c.id}" data-cert-style-now="${style}">📄 Open as PDF</button>
+    ${signed ? `<button class="cr-btn cr-violet" data-cert-act="share" data-cert-id="${c.id}">⬇ Download / share the PDF</button>` : ""}
+  </div>`;
+}
+
+function renderCertificateLetterheads(){
+  const edit = state.letterheadsEdit || {};
+  const back = `<button class="link-btn" id="certBackBtn" style="margin-bottom:12px;">‹ Certificates</button>`;
+  const hero = `<div class="cr-hero"><h2>🏢 Letterheads</h2><div class="sub">Each certificate uses the letterhead of the employee's company</div></div>`;
+  if(state.letterheadsMissing) return `<div class="cr-page">${back}${hero}${certSetupCard("The letterheads table is not set up yet.")}</div>`;
+  const field = (co, key, label, ph) => `<label class="cr-label">${label}</label><input class="cr-in" type="text" data-lh-company="${certEsc(co)}" data-lh-field="${key}" value="${certEsc(edit[co][key] || "")}" placeholder="${ph || ""}">`;
+  const card = (co, title) => {
+    const v = edit[co]; if(!v) return "";
+    const P = certPalette(v), logo = v.logo_data || (co === "PI" ? LOGO_DATA_URI : null);
+    const head = `<div id="lhHead-${co === "PI" ? "PI" : "AF"}" style="border-radius:16px;padding:12px 14px;color:#fff;display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,${P.second},${P.main});box-shadow:0 8px 20px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.45);">${logo ? `<img src="${logo}" style="height:40px;max-width:110px;border-radius:9px;background:#fff;padding:3px;">` : `<div style="width:40px;height:40px;border-radius:10px;font-size:16px;font-weight:800;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.5);">${certEsc(certInitials(v.display_name))}</div>`}<div><div style="font-weight:800;font-size:15px;">${certEsc(v.display_name)}</div><div style="font-size:11px;opacity:.9;">${certEsc(v.tagline || "")}</div></div></div>`;
+    return `<div class="cr-glass"><div class="cr-name" style="margin-bottom:9px;">${title}</div>${head}
+      ${field(co, "display_name", "Company name")}${field(co, "tagline", "Line under the name", "Saudi Arabia")}${field(co, "address", "Address", "Printed in the footer")}
+      <div class="cr-two"><div>${field(co, "phone", "Phone")}</div><div>${field(co, "email", "Email")}</div></div>${field(co, "website", "Website")}
+      <div class="cr-two"><div><label class="cr-label">Main colour</label><input class="cr-in" style="padding:3px;height:44px;" type="color" data-lh-company="${certEsc(co)}" data-lh-field="accent" value="${certHex(v.accent) || "#1B5A96"}"></div>
+      <div><label class="cr-label">Second colour</label><input class="cr-in" style="padding:3px;height:44px;" type="color" data-lh-company="${certEsc(co)}" data-lh-field="accent2" value="${certHex(v.accent2) || "#0A6E69"}"></div></div>
+      <label class="cr-label">Logo</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <label class="cr-btn sm cr-glassbtn" style="margin:0;">Upload logo<input type="file" accept="image/*" hidden data-lh-file="logo" data-lh-company="${certEsc(co)}"></label>
+        ${(v.logo_data && !(co === "PI" && v.logo_data === LOGO_DATA_URI)) ? `<button class="cr-btn sm cr-glassbtn" style="margin:0;" data-lh-clear="logo" data-lh-company="${certEsc(co)}">Remove${co === "PI" ? " (back to the standard logo)" : ""}</button>` : ""}</div>
+      <label class="cr-label">Company stamp (optional, a picture with a clear background works best)</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <label class="cr-btn sm cr-glassbtn" style="margin:0;">Upload stamp<input type="file" accept="image/*" hidden data-lh-file="stamp" data-lh-company="${certEsc(co)}"></label>
+        ${v.stamp_data ? `<img src="${v.stamp_data}" style="height:48px;border-radius:8px;background:#fff;padding:2px;"><button class="cr-btn sm cr-glassbtn" style="margin:0;" data-lh-clear="stamp" data-lh-company="${certEsc(co)}">Remove</button>` : `<span class="cr-sub2">Without a stamp, a dashed “Company stamp” circle is printed.</span>`}</div>
+      <button class="cr-btn cr-blue" data-lh-save="${certEsc(co)}" ${state.certBusy ? "disabled" : ""}>💾 Save ${certEsc(title)}</button></div>`;
+  };
+  return `<div class="cr-page">${back}${hero}${card("PI", "PI letterhead")}${card("Al falak", "Al Falak letterhead")}</div>`;
+}
+
+// ---------- taps and typing ----------
+function certHandleClick(e){
+  const t = e.target, el = (id) => t.closest("#" + id);
+  if(el("openCertificatesBtn")){ openCertificates(); return true; }
+  if(!CERT_VIEWS.includes(state.view)) return false;
+  if(el("certNewBtn")){ certStartNew(); return true; }
+  if(el("certLetterheadsBtn")){ openLetterheads(); return true; }
+  if(el("certBackBtn")){ state.certDraft = null; state.view = "certificates"; loadCertificates(); return true; }
+  const filter = t.closest("[data-cert-filter]");
+  if(filter){ state.certFilter = filter.getAttribute("data-cert-filter"); state.certFilterTouched = true; render(); return true; }
+  const act = t.closest("[data-cert-act]");
+  if(act){
+    const a = act.getAttribute("data-cert-act"), id = act.getAttribute("data-cert-id"), c = state.certs.find(x => x.id === id);
+    if(a === "edit") certEditExisting(id);
+    else if(a === "review") certOpenReview(id);
+    else if(a === "delete") certDelete(id);
+    else if(a === "takeback") certTakeBack(id);
+    else if(a === "withdraw") certWithdrawSignature(id);
+    else if(a === "approve") certApprove(id);
+    else if(a === "return") certReturn(id);
+    else if(a === "pdf" && c){
+      const style = act.getAttribute("data-cert-style-now") || c.style || c.suggested_style || "classic";
+      certOpenPdf(c, style, (c.status === "signed" || !certIsOwner()) ? {} : { signature_data: state.ownerSignature || null, signed_by_name: state.user.name });
+    }
+    else if(a === "share" && c) certSharePdf(c);
+    else if(a === "savedraft") certSave(false);
+    else if(a === "send") certSave(true);
+    else if(a === "previewpdf" && state.certDraft) certOpenPdf(state.certDraft, state.certDraft.suggested_style || "classic", { ref_no: state.certDraft.ref_no || "Pending" });
+    return true;
+  }
+  const open = t.closest("[data-cert-open]");
+  if(open && state.view === "certificates"){
+    const c = state.certs.find(x => x.id === open.getAttribute("data-cert-open"));
+    if(c){ if(["draft", "returned"].includes(c.status) && !certIsOwner()) certEditExisting(c.id); else certOpenReview(c.id); }
+    return true;
+  }
+  const d = state.certDraft;
+  if(d && state.view === "certificate-form"){
+    const ty = t.closest("[data-cert-type]"); if(ty){ d.cert_type = ty.getAttribute("data-cert-type"); if(d.cert_type !== "salary") d.months_data = []; else certRefreshMonths().then(render); render(); return true; }
+    const ad = t.closest("[data-cert-addr]"); if(ad){ d.addressed_to = ad.getAttribute("data-cert-addr"); render(); return true; }
+    const ti = t.closest("[data-cert-title]"); if(ti){ d.title_prefix = ti.getAttribute("data-cert-title"); render(); return true; }
+    const ss = t.closest("[data-cert-sugstyle]"); if(ss){ d.suggested_style = ss.getAttribute("data-cert-sugstyle"); render(); return true; }
+    const mo = t.closest("[data-cert-months]"); if(mo){ certSetMonths(Number(mo.getAttribute("data-cert-months"))); return true; }
+    if(t.closest("[data-cert-recalc]")){ state.certBusy = true; render(); certRefreshMonths().then(() => { state.certBusy = false; render(); }); return true; }
+  }
+  if(state.view === "certificate-review"){
+    const st = t.closest("[data-cert-style]"); if(st){ state.certReviewStyle = st.getAttribute("data-cert-style"); render(); return true; }
+  }
+  if(state.view === "certificate-letterheads"){
+    const sv = t.closest("[data-lh-save]"); if(sv){ saveLetterhead(sv.getAttribute("data-lh-save")); return true; }
+    const cl = t.closest("[data-lh-clear]");
+    if(cl){ const co = cl.getAttribute("data-lh-company"), which = cl.getAttribute("data-lh-clear"), v = state.letterheadsEdit[co];
+      if(which === "logo"){ v.logo_data = null; v._logoSet = true; } else v.stamp_data = null;
+      render(); return true; }
+  }
+  return false;
+}
+function certHandleChange(e){
+  const t = e.target;
+  if(!CERT_VIEWS.includes(state.view)) return false;
+  if(t.id === "certEmpSelect"){ certPickEmployee(t.value); return true; }
+  if(t.id === "certPurposeSelect" && state.certDraft){ state.certDraft.purpose = t.value === "Other" ? "" : t.value; render(); return true; }
+  const f = t.getAttribute && t.getAttribute("data-cert-field");
+  if(f && state.certDraft && t.type === "checkbox"){
+    if(f === "remember_job") state.certRememberJob = t.checked; else state.certDraft[f] = t.checked;
+    certUpdatePreview(); return true;
+  }
+  const lf = t.getAttribute && t.getAttribute("data-lh-file");
+  if(lf && t.files && t.files[0]){
+    const co = t.getAttribute("data-lh-company"), file = t.files[0];
+    certImageToDataUrl(file, lf === "logo" ? 480 : 360).then(url => {
+      const v = state.letterheadsEdit[co];
+      if(lf === "logo"){ v.logo_data = url; v._logoSet = true; } else v.stamp_data = url;
+      render();
+    }).catch(err => toast(err.message || "Could not read that picture."));
+    return true;
+  }
+  return false;
+}
+function certHandleInput(e){
+  const t = e.target;
+  if(!CERT_VIEWS.includes(state.view)) return false;
+  const f = t.getAttribute && t.getAttribute("data-cert-field");
+  if(f && state.certDraft && t.type !== "checkbox"){
+    state.certDraft[f] = t.value;
+    if(["basic_salary", "housing_allowance", "other_allowance"].includes(f)) certUpdateTotals();
+    certUpdatePreview(); return true;
+  }
+  const lf = t.getAttribute && t.getAttribute("data-lh-field");
+  if(lf && state.letterheadsEdit){
+    const co = t.getAttribute("data-lh-company");
+    state.letterheadsEdit[co][lf] = t.value;
+    if(lf === "accent" || lf === "accent2"){ const P = certPalette(state.letterheadsEdit[co]), h = document.getElementById("lhHead-" + (co === "PI" ? "PI" : "AF")); if(h) h.style.background = `linear-gradient(135deg,${P.second},${P.main})`; }
+    return true;
+  }
+  return false;
 }
 
 // ---------------- Project Summary: manpower and lump-sum, side by side ----------------
@@ -10808,6 +11938,11 @@ function renderHrView(){
       ${hrTileLight("🏦", "WPS Payroll<br>Al Falak", "wpsAlFalakBtn", "#3D2A66", "#C9AEE8")}
     </div>
 
+    <div class="hr-section-label" style="color:#6B4FC4;">📄 Certificates</div>
+    <div class="hr-tile-grid">
+      ${hrTileLight("📄", "Salary &amp; Employment<br>Certificates", "openCertificatesBtn", "#3D2A66", "#C9AEE8")}
+    </div>
+
     <div class="hr-section-label" style="color:#D85A30;">✅ Approvals</div>
     <div class="hr-tile-grid">
       ${hrTileLight("🌴", "Leave<br>Approvals", "openHrLeaveListBtn", "#7A2E10", "#EFB393")}
@@ -11276,6 +12411,10 @@ function renderCeoHome(){
         <div class="title">Project Summary</div>
         <div class="desc">Overall PO Value, expenses, invoices and margin per project</div>
       </div>
+    </div>
+    <div class="cr-tile" id="openCertificatesBtn">
+      <div class="ic">📄</div>
+      <div><div class="t">Certificates${state.certWaitingCount ? ` <span class="cr-count">${state.certWaitingCount}</span>` : ""}</div><div class="d">${state.certWaitingCount ? `${state.certWaitingCount} waiting for your signature` : "Review, choose the style and sign salary and employment certificates"}</div></div>
     </div>
 
     <div class="card" style="padding:12px 14px;margin-top:14px;cursor:pointer;" id="toggleCeoMoreSectionBtn">
@@ -12236,6 +13375,7 @@ function renderHrPurchasesList(){
 
 /* ---------------- event wiring (delegated — bound once, survives every re-render) ---------------- */
 function handleDelegatedClick(e){
+  if(certHandleClick(e)) return;
   const el = (id)=> e.target.closest("#"+id);
 
   // Date pills: the transparent date input covers the whole pill, so a tap
@@ -12944,6 +14084,7 @@ function handleDelegatedClick(e){
 }
 
 function handleDelegatedChange(e){
+  if(certHandleChange(e)) return;
   if(e.target.id === "manpowerSheetProjectSelect"){ state.manpowerSheetProjectId = e.target.value; render(); return; }
   if(e.target.id === "unitExpenseFromInput"){ state.unitExpenseFrom = e.target.value; render(); return; }
   if(e.target.id === "unitExpenseToInput"){ state.unitExpenseTo = e.target.value; render(); return; }
@@ -13144,6 +14285,7 @@ function filterHrDashboardTiles(searchTerm){
 }
 
 function handleDelegatedInput(e){
+  if(certHandleInput(e)) return;
   if(e.target.id === "quoteDaysInput"){ state.quoteDays = e.target.value; refreshQuoteEstimate(); return; }
   if(e.target.id === "quoteExtraChargesInput"){ state.quoteExtraCharges = e.target.value; refreshQuoteEstimate(); return; }
   if(e.target.id === "quotePriceInput"){ state.quotePrice = e.target.value; refreshQuoteEstimate(); return; }
