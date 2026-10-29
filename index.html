@@ -9236,8 +9236,8 @@ const CERT_BANKS = { RJHI: "Al Rajhi Bank", NCBK: "Saudi National Bank", RIBL: "
 const CERT_MONTHS_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 // what a letterhead looks like until HR saves something different on the Letterheads screen
 const LETTERHEAD_DEFAULTS = {
-  "PI": { display_name: "Professional Installation Co", tagline: "Saudi Arabia", address: "", phone: "", email: "", website: "", accent: "#1B5A96", accent2: "#0A6E69", logo_data: null, stamp_data: null },
-  "Al falak": { display_name: "Al Falak Elevators", tagline: "Saudi Arabia", address: "", phone: "", email: "", website: "alfalaksa.com", accent: "#C2570C", accent2: "#E58A2B", logo_data: null, stamp_data: null }
+  "PI": { display_name: "Professional Installation Co", tagline: "Saudi Arabia", address: "", phone: "", email: "", website: "", accent: "#1B5A96", accent2: "#0A6E69", logo_data: null, stamp_data: null, page_bg: null, margin_top_mm: 45, margin_bottom_mm: 30 },
+  "Al falak": { display_name: "Al Falak Elevators", tagline: "Saudi Arabia", address: "", phone: "", email: "", website: "alfalaksa.com", accent: "#C2570C", accent2: "#E58A2B", logo_data: null, stamp_data: null, page_bg: null, margin_top_mm: 45, margin_bottom_mm: 30 }
 };
 
 function certEsc(s){ return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
@@ -9420,6 +9420,16 @@ function certStatusInfo(status){
   })[status] || { text: status, cls: "gray" };
 }
 
+// ---- what the company provides itself (the salary is the basic salary; these are shown as provided and paid by the company) ----
+const CERT_BENEFIT_ITEMS = [["benefit_accommodation", "Accommodation"], ["benefit_transport", "Transportation"], ["benefit_other", "All other expenses"]];
+function certBenefits(c){
+  if(c.salary_layout === "itemised") return [];
+  return CERT_BENEFIT_ITEMS.filter(([k]) => c[k] !== false).map(([, label]) => label);
+}
+function certJoinList(a){ return a.length <= 1 ? (a[0] || "") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1]; }
+// millimetres on the A4 sheet -> the page's 595 px width (210 mm)
+function certMmToPx(mm){ const n = Number(mm); return Math.round((isFinite(n) ? Math.max(0, Math.min(120, n)) : 0) * 595 / 210); }
+
 // ======================================================================
 // Certificate pages (one A4 page, 595 x 842 CSS px): the Classic and the Modern style
 // ======================================================================
@@ -9497,8 +9507,15 @@ const CERT_CSS = `<style>
 .cf-ref{display:flex;gap:12px;border:1px solid var(--cline);border-radius:11px;padding:7px 11px;background:#fff}
 .cf-ref div{font-size:8px;color:#6A7B8F;line-height:1.5}.cf-ref b{display:block;font-size:9.4px;color:var(--cd)}
 .cf-ft{position:absolute;left:0;right:0;bottom:0;height:32px;background:var(--cmt);border-top:2px solid var(--gold);display:flex;justify-content:space-between;align-items:center;gap:12px;padding:0 30px;font-size:8.4px;color:#5B6B7C}
+.cf-pagebg{position:absolute;left:0;top:0;width:595px;height:842px}
+.cf-by{color:#5B6B7C;font-style:italic;font-size:10px}
+.cf-mtitle{margin:0 30px;border-radius:12px;background:linear-gradient(135deg,var(--cs),var(--cm));color:#fff;padding:9px 14px;display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:12.5px;letter-spacing:1.4px}
+.cf-mtitle span{font-weight:600;font-size:9px;letter-spacing:0}
+.cf-lhwrap{position:absolute;left:0;right:0}
+.cf-lhwrap .cf-pc{margin:12px 30px 0}.cf-lhwrap .cf-tiles,.cf-lhwrap .cf-cols,.cf-lhwrap .cf-hist,.cf-lhwrap .cf-net{margin-top:12px}.cf-lhwrap .cf-mp{margin-top:10px}
 /* long text: the page quietly tightens itself so nothing meets the signature */
 .cf.cf-s1 .cf-p{font-size:10.2px;line-height:1.55;margin-bottom:6px}.cf.cf-s1 .cf-ct td,.cf.cf-s1 .cf-ct th{padding:4px 10px}.cf.cf-s1 .cf-mt td{padding:5px 10px}.cf.cf-s1 .cf-ln{padding:5px 12px}
+.cf.cf-s3 .cf-tiles{display:none}.cf.cf-s3 .cf-mp{font-size:9.2px;line-height:1.45;margin-top:8px}
 .cf.cf-s2 .cf-p{font-size:9.6px;line-height:1.45;margin-bottom:4px}.cf.cf-s2 .cf-ct{font-size:9.6px}.cf.cf-s2 .cf-tw{margin-bottom:6px}.cf.cf-s2 .cf-ct td,.cf.cf-s2 .cf-ct th{padding:3px 10px}.cf.cf-s2 .cf-mt{font-size:9px}.cf.cf-s2 .cf-mt td{padding:3px 10px}.cf.cf-s2 .cf-ln{padding:3px 12px}.cf.cf-s2 .cf-tiles,.cf.cf-s2 .cf-cols,.cf.cf-s2 .cf-hist,.cf.cf-s2 .cf-net{margin-top:9px}
 </style>`;
 
@@ -9521,14 +9538,17 @@ function certTexts(c, lh, salary){
   const bank = c.addressed_to === "bank";
   const payLine = (salary && c.show_bank_account && c.pay_bank_name)
     ? ` ${His} salary is paid monthly by bank transfer to ${his} <b>${certEsc(c.pay_bank_name)}</b> account${c.iban_last4 ? ` (IBAN ending <b>…${certEsc(c.iban_last4)}</b>)` : ""}.` : "";
-  const tail = salary ? ` ${His} monthly salary is as follows:` : "";
-  const intro = bank
-    ? `We certify that <b class="nm">${pre} ${name}</b> (Iqama No. <b>${iqama}</b>${nat ? `, ${nat}` : ""}) has been employed by <b>${company}</b>${job ? ` as <b>${job}</b>` : ""}${joined ? ` since <b>${joined}</b>` : ""} and remains in service.${payLine}${tail}`
-    : `This is to certify that <b class="nm">${pre} ${name}</b>, holder of Iqama No. <b>${iqama}</b>${nat ? `, Nationality <b>${nat}</b>` : ""}, is employed with <b>${company}</b>${job ? ` as <b>${job}</b>` : ""}${joined ? ` since <b>${joined}</b>` : ""}, and is still in service as of the date of this certificate.${payLine}${tail}`;
+  const benefits = salary ? certBenefits(c) : [];
+  const benefitsLine = benefits.length ? ` In addition to ${his} basic salary, ${certJoinList(benefits).toLowerCase()} ${benefits.length === 1 ? "is" : "are"} provided and paid by the company.` : "";
+  const tail = salary ? (benefits.length ? ` ${His} monthly salary and benefits are as follows:` : ` ${His} monthly salary is as follows:`) : "";
+  const core0 = bank
+    ? `We certify that <b class="nm">${pre} ${name}</b> (Iqama No. <b>${iqama}</b>${nat ? `, ${nat}` : ""}) has been employed by <b>${company}</b>${job ? ` as <b>${job}</b>` : ""}${joined ? ` since <b>${joined}</b>` : ""} and remains in service.${payLine}`
+    : `This is to certify that <b class="nm">${pre} ${name}</b>, holder of Iqama No. <b>${iqama}</b>${nat ? `, Nationality <b>${nat}</b>` : ""}, is employed with <b>${company}</b>${job ? ` as <b>${job}</b>` : ""}${joined ? ` since <b>${joined}</b>` : ""}, and is still in service as of the date of this certificate.${payLine}`;
+  const intro = core0 + tail;
   const phrase = certPurposePhrase(c.purpose);
   const closing = `Issued at the employee's request${phrase ? ` for <b>${certEsc(phrase)}</b>` : ""}, without any liability on the company towards third parties.`;
   const subject = bank ? (salary ? "Salary certificate" : "Employment certificate") : "";
-  return { intro, closing, bank, bankName: certEsc(c.bank_name || ""), subject, his, His, pre, name };
+  return { intro, introCore: core0, benefitsLine, closing, bank, bankName: certEsc(c.bank_name || ""), subject, his, His, pre, name };
 }
 function certSignBlock(c, lh, modern){
   const sig = c.signature_data ? `<img class="cf-sigimg" src="${c.signature_data}" alt="">` : `<div class="cf-sigph">Owner's signature</div>`;
@@ -9539,37 +9559,55 @@ function certSignBlock(c, lh, modern){
 
 function certClassicHtml(c, lh, T, months, parts, salary){
   const n = months.length, compact = n >= 5, total = parts.basic + parts.housing + parts.other;
-  const rows = [["Basic salary", parts.basic]];
-  if(parts.housing > 0) rows.push(["Housing allowance", parts.housing]);
-  if(parts.other > 0) rows.push(["Other allowance", parts.other]);
-  const salaryTable = !salary ? "" : (compact
-    ? `<div class="cf-tw"><table class="cf-ct"><tr>${rows.map(r => `<th class="n">${r[0]}</th>`).join("")}<th class="n">Total monthly (SAR)</th></tr><tr>${rows.map(r => `<td class="n">${certMoney(r[1])}</td>`).join("")}<td class="n" style="font-weight:800;color:var(--cd)">${certMoney(total)}</td></tr></table></div>`
-    : `<div class="cf-tw"><table class="cf-ct"><tr><th>Description</th><th class="n">Amount (SAR)</th></tr>${rows.map(r => `<tr><td>${r[0]}</td><td class="n">${certMoney(r[1])}</td></tr>`).join("")}<tr class="tot"><td>Total monthly salary</td><td class="n">${certMoney(total)}</td></tr></table></div>`);
+  const benefits = salary ? certBenefits(c) : [], byCompany = benefits.length > 0;
+  const lhMode = !!lh.page_bg, mt = certMmToPx(lh.margin_top_mm), mb = certMmToPx(lh.margin_bottom_mm);
+  let salaryTable = "";
+  if(salary){
+    if(byCompany){
+      salaryTable = compact
+        ? `<div class="cf-tw"><table class="cf-ct"><tr><th class="n">Basic salary (SAR)</th>${benefits.map(b => `<th class="n">${b}</th>`).join("")}</tr><tr><td class="n" style="font-weight:800;color:var(--cd)">${certMoney(total)}</td>${benefits.map(() => `<td class="n cf-by">By the company</td>`).join("")}</tr></table></div>`
+        : `<div class="cf-tw"><table class="cf-ct"><tr><th>Description</th><th class="n">Amount (SAR)</th></tr><tr class="tot"><td>Monthly basic salary</td><td class="n">${certMoney(total)}</td></tr>${benefits.map(b => `<tr><td>${b}</td><td class="n cf-by">Provided and paid by the company</td></tr>`).join("")}</table></div>`;
+    }else{
+      const rows = [["Basic salary", parts.basic]];
+      if(parts.housing > 0) rows.push(["Housing allowance", parts.housing]);
+      if(parts.other > 0) rows.push(["Other allowance", parts.other]);
+      salaryTable = compact
+        ? `<div class="cf-tw"><table class="cf-ct"><tr>${rows.map(r => `<th class="n">${r[0]}</th>`).join("")}<th class="n">Total monthly (SAR)</th></tr><tr>${rows.map(r => `<td class="n">${certMoney(r[1])}</td>`).join("")}<td class="n" style="font-weight:800;color:var(--cd)">${certMoney(total)}</td></tr></table></div>`
+        : `<div class="cf-tw"><table class="cf-ct"><tr><th>Description</th><th class="n">Amount (SAR)</th></tr>${rows.map(r => `<tr><td>${r[0]}</td><td class="n">${certMoney(r[1])}</td></tr>`).join("")}<tr class="tot"><td>Total monthly salary</td><td class="n">${certMoney(total)}</td></tr></table></div>`;
+    }
+  }
   const monthsTable = (!salary || !n) ? "" : `<div class="cf-sec">SALARY PAID IN THE LAST ${n === 1 ? "MONTH" : n + " MONTHS"}</div>
-    <div class="cf-tw"><table class="cf-ct"><tr><th>Month</th><th class="n">Fixed salary</th><th class="n">Overtime</th><th class="n">Deductions</th><th class="n">Net paid (SAR)</th></tr>${months.map(m => `<tr><td>${certEsc(m.label)}</td><td class="n">${certMoney(m.fixed)}</td><td class="n">${m.overtime ? "+" + certMoney(m.overtime) : "–"}</td><td class="n">${m.deductions ? "−" + certMoney(m.deductions) : "–"}</td><td class="n" style="font-weight:800">${certMoney(m.net)}</td></tr>`).join("")}${n > 1 ? `<tr class="tot"><td colspan="4">Average net salary over ${n} months</td><td class="n">${certMoney(certAverageNet(months))}</td></tr>` : ""}</table></div>`;
+    <div class="cf-tw"><table class="cf-ct"><tr><th>Month</th><th class="n">${byCompany ? "Basic salary" : "Fixed salary"}</th><th class="n">Overtime</th><th class="n">Deductions</th><th class="n">Net paid (SAR)</th></tr>${months.map(m => `<tr><td>${certEsc(m.label)}</td><td class="n">${certMoney(m.fixed)}</td><td class="n">${m.overtime ? "+" + certMoney(m.overtime) : "–"}</td><td class="n">${m.deductions ? "−" + certMoney(m.deductions) : "–"}</td><td class="n" style="font-weight:800">${certMoney(m.net)}</td></tr>`).join("")}${n > 1 ? `<tr class="tot"><td colspan="4">Average net salary over ${n} months</td><td class="n">${certMoney(certAverageNet(months))}</td></tr>` : ""}</table></div>`;
   const title = salary ? "SALARY CERTIFICATE" : "EMPLOYMENT CERTIFICATE";
   const sub = T.bank ? `TO: THE MANAGER${T.bankName ? " · " + T.bankName.toUpperCase() : ""}` : "TO WHOM IT MAY CONCERN";
   const wm = lh.logo_data ? `<img class="cf-wm" src="${lh.logo_data}" alt="">` : "";
   const corner = (pos) => `<div class="cf-corner" style="${pos}"></div>`;
-  return `<div class="cf-topbar"></div><div class="cf-frame"></div><div class="cf-frame2"></div>
-${corner("left:11px;top:11px;border-right:none;border-bottom:none")}${corner("right:11px;top:11px;border-left:none;border-bottom:none")}${corner("left:11px;bottom:11px;border-right:none;border-top:none")}${corner("right:11px;bottom:11px;border-left:none;border-top:none")}${wm}
-<div class="cf-in"><div class="cf-flow">
-<div class="cf-lh">${certLogoHtml(lh, 42, "cf-logo")}<div><div class="cf-co">${certEsc(lh.display_name)}</div>${lh.tagline ? `<div class="cf-tag">${certEsc(lh.tagline)}</div>` : ""}</div></div>
-<div class="cf-pills"><span class="cf-pill">Ref <b>${certEsc(c.ref_no || "—")}</b></span><span class="cf-pill">Date <b>${certDateLong(c.issue_date)}</b></span></div>
+  const decor = lhMode ? `<img class="cf-pagebg" src="${lh.page_bg}" alt="">`
+    : `<div class="cf-topbar"></div><div class="cf-frame"></div><div class="cf-frame2"></div>${corner("left:11px;top:11px;border-right:none;border-bottom:none")}${corner("right:11px;top:11px;border-left:none;border-bottom:none")}${corner("left:11px;bottom:11px;border-right:none;border-top:none")}${corner("right:11px;bottom:11px;border-left:none;border-top:none")}${wm}`;
+  const head = lhMode ? "" : `<div class="cf-lh">${certLogoHtml(lh, 42, "cf-logo")}<div><div class="cf-co">${certEsc(lh.display_name)}</div>${lh.tagline ? `<div class="cf-tag">${certEsc(lh.tagline)}</div>` : ""}</div></div>`;
+  const foot = lhMode ? "" : `<div class="cf-foot"><span>${certEsc(certFooterText(lh))}</span><span style="white-space:nowrap">Page 1 of 1</span></div>`;
+  return `${decor}
+<div class="cf-in"${lhMode ? ` style="top:${mt}px;bottom:${mb}px"` : ""}><div class="cf-flow">
+${head}
+<div class="cf-pills"${lhMode ? ' style="margin-top:0"' : ""}><span class="cf-pill">Ref <b>${certEsc(c.ref_no || "—")}</b></span><span class="cf-pill">Date <b>${certDateLong(c.issue_date)}</b></span></div>
 <div class="cf-ttl"><div class="t"><i></i>${title}<i></i></div><div class="s">${sub}</div></div>
 <p class="cf-p">${T.intro}</p>${salaryTable}${monthsTable}
 <p class="cf-p" style="margin-bottom:0">${T.closing}</p></div>
-<div class="cf-sign">${certSignBlock(c, lh, false)}</div>
-<div class="cf-foot"><span>${certEsc(certFooterText(lh))}</span><span style="white-space:nowrap">Page 1 of 1</span></div></div>`;
+<div class="cf-sign"${lhMode ? ' style="bottom:0"' : ""}>${certSignBlock(c, lh, false)}</div>
+${foot}</div>`;
 }
 
 function certModernHtml(c, lh, T, months, parts, salary){
   const n = months.length, total = parts.basic + parts.housing + parts.other, avg = certAverageNet(months);
+  const benefits = salary ? certBenefits(c) : [], byCompany = benefits.length > 0;
+  const lhMode = !!lh.page_bg, mt = certMmToPx(lh.margin_top_mm), mb = certMmToPx(lh.margin_bottom_mm);
   const asOf = c.issue_date || todayLocalISO(), service = certServiceShort(c.joining_date, asOf);
   const job = String(c.job_title || "").trim();
   const title = !salary ? "EMPLOYMENT CERTIFICATE" : (n ? "PAYROLL CERTIFICATE" : "SALARY CERTIFICATE");
   const bankChip = T.bank ? `<span class="cf-chip" style="background:var(--goldt);color:var(--goldd);">To: The Manager · <b style="color:var(--goldd)">${T.bankName || "Bank"}</b></span>` : "";
-  const header = `<div class="cf-hd"><div class="row">${lh.logo_data ? `<img class="logo" src="${lh.logo_data}" alt="">` : certLogoHtml(lh, 40, "logo")}<div><div style="font-weight:800;font-size:14.5px;white-space:nowrap">${certEsc(lh.display_name)}</div>${lh.tagline ? `<div style="font-size:8.6px;opacity:.85;margin-top:2px">${certEsc(lh.tagline)}</div>` : ""}</div><div class="r"><div class="a">${title}</div><div class="b">Ref ${certEsc(c.ref_no || "—")} · ${certDateShort(c.issue_date)}</div></div></div></div>`;
+  const header = lhMode
+    ? `<div class="cf-mtitle">${title}<span>Ref ${certEsc(c.ref_no || "—")} · ${certDateShort(c.issue_date)}</span></div>`
+    : `<div class="cf-hd"><div class="row">${lh.logo_data ? `<img class="logo" src="${lh.logo_data}" alt="">` : certLogoHtml(lh, 40, "logo")}<div><div style="font-weight:800;font-size:14.5px;white-space:nowrap">${certEsc(lh.display_name)}</div>${lh.tagline ? `<div style="font-size:8.6px;opacity:.85;margin-top:2px">${certEsc(lh.tagline)}</div>` : ""}</div><div class="r"><div class="a">${title}</div><div class="b">Ref ${certEsc(c.ref_no || "—")} · ${certDateShort(c.issue_date)}</div></div></div></div>`;
   const card = `<div class="cf-pc"><div style="display:flex;gap:13px;align-items:center"><div class="cf-av">${certEsc(certInitials(c.employee_name))}</div><div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px;color:var(--cd)">${certEsc(String(c.employee_name || "").toUpperCase())}</div><div style="font-size:9.4px;color:#6A7B8F;margin-top:1px">${certEsc(job || "Employee")}${c.joining_date ? " · Joined " + certDateShort(c.joining_date) : ""}${service ? " · " + service : ""}</div></div><div style="background:#E1F5EA;color:#12713F;border-radius:999px;padding:4px 11px;font-size:9.4px;font-weight:800;white-space:nowrap">● Active</div></div>
 <div class="cf-chips">${bankChip}${c.employee_no ? `<span class="cf-chip">Emp. no. <b>${certEsc(c.employee_no)}</b></span>` : ""}<span class="cf-chip">Iqama <b>${certEsc(c.iqama_number || "")}</b></span>${c.nationality ? `<span class="cf-chip">Nationality <b>${certEsc(c.nationality)}</b></span>` : ""}</div></div>`;
   let middle = "";
@@ -9580,28 +9618,40 @@ function certModernHtml(c, lh, T, months, parts, salary){
     const second = n
       ? `<div class="cf-k" style="background:var(--cst);color:var(--cd)"><div class="ic" style="background:rgba(0,0,0,.07)">📊</div><div><div class="l">Avg net · ${n} month${n === 1 ? "" : "s"}</div><div class="v" style="font-size:12.5px">${certMoney(avg)}</div></div></div>`
       : `<div class="cf-k" style="background:var(--cst);color:var(--cd)"><div class="ic" style="background:rgba(0,0,0,.07)">🕒</div><div><div class="l">Service</div><div class="v" style="font-size:12.5px">${certEsc(certServiceShort(c.joining_date, asOf) || "–")}</div></div></div>`;
-    const rows = [["Basic salary", parts.basic]];
-    if(parts.housing > 0) rows.push(["Housing allowance", parts.housing]);
-    if(parts.other > 0) rows.push(["Other allowance", parts.other]);
-    const earnings = `<div class="cf-box"><div class="cf-bh" style="background:var(--cst);color:var(--cd)">EARNINGS</div>${rows.map(r => `<div class="cf-ln"><span>${r[0]}</span><b>${certMoney(r[1])}</b></div>`).join("")}<div class="cf-ln t"><span>Gross monthly salary</span><span>${certMoney(total)}</span></div><div style="padding:5px 12px 6px;font-size:8.4px;color:#6A7B8F;font-style:italic">${certAmountWords(total)}</div></div>`;
-    const right = (c.show_bank_account && c.pay_bank_name)
-      ? `<div class="cf-box"><div class="cf-bh" style="background:#FFF1D2;color:#8A5A00">PAYMENT</div><div class="cf-ln"><span>Bank</span><b>${certEsc(c.pay_bank_name)}</b></div>${c.iban_last4 ? `<div class="cf-ln"><span>IBAN ending</span><b>…${certEsc(c.iban_last4)}</b></div>` : ""}<div class="cf-ln"><span>Method</span><b>Bank transfer</b></div></div>`
-      : `<div class="cf-box"><div class="cf-bh" style="background:var(--cmt2);color:var(--cd)">EMPLOYMENT</div>${c.employee_no ? `<div class="cf-ln"><span>Employee no.</span><b>${certEsc(c.employee_no)}</b></div>` : ""}<div class="cf-ln"><span>Joined</span><b>${certDateShort(c.joining_date) || "–"}</b></div><div class="cf-ln"><span>Service</span><b>${certEsc(certServiceText(c.joining_date, asOf) || "–")}</b></div></div>`;
+    let earnings, right;
+    if(byCompany){
+      earnings = `<div class="cf-box" style="display:flex;flex-direction:column;"><div class="cf-bh" style="background:var(--cst);color:var(--cd)">MONTHLY BASIC SALARY</div><div style="flex:1;display:flex;flex-direction:column;justify-content:center;text-align:center;padding:10px 12px"><div style="font-size:23px;font-weight:800;color:var(--cd)">${certMoney(total)}</div><div style="font-size:9px;color:#6A7B8F;margin-top:1px">SAR per month</div><div style="font-size:8.6px;color:#6A7B8F;font-style:italic;margin-top:7px">${certAmountWords(total)}</div></div></div>`;
+      right = `<div class="cf-box"><div class="cf-bh" style="background:#E1F5EA;color:#12713F">PROVIDED AND PAID BY THE COMPANY</div>${benefits.map(b => `<div class="cf-ln"><span>${b}</span><b style="color:#12713F">✔ Provided</b></div>`).join("")}</div>`;
+    }else{
+      const rows = [["Basic salary", parts.basic]];
+      if(parts.housing > 0) rows.push(["Housing allowance", parts.housing]);
+      if(parts.other > 0) rows.push(["Other allowance", parts.other]);
+      earnings = `<div class="cf-box"><div class="cf-bh" style="background:var(--cst);color:var(--cd)">EARNINGS</div>${rows.map(r => `<div class="cf-ln"><span>${r[0]}</span><b>${certMoney(r[1])}</b></div>`).join("")}<div class="cf-ln t"><span>Gross monthly salary</span><span>${certMoney(total)}</span></div><div style="padding:5px 12px 6px;font-size:8.4px;color:#6A7B8F;font-style:italic">${certAmountWords(total)}</div></div>`;
+      right = (c.show_bank_account && c.pay_bank_name)
+        ? `<div class="cf-box"><div class="cf-bh" style="background:#FFF1D2;color:#8A5A00">PAYMENT</div><div class="cf-ln"><span>Bank</span><b>${certEsc(c.pay_bank_name)}</b></div>${c.iban_last4 ? `<div class="cf-ln"><span>IBAN ending</span><b>…${certEsc(c.iban_last4)}</b></div>` : ""}<div class="cf-ln"><span>Method</span><b>Bank transfer</b></div></div>`
+        : `<div class="cf-box"><div class="cf-bh" style="background:var(--cmt2);color:var(--cd)">EMPLOYMENT</div>${c.employee_no ? `<div class="cf-ln"><span>Employee no.</span><b>${certEsc(c.employee_no)}</b></div>` : ""}<div class="cf-ln"><span>Joined</span><b>${certDateShort(c.joining_date) || "–"}</b></div><div class="cf-ln"><span>Service</span><b>${certEsc(certServiceText(c.joining_date, asOf) || "–")}</b></div></div>`;
+    }
     const hist = !n ? "" : `<div class="cf-box cf-hist"><div class="cf-bh" style="background:var(--cmt2);color:var(--cd);display:flex;justify-content:space-between"><span>SALARY PAID IN THE LAST ${n === 1 ? "MONTH" : n + " MONTHS"} (SAR)</span>${n > 1 ? `<span style="color:var(--cs)">Average net ${certMoney(avg)}</span>` : ""}</div>
-      <table class="cf-mt"><tr><th>Month</th><th class="n">Fixed</th><th class="n">Overtime</th><th class="n">Deductions</th><th class="n">Net paid</th><th></th></tr>${months.map(m => `<tr><td style="font-weight:700">${certEsc(m.label)}</td><td class="n">${certMoney(m.fixed)}</td><td class="n" style="color:${m.overtime ? "#12713F" : "#9AA8B8"}">${m.overtime ? "+" + certMoney(m.overtime) : "–"}</td><td class="n" style="color:${m.deductions ? "#B3261E" : "#9AA8B8"}">${m.deductions ? "−" + certMoney(m.deductions) : "–"}</td><td class="n" style="font-weight:800;color:var(--cd)">${certMoney(m.net)}</td><td style="width:22%"><div class="cf-mb"><div style="width:${Math.max(4, Math.min(100, m.net / Math.max(total, ...months.map(x => x.net), 1) * 100)).toFixed(1)}%"></div></div></td></tr>`).join("")}</table></div>`;
-    const band = n ? "" : `<div class="cf-net"><div><div class="l">MONTHLY SALARY</div><div class="w">${certAmountWords(total)}</div></div><div class="amt">${certMoney(total)}<small>SAR</small></div></div>`;
-    middle = `<div class="cf-tiles"><div class="cf-k" style="background:linear-gradient(135deg,var(--cs),var(--cm));color:#fff"><div class="ic">💰</div><div><div class="l">Monthly salary</div><div class="v">SAR ${certMoney(total).replace(/\.00$/, "")}</div></div></div>${second}${third}</div>
+      <table class="cf-mt"><tr><th>Month</th><th class="n">${byCompany ? "Basic" : "Fixed"}</th><th class="n">Overtime</th><th class="n">Deductions</th><th class="n">Net paid</th><th></th></tr>${months.map(m => `<tr><td style="font-weight:700">${certEsc(m.label)}</td><td class="n">${certMoney(m.fixed)}</td><td class="n" style="color:${m.overtime ? "#12713F" : "#9AA8B8"}">${m.overtime ? "+" + certMoney(m.overtime) : "–"}</td><td class="n" style="color:${m.deductions ? "#B3261E" : "#9AA8B8"}">${m.deductions ? "−" + certMoney(m.deductions) : "–"}</td><td class="n" style="font-weight:800;color:var(--cd)">${certMoney(m.net)}</td><td style="width:22%"><div class="cf-mb"><div style="width:${Math.max(4, Math.min(100, m.net / Math.max(total, ...months.map(x => x.net), 1) * 100)).toFixed(1)}%"></div></div></td></tr>`).join("")}</table></div>`;
+    const band = n ? "" : `<div class="cf-net"><div><div class="l">${byCompany ? "MONTHLY BASIC SALARY" : "MONTHLY SALARY"}</div><div class="w">${certAmountWords(total)}</div></div><div class="amt">${certMoney(total)}<small>SAR</small></div></div>`;
+    middle = `<div class="cf-tiles"><div class="cf-k" style="background:linear-gradient(135deg,var(--cs),var(--cm));color:#fff"><div class="ic">💰</div><div><div class="l">${byCompany ? "Basic salary" : "Monthly salary"}</div><div class="v">SAR ${certMoney(total).replace(/\.00$/, "")}</div></div></div>${second}${third}</div>
       <div class="cf-cols">${earnings}${right}</div>${hist}${band}`;
   }else{
-    const asOf2 = asOf;
-    middle = `<div class="cf-tiles"><div class="cf-k" style="background:linear-gradient(135deg,var(--cs),var(--cm));color:#fff"><div class="ic">📅</div><div><div class="l">Date of joining</div><div class="v" style="font-size:12.5px">${certDateShort(c.joining_date) || "–"}</div></div></div><div class="cf-k" style="background:var(--cst);color:var(--cd)"><div class="ic" style="background:rgba(0,0,0,.07)">🕒</div><div><div class="l">Service</div><div class="v" style="font-size:12.5px">${certEsc(certServiceShort(c.joining_date, asOf2) || "–")}</div></div></div><div class="cf-k" style="background:#E1F5EA;color:#12713F"><div class="ic" style="background:rgba(18,113,63,.14)">✔</div><div><div class="l">Status</div><div class="v" style="font-size:12px">Active, in service</div></div></div></div>
+    middle = `<div class="cf-tiles"><div class="cf-k" style="background:linear-gradient(135deg,var(--cs),var(--cm));color:#fff"><div class="ic">📅</div><div><div class="l">Date of joining</div><div class="v" style="font-size:12.5px">${certDateShort(c.joining_date) || "–"}</div></div></div><div class="cf-k" style="background:var(--cst);color:var(--cd)"><div class="ic" style="background:rgba(0,0,0,.07)">🕒</div><div><div class="l">Service</div><div class="v" style="font-size:12.5px">${certEsc(certServiceShort(c.joining_date, asOf) || "–")}</div></div></div><div class="cf-k" style="background:#E1F5EA;color:#12713F"><div class="ic" style="background:rgba(18,113,63,.14)">✔</div><div><div class="l">Status</div><div class="v" style="font-size:12px">Active, in service</div></div></div></div>
       <div class="cf-box" style="margin:16px 30px 0"><div class="cf-bh" style="background:var(--cmt2);color:var(--cd)">EMPLOYMENT DETAILS</div>${c.employee_no ? `<div class="cf-ln"><span>Employee no.</span><b>${certEsc(c.employee_no)}</b></div>` : ""}<div class="cf-ln"><span>Iqama no.</span><b>${certEsc(c.iqama_number || "")}</b></div><div class="cf-ln"><span>Job title</span><b>${certEsc(job || "–")}</b></div><div class="cf-ln"><span>Employer</span><b>${certEsc(lh.display_name)}</b></div></div>`;
   }
   const valid = new Date((c.issue_date || todayLocalISO()) + "T00:00:00"); valid.setDate(valid.getDate() + 30);
   const validISO = `${valid.getFullYear()}-${String(valid.getMonth() + 1).padStart(2, "0")}-${String(valid.getDate()).padStart(2, "0")}`;
   const ref = `<div class="cf-ref"><div>Reference<b>${certEsc(c.ref_no || "—")}</b></div><div>Issued<b>${certDateShort(c.issue_date)}</b></div><div>Valid until<b>${certDateShort(validISO)}</b></div></div>`;
-  return `${header}${card}<div class="cf-flow">${middle}<p class="cf-mp">${T.intro.replace(/ His monthly salary is as follows:| Her monthly salary is as follows:/, "")} ${T.closing}</p></div>
-<div class="cf-msign"><div>${certSignBlock(c, lh, true).split('<div class="cf-stamp')[0].split('<img class="cf-stampimg')[0]}</div>${ref}${lh.stamp_data ? `<img class="cf-stampimg" src="${lh.stamp_data}" alt="">` : `<div class="cf-stamp">Company<br>stamp</div>`}</div>
+  const stamp = lh.stamp_data ? `<img class="cf-stampimg" src="${lh.stamp_data}" alt="">` : `<div class="cf-stamp">Company<br>stamp</div>`;
+  const signLeft = certSignBlock(c, lh, true).split('<div class="cf-stamp')[0].split('<img class="cf-stampimg')[0];
+  const paragraph = `<p class="cf-mp">${salary ? T.introCore + T.benefitsLine : T.introCore} ${T.closing}</p>`;
+  if(lhMode){
+    return `<img class="cf-pagebg" src="${lh.page_bg}" alt=""><div class="cf-lhwrap" style="top:${mt}px;bottom:${mb}px">${header}${card}<div class="cf-flow">${middle}${paragraph}</div>
+<div class="cf-msign" style="left:30px;right:30px;bottom:0"><div>${signLeft}</div>${ref}${stamp}</div></div>`;
+  }
+  return `${header}${card}<div class="cf-flow">${middle}${paragraph}</div>
+<div class="cf-msign"><div>${signLeft}</div>${ref}${stamp}</div>
 <div class="cf-ft"><span>${certEsc(certFooterText(lh))}</span><span style="white-space:nowrap">Page 1 of 1</span></div>`;
 }
 
@@ -9612,7 +9662,8 @@ function certificateHtml(c, lh, style){
   const months = salary && Array.isArray(c.months_data) ? c.months_data.slice(0, 6) : [];
   const P = certPalette(lh), T = certTexts(c, lh, salary), modern = style === "modern";
   const vars = `--cd:${P.dark};--cd2:${P.dark2};--cm:${P.main};--cs:${P.second};--cmt:${P.mainTint};--cmt2:${P.mainTint2};--cst:${P.secondTint};--cline:${P.line};--gold:${P.gold};--goldt:${P.goldTint};--goldd:${P.goldDark}`;
-  return `<div class="cf" data-limit="${modern ? 662 : 655}" style="${vars}">${CERT_CSS}${modern ? certModernHtml(c, lh, T, months, parts, salary) : certClassicHtml(c, lh, T, months, parts, salary)}</div>`;
+  const limit = lh.page_bg ? 842 - certMmToPx(lh.margin_bottom_mm) - 112 : (modern ? 662 : 655);
+  return `<div class="cf" data-limit="${limit}" style="${vars}">${CERT_CSS}${modern ? certModernHtml(c, lh, T, months, parts, salary) : certClassicHtml(c, lh, T, months, parts, salary)}</div>`;
 }
 // If a very long name / bank / purpose pushes the text towards the signature, tighten the page a little (twice at most).
 function certFit(root){
@@ -9622,7 +9673,7 @@ function certFit(root){
   if(!flow) return;
   const limit = Number(page.getAttribute("data-limit")) || 655;
   const bottom = () => { const pr = page.getBoundingClientRect(), fr = flow.getBoundingClientRect(), k = pr.width ? pr.width / 595 : 1; return (fr.bottom - pr.top) / k; };
-  for(const cls of ["cf-s1", "cf-s2"]){
+  for(const cls of ["cf-s1", "cf-s2", "cf-s3"]){
     if(bottom() <= limit) return;
     page.classList.add(cls);
   }
@@ -9731,7 +9782,8 @@ async function openCertificates(){
 function certNewDraft(){
   return { id: null, ref_no: "", employee_id: "", company: "PI", cert_type: "salary", title_prefix: "Mr.", employee_name: "", employee_no: "", iqama_number: "", nationality: "", job_title: "", joining_date: "",
     basic_salary: "", housing_allowance: "", other_allowance: "", months_count: 0, months_data: [], show_bank_account: false, pay_bank_name: "", iban_last4: "",
-    addressed_to: "general", bank_name: "", purpose: "Bank loan", issue_date: todayLocalISO(), suggested_style: "classic", status: "draft" };
+    addressed_to: "general", bank_name: "", purpose: "Bank loan", issue_date: todayLocalISO(), suggested_style: "classic", status: "draft",
+    salary_layout: "benefits", benefit_accommodation: true, benefit_transport: true, benefit_other: true };
 }
 async function certStartNew(){
   state.loading = true; render();
@@ -9774,7 +9826,9 @@ async function certPickEmployee(id){
   d.employee_id = e.id; d.company = certCompanyOf(e);
   d.employee_name = e.name || ""; d.employee_no = e.employee_no || ""; d.iqama_number = e.iqama_number || ""; d.nationality = certNationalityEnglish(e.nationality); d.joining_date = e.joining_date || "";
   d.job_title = e.job_title || "";
-  const p = certSalaryParts(e); d.basic_salary = p.basic; d.housing_allowance = p.housing; d.other_allowance = p.other;
+  const p = certSalaryParts(e);
+  if(d.salary_layout === "itemised"){ d.basic_salary = p.basic; d.housing_allowance = p.housing; d.other_allowance = p.other; }
+  else { d.basic_salary = p.basic + p.housing + p.other; d.housing_allowance = 0; d.other_allowance = 0; }
   state.certRememberJob = !e.job_title;
   state.certBusy = true; render();
   let bank = null;
@@ -9799,6 +9853,17 @@ async function certRefreshMonths(){
       ? `Only ${h.months.length} approved month${h.months.length === 1 ? " was" : "s were"} found for him, so the certificate will show ${h.months.length === 1 ? "that month" : "those months"}.`
       : "He has no approved months yet, so no history can be shown.";
   }
+}
+function certSetLayout(mode){
+  const d = state.certDraft; if(!d) return;
+  const e = state.certEmployees.find(x => x.id === d.employee_id);
+  if(mode === "benefits"){
+    const t = certNum(d.basic_salary) + certNum(d.housing_allowance) + certNum(d.other_allowance);
+    d.basic_salary = t || ""; d.housing_allowance = 0; d.other_allowance = 0;
+  }else if(e){
+    const p = certSalaryParts(e); d.basic_salary = p.basic; d.housing_allowance = p.housing; d.other_allowance = p.other;
+  }
+  d.salary_layout = mode; render();
 }
 async function certSetMonths(n){
   const d = state.certDraft; if(!d) return;
@@ -9826,7 +9891,8 @@ function certDraftToRow(d){
     months_count: salary ? (Number(d.months_count) || 0) : 0, months_data: salary ? (d.months_data || []) : [],
     show_bank_account: salary && !!d.show_bank_account && !!d.pay_bank_name, pay_bank_name: (salary && d.show_bank_account) ? (d.pay_bank_name || null) : null, iban_last4: (salary && d.show_bank_account) ? (d.iban_last4 || null) : null,
     addressed_to: d.addressed_to, bank_name: d.addressed_to === "bank" ? (String(d.bank_name || "").trim() || null) : null,
-    purpose: String(d.purpose || "").trim() || null, issue_date: d.issue_date || todayLocalISO(), suggested_style: d.suggested_style || "classic"
+    purpose: String(d.purpose || "").trim() || null, issue_date: d.issue_date || todayLocalISO(), suggested_style: d.suggested_style || "classic",
+    salary_layout: d.salary_layout === "itemised" ? "itemised" : "benefits", benefit_accommodation: d.benefit_accommodation !== false, benefit_transport: d.benefit_transport !== false, benefit_other: d.benefit_other !== false
   };
 }
 function certValidate(d, send){
@@ -9931,15 +9997,17 @@ async function certSharePdf(c){
 }
 
 // ---------- letterheads ----------
-async function certImageToDataUrl(file, maxPx){
+async function certImageToDataUrl(file, maxPx, asJpeg){
   const url = URL.createObjectURL(file);
   try{
     const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("That file is not a picture.")); i.src = url; });
     const k = Math.min(1, maxPx / Math.max(img.naturalWidth, img.naturalHeight));
     const w = Math.max(1, Math.round(img.naturalWidth * k)), h = Math.max(1, Math.round(img.naturalHeight * k));
     const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
-    cv.getContext("2d").drawImage(img, 0, 0, w, h);
-    return cv.toDataURL("image/png");
+    const g = cv.getContext("2d");
+    if(asJpeg){ g.fillStyle = "#ffffff"; g.fillRect(0, 0, w, h); }
+    g.drawImage(img, 0, 0, w, h);
+    return asJpeg ? cv.toDataURL("image/jpeg", 0.92) : cv.toDataURL("image/png");
   } finally { URL.revokeObjectURL(url); }
 }
 async function saveLetterhead(company){
@@ -9949,6 +10017,7 @@ async function saveLetterhead(company){
   if(!t(v.display_name)){ toast("Write the company name."); return; }
   const row = { company, display_name: t(v.display_name), tagline: t(v.tagline), address: t(v.address), phone: t(v.phone), email: t(v.email), website: t(v.website),
     accent: certHex(v.accent) || null, accent2: certHex(v.accent2) || null,
+    page_bg: v.page_bg || null, margin_top_mm: certClampMm(v.margin_top_mm, 45), margin_bottom_mm: certClampMm(v.margin_bottom_mm, 30),
     logo_data: v._logoSet ? (v.logo_data || null) : (v._savedLogo || null), stamp_data: v.stamp_data || null };
   state.certBusy = true; render();
   const { data, error } = await sb.from("ts_company_letterheads").upsert(row, { onConflict: "company" }).select().single();
@@ -9958,6 +10027,13 @@ async function saveLetterhead(company){
   const lh = certLetterhead(company);
   state.letterheadsEdit[company] = { ...lh, _savedLogo: data.logo_data || null, _logoSet: false };
   toast(`${lh.display_name}: letterhead saved.`); render();
+}
+
+function certClampMm(v, dflt){ const n = Number(v); return (v === "" || v == null || !isFinite(n)) ? dflt : Math.max(0, Math.min(120, Math.round(n * 10) / 10)); }
+// a small picture of the sheet: the letterhead, and where the certificate will be printed on it
+function certLhPageHtml(v){
+  const top = certClampMm(v.margin_top_mm, 45) / 297 * 100, bot = certClampMm(v.margin_bottom_mm, 30) / 297 * 100;
+  return `<div style="position:relative;width:128px;height:181px;border-radius:6px;overflow:hidden;background:#fff;box-shadow:0 8px 20px rgba(40,50,120,.25);flex:none;">${v.page_bg ? `<img src="${v.page_bg}" alt="" style="position:absolute;left:0;top:0;width:100%;height:100%;">` : `<div style="position:absolute;left:0;right:0;top:0;text-align:center;font-size:8px;color:#9AA8B8;padding-top:6px;">no letterhead picture</div>`}<div style="position:absolute;left:9%;right:9%;top:${top}%;bottom:${bot}%;border:1.5px dashed #6A3DF0;background:rgba(106,61,240,.10);border-radius:3px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:8.5px;line-height:1.3;color:#4B2BC4;font-weight:800;">Certificate<br>is printed<br>here</div></div>`;
 }
 
 // ---------- screens ----------
@@ -10044,11 +10120,12 @@ function renderCertificateForm(){
   const known = CERT_PURPOSES.some(p => p.label === d.purpose && p.label !== "Other");
   const purposeSel = known ? d.purpose : "Other";
   const mismatch = certSalaryMismatch(d);
+  const benefitsMode = d.salary_layout !== "itemised";
   const lh = certLetterhead(d.company);
   const empBlock = editing
     ? `<div class="cr-name">${certEsc(d.employee_name)}</div><div class="cr-sub2">${certEsc(d.ref_no)} · ${certEsc(lh.display_name)}</div>`
     : `<select class="cr-in" id="certEmpSelect"><option value="">Choose the employee…</option>${state.certEmployees.map(e => `<option value="${e.id}" ${e.id === d.employee_id ? "selected" : ""}>${certEsc(e.name)}${certCompanyOf(e) === "Al falak" ? " (Al Falak)" : ""}</option>`).join("")}</select>`;
-  const info = d.employee_id ? `<div class="cr-info"><b>From his file:</b> Iqama ${certEsc(d.iqama_number || "–")} · joined ${certDateShort(d.joining_date) || "date not set"}${d.employee_no ? " · no. " + certEsc(d.employee_no) : ""}<br><b>Letterhead:</b> ${certEsc(lh.display_name)}</div>` : "";
+  const info = d.employee_id ? `<div class="cr-info"><b>From his file:</b> Iqama ${certEsc(d.iqama_number || "–")} · joined ${certDateShort(d.joining_date) || "date not set"}${d.employee_no ? " · no. " + certEsc(d.employee_no) : ""}<br><b>Letterhead:</b> ${certEsc(lh.display_name)}${lh.page_bg ? " (official letterhead paper)" : ""}</div>` : "";
   return `<div class="cr-page">
     <button class="link-btn" id="certBackBtn" style="margin-bottom:12px;">‹ Certificates</button>
     <div class="cr-hero"><h2>${editing ? "✎ Edit certificate" : "📄 Prepare a certificate"}</h2><div class="sub">${editing ? "Change what is needed, then save or send it again" : "Fill it in, check the preview, then send it to the Owner"}</div></div>
@@ -10077,10 +10154,18 @@ function renderCertificateForm(){
     </div>
 
     ${salary ? `<div class="cr-glass">
-      <label class="cr-label">Monthly salary (SAR)</label>
+      <label class="cr-label">How the salary is shown</label>
+      <div class="cr-seg"><button class="${benefitsMode ? "on" : ""}" data-cert-layout="benefits">Basic + company provides</button><button class="${!benefitsMode ? "on" : ""}" data-cert-layout="itemised">Itemised</button></div>
+      ${benefitsMode ? `<label class="cr-label">Basic salary per month (SAR)</label>
+      <input class="cr-in" inputmode="decimal" data-cert-field="basic_salary" value="${certEsc(d.basic_salary)}" placeholder="0">
+      <label class="cr-label">The company provides and pays for</label>
+      <label class="cr-check"><input type="checkbox" data-cert-field="benefit_accommodation" ${d.benefit_accommodation !== false ? "checked" : ""}><span>Accommodation</span></label>
+      <label class="cr-check"><input type="checkbox" data-cert-field="benefit_transport" ${d.benefit_transport !== false ? "checked" : ""}><span>Transportation</span></label>
+      <label class="cr-check"><input type="checkbox" data-cert-field="benefit_other" ${d.benefit_other !== false ? "checked" : ""}><span>All other expenses</span></label>`
+      : `<label class="cr-label">Monthly salary (SAR)</label>
       <div class="cr-three"><div><div class="cr-sub2">Basic</div><input class="cr-in" inputmode="decimal" data-cert-field="basic_salary" value="${certEsc(d.basic_salary)}" placeholder="0"></div>
       <div><div class="cr-sub2">Housing</div><input class="cr-in" inputmode="decimal" data-cert-field="housing_allowance" value="${certEsc(d.housing_allowance)}" placeholder="0"></div>
-      <div><div class="cr-sub2">Other</div><input class="cr-in" inputmode="decimal" data-cert-field="other_allowance" value="${certEsc(d.other_allowance)}" placeholder="0"></div></div>
+      <div><div class="cr-sub2">Other</div><input class="cr-in" inputmode="decimal" data-cert-field="other_allowance" value="${certEsc(d.other_allowance)}" placeholder="0"></div></div>`}
       <div class="cr-total"><span id="certTotalText">SAR ${certMoney(total)}</span><span id="certWordsText" style="font-size:10.5px;font-weight:600;text-align:right;">${total > 0 ? certAmountWords(total) : ""}</span></div>
       ${d.pay_bank_name ? `<label class="cr-check"><input type="checkbox" data-cert-field="show_bank_account" ${d.show_bank_account ? "checked" : ""}><span>Say that the salary is paid by bank transfer to his <b>${certEsc(d.pay_bank_name)}</b> account${d.iban_last4 ? " (last 4 digits …" + certEsc(d.iban_last4) + ")" : ""}</span></label>` : ""}
       <label class="cr-label">Show the salary paid in the last … months</label>
@@ -10148,6 +10233,13 @@ function renderCertificateLetterheads(){
       <label class="cr-label">Logo</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <label class="cr-btn sm cr-glassbtn" style="margin:0;">Upload logo<input type="file" accept="image/*" hidden data-lh-file="logo" data-lh-company="${certEsc(co)}"></label>
         ${(v.logo_data && !(co === "PI" && v.logo_data === LOGO_DATA_URI)) ? `<button class="cr-btn sm cr-glassbtn" style="margin:0;" data-lh-clear="logo" data-lh-company="${certEsc(co)}">Remove${co === "PI" ? " (back to the standard logo)" : ""}</button>` : ""}</div>
+      <label class="cr-label">Official letterhead paper (optional)</label>
+      <div class="cr-sub2" style="margin-bottom:8px;">Upload your letterhead as a full A4 picture (JPG or PNG). Certificates are then printed on it, instead of the simple header made from the name and logo above.</div>
+      <div style="display:flex;gap:12px;align-items:flex-start;"><div id="lhPage-${co === "PI" ? "PI" : "AF"}">${certLhPageHtml(v)}</div>
+        <div style="flex:1;min-width:0;"><label class="cr-btn sm cr-glassbtn" style="margin:0 0 6px;">${v.page_bg ? "Replace letterhead" : "Upload letterhead"}<input type="file" accept="image/*" hidden data-lh-file="page" data-lh-company="${certEsc(co)}"></label>
+        ${v.page_bg ? `<button class="cr-btn sm cr-glassbtn" style="margin:0 0 6px;" data-lh-clear="page" data-lh-company="${certEsc(co)}">Remove</button>` : ""}
+        <label class="cr-label" style="margin-top:6px;">Space at the top (mm)</label><input class="cr-in" type="number" min="0" max="120" step="1" inputmode="decimal" data-lh-company="${certEsc(co)}" data-lh-field="margin_top_mm" value="${certEsc(v.margin_top_mm)}">
+        <label class="cr-label">Space at the bottom (mm)</label><input class="cr-in" type="number" min="0" max="120" step="1" inputmode="decimal" data-lh-company="${certEsc(co)}" data-lh-field="margin_bottom_mm" value="${certEsc(v.margin_bottom_mm)}"></div></div>
       <label class="cr-label">Company stamp (optional, a picture with a clear background works best)</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <label class="cr-btn sm cr-glassbtn" style="margin:0;">Upload stamp<input type="file" accept="image/*" hidden data-lh-file="stamp" data-lh-company="${certEsc(co)}"></label>
         ${v.stamp_data ? `<img src="${v.stamp_data}" style="height:48px;border-radius:8px;background:#fff;padding:2px;"><button class="cr-btn sm cr-glassbtn" style="margin:0;" data-lh-clear="stamp" data-lh-company="${certEsc(co)}">Remove</button>` : `<span class="cr-sub2">Without a stamp, a dashed “Company stamp” circle is printed.</span>`}</div>
@@ -10199,6 +10291,7 @@ function certHandleClick(e){
     const ti = t.closest("[data-cert-title]"); if(ti){ d.title_prefix = ti.getAttribute("data-cert-title"); render(); return true; }
     const ss = t.closest("[data-cert-sugstyle]"); if(ss){ d.suggested_style = ss.getAttribute("data-cert-sugstyle"); render(); return true; }
     const mo = t.closest("[data-cert-months]"); if(mo){ certSetMonths(Number(mo.getAttribute("data-cert-months"))); return true; }
+    const lay = t.closest("[data-cert-layout]"); if(lay){ certSetLayout(lay.getAttribute("data-cert-layout")); return true; }
     if(t.closest("[data-cert-recalc]")){ state.certBusy = true; render(); certRefreshMonths().then(() => { state.certBusy = false; render(); }); return true; }
   }
   if(state.view === "certificate-review"){
@@ -10208,7 +10301,7 @@ function certHandleClick(e){
     const sv = t.closest("[data-lh-save]"); if(sv){ saveLetterhead(sv.getAttribute("data-lh-save")); return true; }
     const cl = t.closest("[data-lh-clear]");
     if(cl){ const co = cl.getAttribute("data-lh-company"), which = cl.getAttribute("data-lh-clear"), v = state.letterheadsEdit[co];
-      if(which === "logo"){ v.logo_data = null; v._logoSet = true; } else v.stamp_data = null;
+      if(which === "logo"){ v.logo_data = null; v._logoSet = true; } else if(which === "page"){ v.page_bg = null; } else v.stamp_data = null;
       render(); return true; }
   }
   return false;
@@ -10226,9 +10319,9 @@ function certHandleChange(e){
   const lf = t.getAttribute && t.getAttribute("data-lh-file");
   if(lf && t.files && t.files[0]){
     const co = t.getAttribute("data-lh-company"), file = t.files[0];
-    certImageToDataUrl(file, lf === "logo" ? 480 : 360).then(url => {
+    certImageToDataUrl(file, lf === "logo" ? 480 : (lf === "page" ? 1700 : 360), lf === "page").then(url => {
       const v = state.letterheadsEdit[co];
-      if(lf === "logo"){ v.logo_data = url; v._logoSet = true; } else v.stamp_data = url;
+      if(lf === "logo"){ v.logo_data = url; v._logoSet = true; } else if(lf === "page"){ v.page_bg = url; } else v.stamp_data = url;
       render();
     }).catch(err => toast(err.message || "Could not read that picture."));
     return true;
@@ -10248,6 +10341,7 @@ function certHandleInput(e){
   if(lf && state.letterheadsEdit){
     const co = t.getAttribute("data-lh-company");
     state.letterheadsEdit[co][lf] = t.value;
+    if(lf === "margin_top_mm" || lf === "margin_bottom_mm"){ const box = document.getElementById("lhPage-" + (co === "PI" ? "PI" : "AF")); if(box) box.innerHTML = certLhPageHtml(state.letterheadsEdit[co]); }
     if(lf === "accent" || lf === "accent2"){ const P = certPalette(state.letterheadsEdit[co]), h = document.getElementById("lhHead-" + (co === "PI" ? "PI" : "AF")); if(h) h.style.background = `linear-gradient(135deg,${P.second},${P.main})`; }
     return true;
   }
