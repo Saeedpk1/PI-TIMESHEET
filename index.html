@@ -571,6 +571,47 @@ body.cr-active #toggleHrToOwnerSectionBtn>*,body.cr-active #toggleHrSecuritySect
 body.cr-active #toggleHrToOwnerSectionBtn:active,body.cr-active #toggleHrSecuritySectionBtn:active,body.cr-active #toggleHrTimesheetsSectionBtn:active{transform:translateY(2px) scale(.985)}
 
 .cr-manrow{border:1px solid rgba(255,255,255,.95);background:rgba(255,255,255,.60);border-radius:14px;padding:10px 12px;margin-top:8px;box-shadow:0 3px 10px rgba(60,70,150,.08)}
+
+/* ---- HR page: vivid crystal buttons, names on a white strip ---- */
+.hr-tile.crys.v{background:linear-gradient(160deg,var(--g1) 0%,var(--g2) 100%);border:1px solid rgba(255,255,255,.75);min-height:92px;padding:11px 5px 7px;justify-content:space-between;
+  box-shadow:0 10px 22px var(--sh),0 1px 3px rgba(0,0,0,.10),inset 0 1px 0 rgba(255,255,255,.75),inset 0 -3px 0 rgba(0,0,0,.14)}
+.hr-tile.crys.v::before{height:44%;background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,.04))}
+.hr-tile.crys.v .icon{font-size:27px;margin-bottom:2px;color:#fff;filter:drop-shadow(0 2px 3px rgba(0,0,0,.32))}
+.hr-tile.crys.v .label{display:block;width:calc(100% - 6px);margin-top:4px;background:rgba(255,255,255,.95);color:var(--lc);font-size:11.5px;font-weight:800;line-height:1.18;padding:5px 3px;border-radius:10px;text-shadow:none;box-shadow:0 1px 3px rgba(0,0,0,.14),inset 0 -1px 0 rgba(0,0,0,.05)}
+body.cr-active .hr-section-label{display:inline-flex;width:fit-content;background:rgba(255,255,255,.82);padding:5px 13px;border-radius:999px;box-shadow:0 3px 10px rgba(60,70,150,.16);font-size:11px;margin:15px 2px 8px;border:1px solid rgba(255,255,255,.95);text-shadow:none}
+.hr-tile-grid{gap:10px}
+/* ---- login page (every member): crystal, colourful ---- */
+body.cr-login{background:
+  radial-gradient(520px 420px at 10% 6%, rgba(255,105,180,.68), transparent 62%),
+  radial-gradient(560px 460px at 94% 4%, rgba(70,200,255,.72), transparent 60%),
+  radial-gradient(640px 520px at 52% 98%, rgba(150,110,255,.68), transparent 62%),
+  radial-gradient(420px 360px at 2% 68%, rgba(60,230,190,.58), transparent 60%),
+  radial-gradient(380px 320px at 98% 60%, rgba(255,200,90,.52), transparent 60%),
+  linear-gradient(160deg,#E7F1FF,#F4E9FF 50%,#E1F8F3);background-attachment:fixed}
+body.cr-login::before,body.cr-login::after{content:"";position:fixed;pointer-events:none;z-index:0;border:1px solid rgba(255,255,255,.75);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 12px 30px rgba(80,90,200,.18);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+body.cr-login::before{left:-90px;top:58%;width:200px;height:200px;border-radius:44px;transform:rotate(28deg);background:linear-gradient(135deg,rgba(255,255,255,.70),rgba(255,160,220,.16))}
+body.cr-login::after{right:-80px;bottom:9%;width:230px;height:230px;border-radius:52px;transform:rotate(-24deg);background:linear-gradient(135deg,rgba(255,255,255,.70),rgba(110,190,255,.18))}
+body.cr-login .app{position:relative;z-index:1}
+body.cr-active .login-wrap{margin:46px 8px 0;padding:32px 22px 26px;border-radius:30px;position:relative;overflow:hidden;
+  background:linear-gradient(135deg,rgba(255,255,255,.84),rgba(255,255,255,.52));border:1px solid rgba(255,255,255,.95);
+  box-shadow:0 20px 46px rgba(70,80,170,.26),0 2px 8px rgba(70,80,170,.10),inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(255,255,255,.4);
+  backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%)}
+body.cr-active .login-wrap::before{content:"";position:absolute;left:-25%;top:-55%;width:75%;height:150%;background:linear-gradient(115deg,rgba(255,255,255,.60),rgba(255,255,255,0) 55%);transform:rotate(8deg);pointer-events:none}
+body.cr-active .login-wrap>*{position:relative}
+body.cr-active .login-logo{width:82px;height:82px;padding:11px;margin:0 auto 16px;background:linear-gradient(145deg,#fff,#EAF1FF);border-radius:26px;box-shadow:0 10px 24px rgba(70,80,170,.28),inset 0 1px 0 #fff,inset 0 -3px 0 rgba(0,0,0,.05)}
+body.cr-active .login-wrap h1{font-size:23px;font-weight:800;color:#0F2F55;text-shadow:0 1px 0 rgba(255,255,255,.8)}
+body.cr-active .login-wrap .hint{text-align:center;color:#46587A;font-weight:600}
+body.cr-active .login-wrap label{font-size:11px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#4A5A78;margin:18px 0 6px}
+body.cr-active .login-wrap input{width:100%;border:1.5px solid rgba(255,255,255,.95);background:rgba(255,255,255,.78);border-radius:16px;padding:14px 15px;font-size:16px;color:#152436;outline:none;box-shadow:inset 0 2px 5px rgba(60,70,150,.10),0 1px 0 rgba(255,255,255,.8)}
+body.cr-active .login-wrap input:focus{border-color:#6A8CFF;box-shadow:0 0 0 4px rgba(106,140,255,.24),inset 0 2px 5px rgba(60,70,150,.06)}
+body.cr-active .login-wrap .btn-primary{position:relative;overflow:hidden;margin-top:24px;padding:15px 18px;border-radius:18px;font-size:16px;font-weight:800;letter-spacing:.2px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.28);
+  background:linear-gradient(135deg,#7A45F0 0%,#2E7BFF 58%,#19C7D8 100%);box-shadow:0 12px 26px rgba(46,123,255,.45),inset 0 1px 0 rgba(255,255,255,.65),inset 0 -3px 0 rgba(0,0,0,.14);transition:transform .12s ease}
+body.cr-active .login-wrap .btn-primary::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:50%;border-radius:16px 16px 60% 60%/16px 16px 14px 14px;background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,.08));pointer-events:none}
+body.cr-active .login-wrap .btn-primary:active{transform:translateY(2px) scale(.985)}
+body.cr-active .login-wrap .btn-primary[disabled]{filter:grayscale(.6) opacity(.65)}
+body.cr-active .login-wrap .btn-outline{border-radius:16px;background:linear-gradient(135deg,rgba(255,255,255,.95),rgba(225,236,255,.7));border:1px solid rgba(255,255,255,.95);color:#17375E;font-weight:800;box-shadow:0 6px 16px rgba(70,80,170,.16),inset 0 1px 0 #fff}
+body.cr-active .login-wrap .link-btn{display:block;margin:12px auto 0;color:#2E5BC4;font-weight:700}
+body.cr-active .login-wrap .error-box{background:linear-gradient(135deg,#FFE9EF,#FFD3DE);border:1px solid #FFC0D0;color:#8E1B3C;border-radius:14px;font-weight:600}
 </style>
 </head>
 <body>
@@ -8557,7 +8598,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "30 Oct 2026 - typed-in months, warmer experience words";
+const APP_VERSION = "30 Oct 2026 - crystal login and HR page";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -8566,7 +8607,7 @@ function render(){
   const root = document.getElementById("root");
   if(!checkConfig()) return;
 
-  if(!state.user){ root.innerHTML = renderLogin() + renderVersionTag(); return; }
+  if(!state.user){ document.body.classList.add("cr-active", "cr-login"); root.innerHTML = renderLogin() + renderVersionTag(); return; }
 
   let header = renderHeader();
   let body = "";
@@ -8621,6 +8662,7 @@ function render(){
   root.innerHTML = header + renderAnnouncementBanner() + renderHrTodoBanner() + `<main>${body}</main>` + renderVersionTag() + renderPhotoOverlay();
   attachViewEvents();
   document.body.classList.toggle("cr-active", CRYSTAL_VIEWS.includes(state.view));
+  document.body.classList.toggle("cr-login", state.view === "login");
   if(CERT_VIEWS.includes(state.view)) certFitAll();
   if(state.view === "supervisor-signature" || (state.view === "letter" && document.getElementById("sigCanvas"))) initSigPad();
   if(state.view === "leave-form") initLeaveSigPad();
@@ -9279,7 +9321,7 @@ const AF_LETTERHEAD_PAGE = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2
 // Salary & employment certificates: core logic
 // ======================================================================
 const CERT_VIEWS = ["certificates", "certificate-form", "certificate-review", "certificate-letterheads"];
-const CRYSTAL_VIEWS = CERT_VIEWS.concat(["hr"]);   // screens drawn on the colourful crystal background
+const CRYSTAL_VIEWS = CERT_VIEWS.concat(["hr", "login"]);   // screens drawn on the colourful crystal background
 const CERT_PURPOSES = [
   { label: "Bank loan", phrase: "a bank loan application" },
   { label: "Personal use", phrase: "personal use" },
@@ -9507,6 +9549,18 @@ const CERT_STYLES = [["simple", "📝", "Simple", "A plain letter on your letter
 function certIsSalaryType(t){ return t === "salary" || t === "payroll"; }
 function certTypeLabel(t){ const f = CERT_TYPES.find(x => x[0] === t); return f ? f[2] : "Employment certificate"; }
 function certStyleLabel(s){ const f = CERT_STYLES.find(x => x[0] === s); return f ? f[2] : "Classic"; }
+
+// the vivid crystal colours of the HR page buttons, keyed by each section's text colour: [top, bottom]
+const HR_TILE_PALETTE = {
+  "#0C3A66": ["#62B0FF", "#1F5FE0"],   // blue    (finance)
+  "#0A4F55": ["#52E6D2", "#0C99A8"],   // teal    (blank timesheet)
+  "#6B4E0A": ["#FFCB45", "#EE8A00"],   // gold    (daily reports)
+  "#3D2A66": ["#B592FF", "#6C3DE0"],   // violet  (payroll)
+  "#5B1F55": ["#FF92DC", "#CE2A9C"],   // magenta (certificates)
+  "#7A2E10": ["#FFAE72", "#E5551A"],   // orange  (approvals)
+  "#7A1F1F": ["#FF8FA0", "#DC2F4B"],   // coral   (renewals and directory)
+  "#054035": ["#62EBB8", "#0E9C6C"]    // green
+};
 
 // ======================================================================
 // Certificate pages (one A4 page, 595 x 842 CSS px): the Classic and the Modern style
@@ -12175,6 +12229,14 @@ function renderHrTimesheetReview(){
 
 function hrTileLight(icon, label, id, color, tint){
   const hex6 = (h) => /^#[0-9a-f]{6}$/i.test(String(h || ""));
+  const vivid = HR_TILE_PALETTE[color];
+  if(vivid){
+    // a vivid crystal button; the name sits on a white strip so it is always easy to read
+    return `<div class="hr-tile crys v" id="${id}" style="--g1:${vivid[0]};--g2:${vivid[1]};--lc:${color};--sh:${vivid[1]}77;">
+    <span class="icon">${icon}</span>
+    <span class="label">${label}</span>
+  </div>`;
+  }
   if(hex6(color) && hex6(tint)){
     // a glossy crystal button in the tile's own colours
     return `<div class="hr-tile crys" id="${id}" style="--tc:${color};--t1:${certMix(tint, "#FFFFFF", 0.62)};--t2:${tint};--t3:${certMix(tint, color, 0.28)};--sh:${color}59;">
@@ -12274,7 +12336,7 @@ function renderHrView(){
 
     <div class="hr-section-label" style="color:#0C3A66;">📄 Blank Timesheet</div>
     <div class="hr-tile-grid">
-      ${hrTileLight("📄", "Blank<br>Timesheet", "openBlankTimesheetScreenBtn", "#0C3A66", "#A8CCEE")}
+      ${hrTileLight("📄", "Blank<br>Timesheet", "openBlankTimesheetScreenBtn", "#0A4F55", "#9BDDE2")}
     </div>
 
     <div class="hr-section-label" style="color:#1B5A96;">💰 Finance</div>
@@ -12293,9 +12355,9 @@ function renderHrView(){
       ${hrTileLight("🏦", "WPS Payroll<br>Al Falak", "wpsAlFalakBtn", "#3D2A66", "#C9AEE8")}
     </div>
 
-    <div class="hr-section-label" style="color:#6B4FC4;">📄 Certificates</div>
+    <div class="hr-section-label" style="color:#B5238F;">📄 Certificates</div>
     <div class="hr-tile-grid">
-      ${hrTileLight("📄", "Salary &amp; Employment<br>Certificates", "openCertificatesBtn", "#3D2A66", "#C9AEE8")}
+      ${hrTileLight("📄", "Salary &amp; Employment<br>Certificates", "openCertificatesBtn", "#5B1F55", "#F0B2E3")}
     </div>
 
     <div class="hr-section-label" style="color:#D85A30;">✅ Approvals</div>
