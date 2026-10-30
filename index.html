@@ -797,7 +797,7 @@ let state = {
   certs: [], certsLoaded: false, certsError: "", certFilter: "all", certFilterTouched: false,
   certDraft: null, certBusy: false, certMonthsNote: "", certRememberJob: false, certJobTitleMissing: false,
   certReviewId: null, certReviewStyle: "classic", certEmployees: [], certEmployeesLoaded: false,
-  letterheads: {}, letterheadsMissing: false, letterheadsEdit: null, certJobOther: false,
+  letterheads: {}, letterheadsMissing: false, letterheadsEdit: null, certJobOther: false, certShowLeft: false,
   ownerName: "", ownerSignature: null, certWaitingCount: 0,
   financialReportDate: todayLocalISO(),
   financialDirty: false,
@@ -8598,7 +8598,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "30 Oct 2026 - crystal login and HR page";
+const APP_VERSION = "30 Oct 2026 - certificate employee list fixed";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -9980,19 +9980,43 @@ async function loadCertWaitingCount(){
   const n = count || 0;
   if(n !== state.certWaitingCount){ state.certWaitingCount = n; if(state.view === "ceo-home") render(); }
 }
+// the server may hand back only part of the table in one request: keep asking until nothing more comes
+async function certFetchAllEmployees(cols){
+  const byId = new Map(); let offset = 0;
+  for(let i = 0; i < 60; i++){
+    const r = await sb.from("ts_employees").select(cols).order("name").range(offset, offset + 999);
+    if(r.error) return { error: r.error, data: null };
+    const rows = r.data || [];
+    if(!rows.length) break;
+    rows.forEach(x => byId.set(x.id, x)); offset += rows.length;
+  }
+  return { error: null, data: Array.from(byId.values()).sort((p, q) => String(p.name || "").localeCompare(String(q.name || ""))) };
+}
 async function loadCertEmployees(){
   if(state.certEmployeesLoaded) return;
   const base = "id, name, short_name, employee_no, iqama_number, nationality, joining_date, salary_group, basic_salary, wps_basic, wps_housing, wps_other, active, other_allowance";
-  // newer columns may not exist yet (job title, last working day): try with them, then without
-  const tries = [", job_title, left_date", ", job_title", ", left_date", ""];
+  // newer columns may not exist yet (job title, last working day, supervisor): try with them, then without
+  const tries = [", job_title, left_date, supervisor_id", ", job_title, supervisor_id", ", left_date, supervisor_id", ", supervisor_id", ", job_title, left_date", ", job_title", ", left_date", ""];
   let res = null;
   for(const extra of tries){
-    res = await sb.from("ts_employees").select(base + extra).order("name");
+    res = await certFetchAllEmployees(base + extra);
     if(!res.error) break;
   }
   state.certEmployees = res.data || [];
   state.certJobTitleMissing = !(state.certEmployees.length && "job_title" in state.certEmployees[0]);
+  if(!state.hrmSupervisorId){ try{ const r = await sb.rpc("get_hrm_supervisor_id"); state.hrmSupervisorId = (r && r.data) || null; }catch(e){} }
   state.certEmployeesLoaded = true;
+}
+// the Saudi team (Mohammed Mutlaq and the people under him) is handled separately, so it is not offered here
+function certIsSaudiTeam(e){
+  if(!e) return false;
+  const hrm = state.hrmSupervisorId;
+  if(hrm && (e.id === hrm || e.supervisor_id === hrm)) return true;
+  return certNationalityEnglish(String(e.nationality || "")) === "Saudi";
+}
+function certEmployeeChoices(d, isExp){
+  const showLeft = isExp || state.certShowLeft;
+  return state.certEmployees.filter(e => e.id === d.employee_id || (!certIsSaudiTeam(e) && (showLeft || !certIsFormer(e))));
 }
 
 // ---------- opening screens ----------
@@ -10405,7 +10429,12 @@ function renderCertificateForm(){
   const lh = certLetterhead(d.company);
   const empBlock = editing
     ? `<div class="cr-name">${certEsc(d.employee_name)}</div><div class="cr-sub2">${certEsc(d.ref_no)} · ${certEsc(lh.display_name)}</div>`
-    : `<select class="cr-in" id="certEmpSelect"><option value="">Choose the employee…</option>${state.certEmployees.filter(e => isExp || !certIsFormer(e) || e.id === d.employee_id).map(e => `<option value="${e.id}" ${e.id === d.employee_id ? "selected" : ""}>${certEsc(e.name)}${certCompanyOf(e) === "Al falak" ? " (Al Falak)" : ""}${certIsFormer(e) ? " (left)" : ""}</option>`).join("")}</select>`;
+    : (() => {
+        const choices = certEmployeeChoices(d, isExp), saudiHidden = state.certEmployees.filter(e => certIsSaudiTeam(e) && e.id !== d.employee_id).length;
+        return `<select class="cr-in" id="certEmpSelect"><option value="">Choose the employee… (${choices.length})</option>${choices.map(e => `<option value="${e.id}" ${e.id === d.employee_id ? "selected" : ""}>${certEsc(e.name)}${certCompanyOf(e) === "Al falak" ? " (Al Falak)" : ""}${certIsFormer(e) ? " (left)" : ""}</option>`).join("")}</select>
+        <div class="cr-sub2" style="margin-top:6px;">${choices.length} employee${choices.length === 1 ? "" : "s"} listed${saudiHidden ? ` · ${saudiHidden} from the Saudi team not listed` : ""}</div>
+        ${!isExp ? `<label class="cr-check" style="margin:8px 0 12px;"><input type="checkbox" data-cert-field="show_left" ${state.certShowLeft ? "checked" : ""}><span>Also show people who have left</span></label>` : ""}`;
+      })();
   const info = d.employee_id ? `<div class="cr-info"><b>From his file:</b> Iqama ${certEsc(d.iqama_number || "–")} · joined ${certDateShort(d.joining_date) || "date not set"}${d.employee_no ? " · no. " + certEsc(d.employee_no) : ""}<br><b>Letterhead:</b> ${certEsc(lh.display_name)}${lh.page_bg ? " (official letterhead paper)" : ""}</div>` : "";
   return `<div class="cr-page">
     <button class="link-btn" id="certBackBtn" style="margin-bottom:12px;">‹ Certificates</button>
@@ -10610,6 +10639,7 @@ function certHandleChange(e){
   }
   const f = t.getAttribute && t.getAttribute("data-cert-field");
   if(f && state.certDraft && t.type === "checkbox"){
+    if(f === "show_left"){ state.certShowLeft = t.checked; render(); return true; }
     if(f === "remember_job") state.certRememberJob = t.checked; else state.certDraft[f] = t.checked;
     certUpdatePreview(); return true;
   }
