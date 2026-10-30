@@ -540,6 +540,35 @@ label.cr-btn.cr-glassbtn{color:#17375E}
 label.cr-btn.sm{display:inline-flex;font-size:12.5px;margin:8px 8px 0 0}
 .cr-mo{gap:6px}.cr-mo button{min-width:38px;height:42px;padding:0 8px}
 .cr-seg.tabs button{padding:9px 7px;font-size:12px;flex:1 1 auto}
+
+/* ---- HR home: crystal buttons ---- */
+.hr-tile.crys{position:relative;overflow:hidden;min-height:70px;border-radius:16px;padding:10px 4px;
+  background:linear-gradient(155deg,var(--t1) 0%,var(--t2) 52%,var(--t3) 100%);border:1px solid rgba(255,255,255,.95);
+  box-shadow:0 9px 20px var(--sh),0 1px 3px rgba(0,0,0,.08),inset 0 1px 0 rgba(255,255,255,.95),inset 0 -3px 0 rgba(0,0,0,.07);
+  backdrop-filter:blur(6px) saturate(160%);-webkit-backdrop-filter:blur(6px) saturate(160%);transition:transform .12s ease,box-shadow .12s ease}
+.hr-tile.crys::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:46%;border-radius:14px 14px 60% 60%/14px 14px 12px 12px;background:linear-gradient(180deg,rgba(255,255,255,.80),rgba(255,255,255,.05));pointer-events:none}
+.hr-tile.crys>*{position:relative}
+.hr-tile.crys .icon{font-size:21px;margin-bottom:3px;color:var(--tc);filter:drop-shadow(0 2px 2px rgba(0,0,0,.20))}
+.hr-tile.crys .label{color:var(--tc);font-weight:800;text-shadow:0 1px 0 rgba(255,255,255,.65)}
+.hr-tile.crys:active{transform:translateY(2px) scale(.97);box-shadow:0 3px 8px var(--sh),inset 0 1px 0 rgba(255,255,255,.8),inset 0 -1px 0 rgba(0,0,0,.07)}
+body.cr-active .hr-section-label{text-shadow:0 1px 0 rgba(255,255,255,.7)}
+.hr-tile-grid{gap:9px}
+
+/* ---- HR home: the banner, My Timesheet, and the three collapsible bars ---- */
+body.cr-active .hr-hero{background:linear-gradient(135deg,#6A3DF0 0%,#2E7BFF 52%,#19C7D8 100%) !important;border-radius:22px !important;box-shadow:0 14px 32px rgba(60,80,220,.35),inset 0 1px 0 rgba(255,255,255,.55),inset 0 -2px 0 rgba(0,0,0,.10)}
+body.cr-active .hr-hero::after{content:"";position:absolute;left:0;right:0;top:0;height:46%;background:linear-gradient(180deg,rgba(255,255,255,.30),rgba(255,255,255,0));pointer-events:none}
+body.cr-active .hr-hero::before{content:"";position:absolute;right:-40px;top:-60px;width:170px;height:170px;border-radius:50%;background:radial-gradient(circle at 35% 35%,rgba(255,255,255,.5),rgba(255,255,255,0) 70%);pointer-events:none}
+body.cr-active #mySelfTimesheetBtn{position:relative;overflow:hidden;background:linear-gradient(135deg,#3FE0A0,#12A864 70%,#0B7F4B) !important;border:1px solid rgba(255,255,255,.55) !important;border-radius:20px;box-shadow:0 10px 24px rgba(18,170,100,.42),inset 0 1px 0 rgba(255,255,255,.65),inset 0 -3px 0 rgba(0,0,0,.14) !important;transition:transform .12s ease}
+body.cr-active #mySelfTimesheetBtn::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:48%;border-radius:18px 18px 60% 60%/18px 18px 14px 14px;background:linear-gradient(180deg,rgba(255,255,255,.60),rgba(255,255,255,.06));pointer-events:none}
+body.cr-active #mySelfTimesheetBtn>*{position:relative}
+body.cr-active #mySelfTimesheetBtn:active{transform:translateY(2px) scale(.985)}
+body.cr-active #toggleHrToOwnerSectionBtn,body.cr-active #toggleHrSecuritySectionBtn,body.cr-active #toggleHrTimesheetsSectionBtn{position:relative;overflow:hidden;border-radius:18px;border:1px solid rgba(255,255,255,.95) !important;box-shadow:0 9px 20px rgba(70,80,170,.16),inset 0 1px 0 #fff,inset 0 -3px 0 rgba(0,0,0,.05) !important;backdrop-filter:blur(8px) saturate(160%);-webkit-backdrop-filter:blur(8px) saturate(160%);transition:transform .12s ease}
+body.cr-active #toggleHrToOwnerSectionBtn{background:linear-gradient(155deg,#F2FFF9,#CDF5E2 60%,#B4EBD2) !important}
+body.cr-active #toggleHrSecuritySectionBtn{background:linear-gradient(155deg,#FFF5F6,#FFD9DF 60%,#FFC2CB) !important}
+body.cr-active #toggleHrTimesheetsSectionBtn{background:linear-gradient(155deg,#F4F9FF,#D4E6FB 60%,#BCD6F4) !important}
+body.cr-active #toggleHrToOwnerSectionBtn::before,body.cr-active #toggleHrSecuritySectionBtn::before,body.cr-active #toggleHrTimesheetsSectionBtn::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:46%;border-radius:16px 16px 60% 60%/16px 16px 12px 12px;background:linear-gradient(180deg,rgba(255,255,255,.80),rgba(255,255,255,.05));pointer-events:none}
+body.cr-active #toggleHrToOwnerSectionBtn>*,body.cr-active #toggleHrSecuritySectionBtn>*,body.cr-active #toggleHrTimesheetsSectionBtn>*{position:relative}
+body.cr-active #toggleHrToOwnerSectionBtn:active,body.cr-active #toggleHrSecuritySectionBtn:active,body.cr-active #toggleHrTimesheetsSectionBtn:active{transform:translateY(2px) scale(.985)}
 </style>
 </head>
 <body>
@@ -578,9 +607,28 @@ function setupSupabaseClient(){
 // such accounts are re-prompted for their password on every fresh app open.
 const cachedUser = (() => { try{ return JSON.parse(localStorage.getItem("ts_user") || "null"); }catch(e){ return null; } })();
 const cachedNeedsPassword = !!(cachedUser && cachedUser.password_hash);
+// Refreshing the page, or coming back to the same tab, keeps a password-protected login for this visit (at most 12 hours).
+// Closing the app or the tab, or logging out, still means the password is asked again. The session copy lives in sessionStorage,
+// which the browser clears when the tab closes, so a phone that is merely picked up later is still protected.
+const SESSION_KEEP_MS = 12 * 60 * 60 * 1000;
+function restoreUserOnStart(cached, rawSession, now){
+  if(!cached) return null;
+  if(!cached.password_hash) return cached;                      // accounts without a password: as before
+  try{
+    const s = JSON.parse(rawSession || "null");
+    const at = Number(s && s.at);
+    if(s && s.user && s.user.id === cached.id && at > 0 && now - at < SESSION_KEEP_MS && at - now < 60000) return s.user;
+  }catch(e){}
+  return null;
+}
+function clearSavedLogin(){
+  try{ localStorage.removeItem("ts_user"); }catch(_){}
+  try{ sessionStorage.removeItem("ts_session_user"); }catch(_){}
+}
+const startUser = restoreUserOnStart(cachedUser, (() => { try{ return sessionStorage.getItem("ts_session_user"); }catch(e){ return null; } })(), Date.now());
 
 let state = {
-  user: cachedNeedsPassword ? null : cachedUser,
+  user: startUser,
   loginRole: "employee",
   view: "login",
   monthDate: new Date(),
@@ -749,7 +797,7 @@ let state = {
   remarksDraft: "",
   loading: false,
   error: "",
-  pendingPasswordUser: cachedNeedsPassword ? cachedUser : null,
+  pendingPasswordUser: (cachedNeedsPassword && !startUser) ? cachedUser : null,
   loginPasswordInput: "",
   pendingSetupPasswordUser: null
 };
@@ -2169,6 +2217,7 @@ function cacheLoggedInUser(user){
   try{
     const { photo_data, ...lean } = user || {};
     localStorage.setItem("ts_user", JSON.stringify(lean));
+    try{ sessionStorage.setItem("ts_session_user", JSON.stringify({ at: Date.now(), user: lean })); }catch(_){}
   }catch(e){
     console.error("Could not remember the login on this device:", e);
   }
@@ -2212,7 +2261,7 @@ async function loadLandingData(user, opts){
 // Back to the login screen with a plain explanation, instead of a spinner that never ends.
 function failLogin(message){
   state.user = null;
-  try{ localStorage.removeItem("ts_user"); }catch(_){}
+  clearSavedLogin();
   state.loading = false;
   state.pendingPasswordUser = null;
   state.pendingSetupPasswordUser = null;
@@ -2398,7 +2447,7 @@ async function removeAccountPassword(){
 }
 
 function logout(){
-  localStorage.removeItem("ts_user");
+  clearSavedLogin();
   state = { ...state, user:null, view:"login", entries:{}, submission:null, error:"", pendingPasswordUser:null, loginPasswordInput:"", pendingSetupPasswordUser:null };
   render();
 }
@@ -8506,7 +8555,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "29 Oct 2026 - certificates";
+const APP_VERSION = "30 Oct 2026 - crystal HR page, stays logged in on refresh";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -8569,7 +8618,7 @@ function render(){
 
   root.innerHTML = header + renderAnnouncementBanner() + renderHrTodoBanner() + `<main>${body}</main>` + renderVersionTag() + renderPhotoOverlay();
   attachViewEvents();
-  document.body.classList.toggle("cr-active", CERT_VIEWS.includes(state.view));
+  document.body.classList.toggle("cr-active", CRYSTAL_VIEWS.includes(state.view));
   if(CERT_VIEWS.includes(state.view)) certFitAll();
   if(state.view === "supervisor-signature" || (state.view === "letter" && document.getElementById("sigCanvas"))) initSigPad();
   if(state.view === "leave-form") initLeaveSigPad();
@@ -9228,6 +9277,7 @@ const AF_LETTERHEAD_PAGE = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2
 // Salary & employment certificates: core logic
 // ======================================================================
 const CERT_VIEWS = ["certificates", "certificate-form", "certificate-review", "certificate-letterheads"];
+const CRYSTAL_VIEWS = CERT_VIEWS.concat(["hr"]);   // screens drawn on the colourful crystal background
 const CERT_PURPOSES = [
   { label: "Bank loan", phrase: "a bank loan application" },
   { label: "Personal use", phrase: "personal use" },
@@ -12053,6 +12103,14 @@ function renderHrTimesheetReview(){
 }
 
 function hrTileLight(icon, label, id, color, tint){
+  const hex6 = (h) => /^#[0-9a-f]{6}$/i.test(String(h || ""));
+  if(hex6(color) && hex6(tint)){
+    // a glossy crystal button in the tile's own colours
+    return `<div class="hr-tile crys" id="${id}" style="--tc:${color};--t1:${certMix(tint, "#FFFFFF", 0.62)};--t2:${tint};--t3:${certMix(tint, color, 0.28)};--sh:${color}59;">
+    <span class="icon">${icon}</span>
+    <span class="label">${label}</span>
+  </div>`;
+  }
   return `<div class="hr-tile" id="${id}" style="background:${tint};border:1px solid ${color}66;">
     <span class="icon" style="filter:none;color:${color};">${icon}</span>
     <span class="label" style="color:${color};text-shadow:none;">${label}</span>
@@ -12115,7 +12173,7 @@ function renderHrView(){
   }).join("") || `<div class="empty-state"><div class="ic">📄</div>No approved timesheets yet for this month.</div>`;
 
   return `
-    <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:18px;position:relative;overflow:hidden;margin-bottom:14px;">
+    <div class="hr-hero" style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:18px;position:relative;overflow:hidden;margin-bottom:14px;">
       <div style="position:absolute;top:-10px;right:-8px;font-size:64px;opacity:0.12;">🗂️</div>
       <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#BFDCF5;font-weight:700;position:relative;">Professional Installation Co.</div>
       <div style="font-size:19px;font-weight:800;color:#fff;margin-top:4px;position:relative;">HR Dashboard</div>
@@ -14620,7 +14678,7 @@ async function init(){
       }
       if(fresh && !fresh.password_hash){
         state.user = null;
-        localStorage.removeItem("ts_user");
+        clearSavedLogin();
         state.pendingSetupPasswordUser = fresh;
         render();
         return;
