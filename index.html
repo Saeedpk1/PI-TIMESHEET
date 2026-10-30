@@ -8598,7 +8598,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "30 Oct 2026 - certificate employee list fixed";
+const APP_VERSION = "30 Oct 2026 - PI Team Hub";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -8750,7 +8750,7 @@ function renderLogin(){
     return `
     <div class="login-wrap">
       <img class="login-logo" src="${LOGO_DATA_URI}" alt="Professional Installation Co">
-      <h1>Online Timesheets</h1>
+      <h1>PI Team Hub</h1>
       <p class="hint">Welcome back, ${state.pendingPasswordUser.name}</p>
       <label>Password</label>
       <input type="password" id="loginPassword" placeholder="Enter your password">
@@ -8762,7 +8762,7 @@ function renderLogin(){
   return `
   <div class="login-wrap">
     <img class="login-logo" src="${LOGO_DATA_URI}" alt="Professional Installation Co">
-    <h1>Online Timesheets</h1>
+    <h1>PI Team Hub</h1>
     <p class="hint">${COMPANY_NAME}</p>
     ${canShowInstallButton() ? `<button class="btn btn-outline install-btn" id="installAppBtn" style="margin-bottom:18px;">⬇ Install App on this phone</button>` : ""}
     <label>Iqama / ID Number</label>
