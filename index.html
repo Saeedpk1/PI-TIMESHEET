@@ -754,7 +754,7 @@ let state = {
   certs: [], certsLoaded: false, certsError: "", certFilter: "all", certFilterTouched: false,
   certDraft: null, certBusy: false, certMonthsNote: "", certRememberJob: false, certJobTitleMissing: false,
   certReviewId: null, certReviewStyle: "classic", certEmployees: [], certEmployeesLoaded: false,
-  letterheads: {}, letterheadsMissing: false, letterheadsEdit: null,
+  letterheads: {}, letterheadsMissing: false, letterheadsEdit: null, certJobOther: false,
   ownerName: "", ownerSignature: null, certWaitingCount: 0,
   financialReportDate: todayLocalISO(),
   financialDirty: false,
@@ -8555,7 +8555,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "30 Oct 2026 - crystal HR page, stays logged in on refresh";
+const APP_VERSION = "30 Oct 2026 - simpler certificates";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -9494,10 +9494,13 @@ function certMmToPx(mm){ const n = Number(mm); return Math.round((isFinite(n) ? 
 
 // ---- the certificate types and designs ----
 const CERT_TYPES = [
-  ["salary", "💰", "Salary certificate", "His basic salary, and what the company provides"],
-  ["payroll", "📊", "Payroll certificate", "The salary paid in the last months, with the average"],
-  ["experience", "🪪", "Experience certificate", "The job he did and the period he worked"]
+  ["salary", "💰", "Salary certificate", ""],
+  ["experience", "🪪", "Experience certificate", ""],
+  ["payroll", "📊", "Payroll certificate", ""]
 ];
+// the job titles HR picks from
+const CERT_JOBS = ["Technician", "Assistant Technician", "Supervisor", "Helper"];
+function certJobCanonical(t){ const x = String(t || "").trim().toLowerCase(); return CERT_JOBS.find(j => j.toLowerCase() === x) || ""; }
 const CERT_STYLES = [["simple", "📝", "Simple", "A plain letter on your letterhead"], ["classic", "🏛", "Classic", "Formal letter with a gold frame"], ["modern", "💎", "Modern", "Payroll statement with colour cards"]];
 function certIsSalaryType(t){ return t === "salary" || t === "payroll"; }
 function certTypeLabel(t){ const f = CERT_TYPES.find(x => x[0] === t); return f ? f[2] : "Employment certificate"; }
@@ -9586,16 +9589,16 @@ const CERT_CSS = `<style>
 .cf-mtitle span{font-weight:600;font-size:9px;letter-spacing:0}
 .cf-lhwrap{position:absolute;left:0;right:0}
 .cf-lhwrap .cf-pc{margin:12px 30px 0}.cf-lhwrap .cf-tiles,.cf-lhwrap .cf-cols,.cf-lhwrap .cf-hist,.cf-lhwrap .cf-net{margin-top:12px}.cf-lhwrap .cf-mp{margin-top:10px}
-.cf-sal{border-left:3px solid var(--gold);padding:4px 0 4px 12px;background:linear-gradient(90deg,var(--goldt),rgba(248,239,214,0))}
+.cf-sal{}   /* the salary sentence is an ordinary paragraph: no coloured box */
 /* ---- simple (a written letter with classic touches) ---- */
 .cx-in{position:absolute;left:52px;right:52px}
 .cx-in .cf-pills{margin:0}.cx-in .cf-ttl{margin:16px 0 14px}
 .cx-lh{border-bottom:1.5px solid var(--cm);padding-bottom:8px;margin-bottom:14px;color:#111;position:relative}.cx-lh::after{content:"";position:absolute;left:0;bottom:-4.5px;width:92px;height:3px;background:var(--gold)}.cx-lh b{font-size:15px;letter-spacing:.3px;color:var(--cd)}.cx-lh span{display:block;font-size:9px;color:#444;margin-top:2px;letter-spacing:1px;text-transform:uppercase}
 .cx-p{font-size:11.6px;line-height:1.85;text-align:justify;margin-bottom:11px;color:#1B2433}.cx-p b{font-weight:700;color:var(--cd)}.cx-p b.nm{color:var(--cm)}
-.cx-sal{border-left:3px solid var(--gold);padding:4px 0 4px 12px;background:linear-gradient(90deg,var(--goldt),rgba(248,239,214,0))}
+.cx-sal{}
 .cx-sec{font-size:9.6px;font-weight:800;letter-spacing:1.1px;color:var(--goldd);margin:4px 0 5px;text-transform:uppercase}
 table.cx-t{width:100%;border-collapse:collapse;font-size:10.8px;margin:3px 0 12px;color:#111;border:1px solid var(--cline)}
-.cx-t th,.cx-t td{border:1px solid var(--cline);padding:5px 9px;text-align:left}.cx-t th{background:var(--cmt2);color:var(--cd);font-weight:700}.cx-t .n{text-align:right}.cx-t th.n{text-align:right}.cx-t tr.tot td{font-weight:800;background:var(--goldt);color:var(--cd)}
+.cx-t th,.cx-t td{border:1px solid var(--cline);padding:5px 9px;text-align:left}.cx-t th{background:var(--cmt2);color:var(--cd);font-weight:700}.cx-t .n{text-align:right}.cx-t th.n{text-align:right}.cx-t tr.tot td{font-weight:800;background:var(--cmt2);color:var(--cd)}
 .cx-by{font-style:italic;color:#333;font-size:10px}
 .cx-rule{height:1.4px;margin:12px 0 7px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
 .cx-yf{font-size:11.5px;margin:4px 0 0;color:#1B2433}
@@ -9658,7 +9661,7 @@ function certTexts(c, lh, salary, prose){
       salaryPara = `${His} monthly salary is ${amt}${bits.length > 1 ? `, comprising ${certJoinList(bits)}` : ""}.${payLine}`;
     }else salaryPara = `${His} monthly basic salary is ${amt}.${benefitsLine}${payLine}`;
   }
-  const phrase = c.cert_type === "experience" ? "" : certPurposePhrase(c.purpose);   // an experience certificate needs no purpose
+  const phrase = "";   // certificates are general: no purpose is written
   const closing = `This certificate is issued at ${his} request${phrase ? ` for <b>${certEsc(phrase)}</b>` : ""}, without any liability on the company towards third parties.`;
   const subject = bank ? (salary ? "Salary certificate" : "Employment certificate") : "";
   return { intro, introCore: core0, benefitsLine, salaryPara, closing, bank, bankName: certEsc(c.bank_name || ""), subject, his, His, pre, name };
@@ -9944,13 +9947,13 @@ async function openCertificates(){
 function certNewDraft(){
   return { id: null, ref_no: "", employee_id: "", company: "PI", cert_type: "salary", title_prefix: "Mr.", employee_name: "", employee_no: "", iqama_number: "", nationality: "", job_title: "", joining_date: "",
     basic_salary: "", housing_allowance: "", other_allowance: "", months_count: 0, months_data: [], show_bank_account: false, pay_bank_name: "", iban_last4: "",
-    addressed_to: "general", bank_name: "", purpose: "Bank loan", issue_date: todayLocalISO(), suggested_style: "simple", status: "draft", leaving_date: "", conduct_line: false,
+    addressed_to: "general", bank_name: "", purpose: "", issue_date: todayLocalISO(), suggested_style: "simple", status: "draft", leaving_date: "", conduct_line: false,
     salary_layout: "benefits", benefit_accommodation: true, benefit_transport: true, benefit_other: true };
 }
 async function certStartNew(){
   state.loading = true; render();
   await loadCertEmployees();
-  state.certDraft = certNewDraft(); state.certMonthsNote = ""; state.certRememberJob = false;
+  state.certDraft = certNewDraft(); state.certMonthsNote = ""; state.certRememberJob = false; state.certJobOther = false;
   state.loading = false; state.view = "certificate-form"; render();
 }
 async function certEditExisting(id){
@@ -9959,7 +9962,7 @@ async function certEditExisting(id){
   state.loading = true; render();
   await loadCertEmployees();
   state.certDraft = { ...c, months_data: Array.isArray(c.months_data) ? c.months_data : [], basic_salary: c.basic_salary == null ? "" : c.basic_salary, housing_allowance: c.housing_allowance == null ? "" : c.housing_allowance, other_allowance: c.other_allowance == null ? "" : c.other_allowance };
-  state.certMonthsNote = ""; state.certRememberJob = false;
+  state.certMonthsNote = ""; state.certRememberJob = false; state.certJobOther = false;
   state.loading = false; state.view = "certificate-form"; render();
 }
 function certOpenReview(id){
@@ -9987,7 +9990,7 @@ async function certPickEmployee(id){
   if(!e){ d.employee_id = ""; render(); return; }
   d.employee_id = e.id; d.company = certCompanyOf(e); d.leaving_date = e.left_date || "";
   d.employee_name = e.name || ""; d.employee_no = e.employee_no || ""; d.iqama_number = e.iqama_number || ""; d.nationality = certNationalityEnglish(e.nationality); d.joining_date = e.joining_date || "";
-  d.job_title = e.job_title || "";
+  d.job_title = certJobCanonical(e.job_title) || e.job_title || ""; state.certJobOther = false;
   const p = certSalaryParts(e);
   if(d.salary_layout === "itemised"){ d.basic_salary = p.basic; d.housing_allowance = p.housing; d.other_allowance = p.other; }
   else { d.basic_salary = p.basic + p.housing + p.other; d.housing_allowance = 0; d.other_allowance = 0; }
@@ -10062,7 +10065,7 @@ function certDraftToRow(d){
     months_count: payroll ? (Number(d.months_count) || 0) : 0, months_data: payroll ? (d.months_data || []) : [],
     show_bank_account: salary && !!d.show_bank_account && !!d.pay_bank_name, pay_bank_name: (salary && d.show_bank_account) ? (d.pay_bank_name || null) : null, iban_last4: (salary && d.show_bank_account) ? (d.iban_last4 || null) : null,
     addressed_to: exp ? "general" : d.addressed_to, bank_name: (!exp && d.addressed_to === "bank") ? (String(d.bank_name || "").trim() || null) : null,
-    purpose: exp ? null : (String(d.purpose || "").trim() || null), issue_date: d.issue_date || todayLocalISO(), suggested_style: d.suggested_style || "simple",
+    purpose: null, issue_date: d.issue_date || todayLocalISO(), suggested_style: d.suggested_style || "simple",
     salary_layout: d.salary_layout === "itemised" ? "itemised" : "benefits", benefit_accommodation: d.benefit_accommodation !== false, benefit_transport: d.benefit_transport !== false, benefit_other: d.benefit_other !== false,
     leaving_date: exp ? (d.leaving_date || null) : null, conduct_line: exp && !!d.conduct_line
   };
@@ -10275,7 +10278,7 @@ function renderCertificates(){
     }
     if(!owner && c.status === "sent") acts.push(`<button class="cr-btn sm cr-glassbtn" data-cert-act="review" data-cert-id="${c.id}">👁 View</button>`);
     return `<div class="cr-glass cr-tap" data-cert-open="${c.id}">
-      <div class="cr-row"><div><div class="cr-name">${certEsc(c.employee_name)}</div><div class="cr-sub">${certTypeName(c)}${c.purpose ? " · " + certEsc(c.purpose) : ""}</div>
+      <div class="cr-row"><div><div class="cr-name">${certEsc(c.employee_name)}</div><div class="cr-sub">${certTypeName(c)}</div>
       <div class="cr-sub2">${certEsc(c.ref_no || "")} · ${certDateShort(c.issue_date)} · ${certEsc(certCompanyName(c.company))}${c.status === "signed" && c.style ? " · " + certStyleLabel(c.style) + " design" : ""}</div></div><span class="cr-chip ${st.cls}">${st.text}</span></div>
       ${c.status === "returned" && c.return_note ? `<div class="cr-note"><b>Owner's note:</b> ${certEsc(c.return_note)}</div>` : ""}
       ${acts.length ? `<div>${acts.join("")}</div>` : ""}</div>`;
@@ -10284,7 +10287,6 @@ function renderCertificates(){
     <button class="cr-btn cr-blue" id="certNewBtn" style="margin-top:0;margin-bottom:12px;">＋ Prepare a certificate</button>
     <div class="cr-seg tabs" style="margin-bottom:12px;">${tabs.map(([k, label, count]) => `<button class="${filter === k ? "on" : ""}" data-cert-filter="${k}">${label} <small>${count}</small></button>`).join("")}</div>
     ${shown.length ? shown.map(card).join("") : `<div class="cr-glass" style="text-align:center;padding:26px 16px;"><div style="font-size:34px;">📄</div><div class="cr-name" style="margin-top:6px;">${filter === "sent" && owner ? "Nothing is waiting for your signature" : "No certificates here yet"}</div><div class="cr-sub">${filter === "all" || !list.length ? "Tap “Prepare a certificate” to make the first one." : "Try another tab above."}</div></div>`}
-    <button class="cr-btn cr-glassbtn" id="certLetterheadsBtn">🏢 Letterheads (PI and Al Falak)</button>
   </div>`;
 }
 
@@ -10294,8 +10296,7 @@ function renderCertificateForm(){
   const busy = state.certBusy, editing = !!d.id, salary = certIsSalaryType(d.cert_type), isPayroll = d.cert_type === "payroll", isExp = d.cert_type === "experience";
   const emp = state.certEmployees.find(e => e.id === d.employee_id);
   const total = certNum(d.basic_salary) + certNum(d.housing_allowance) + certNum(d.other_allowance);
-  const known = CERT_PURPOSES.some(p => p.label === d.purpose && p.label !== "Other");
-  const purposeSel = known ? d.purpose : "Other";
+  const jobCanon = certJobCanonical(d.job_title), jobSel = jobCanon || ((String(d.job_title || "").trim() || state.certJobOther) ? "__other" : "");
   const mismatch = certSalaryMismatch(d);
   const benefitsMode = d.salary_layout !== "itemised";
   const lh = certLetterhead(d.company);
@@ -10312,7 +10313,7 @@ function renderCertificateForm(){
       <label class="cr-label">Employee</label>${empBlock}${info}
       <div class="cr-two"><div><label class="cr-label">Title</label><div class="cr-seg"><button class="${d.title_prefix === "Mr." ? "on" : ""}" data-cert-title="Mr.">Mr.</button><button class="${d.title_prefix === "Ms." ? "on" : ""}" data-cert-title="Ms.">Ms.</button></div></div>
       <div><label class="cr-label">Date on certificate</label><input class="cr-in" type="date" data-cert-field="issue_date" value="${certEsc(d.issue_date)}"></div></div>
-      <div class="cr-two"><div><label class="cr-label">Job title</label><input class="cr-in" type="text" data-cert-field="job_title" value="${certEsc(d.job_title)}" placeholder="For example: Technician"></div>
+      <div class="cr-two"><div><label class="cr-label">Job title</label><select class="cr-in" id="certJobSelect"><option value="">Choose…</option>${CERT_JOBS.map(j => `<option value="${j}" ${jobSel === j ? "selected" : ""}>${j}</option>`).join("")}<option value="__other" ${jobSel === "__other" ? "selected" : ""}>Other…</option></select>${jobSel === "__other" ? `<input class="cr-in" style="margin-top:8px;" type="text" data-cert-field="job_title" value="${certEsc(d.job_title)}" placeholder="Type the job title">` : ""}</div>
       <div><label class="cr-label">Nationality</label><input class="cr-in" type="text" data-cert-field="nationality" value="${certEsc(d.nationality)}" placeholder="For example: Indian"></div></div>
       ${certHasArabic(d.nationality) ? `<div class="cr-warn">His nationality is written in Arabic in his file. Type it in English (for example: Indian) so the certificate reads correctly.</div>` : ""}
       ${isExp ? `<div class="cr-two"><div><label class="cr-label">Date of joining</label><input class="cr-in" type="date" data-cert-field="joining_date" value="${certEsc(d.joining_date)}"></div>
@@ -10325,13 +10326,11 @@ function renderCertificateForm(){
 
     <div class="cr-glass">
       <label class="cr-label">Type of certificate</label>
-      ${CERT_TYPES.map(([k, ic, name, note]) => `<div class="cr-pick ${d.cert_type === k ? "on" : ""}" data-cert-type="${k}"><span class="ic">${ic}</span><div><b>${name}</b><span>${note}</span></div></div>`).join("")}
+      ${CERT_TYPES.map(([k, ic, name, note]) => `<div class="cr-pick ${d.cert_type === k ? "on" : ""}" data-cert-type="${k}"><span class="ic">${ic}</span><div><b>${name}</b></div></div>`).join("")}
       ${!isExp ? `<label class="cr-label">Addressed to</label>
       <div class="cr-seg"><button class="${d.addressed_to === "general" ? "on" : ""}" data-cert-addr="general">To whom it may concern</button><button class="${d.addressed_to === "bank" ? "on" : ""}" data-cert-addr="bank">A bank</button></div>
       ${d.addressed_to === "bank" ? `<label class="cr-label">Bank name and branch</label><input class="cr-in" type="text" data-cert-field="bank_name" value="${certEsc(d.bank_name)}" placeholder="For example: Al Rajhi Bank, Dammam">` : ""}` : ""}
-      ${!isExp ? `      <label class="cr-label">Purpose</label>
-      <select class="cr-in" id="certPurposeSelect">${CERT_PURPOSES.map(p => `<option value="${certEsc(p.label)}" ${p.label === purposeSel ? "selected" : ""}>${certEsc(p.label)}</option>`).join("")}</select>
-      ${purposeSel === "Other" ? `<input class="cr-in" style="margin-top:8px;" type="text" data-cert-field="purpose" value="${certEsc(d.purpose === "Other" ? "" : d.purpose)}" placeholder="What is it for?">` : ""}` : ""}
+ : ""}
     </div>
 
     ${salary ? `<div class="cr-glass">
@@ -10383,7 +10382,7 @@ function renderCertificateReview(){
   return `<div class="cr-page">
     <button class="link-btn" id="certBackBtn" style="margin-bottom:12px;">‹ Certificates</button>
     <div class="cr-hero"><h2>${signed ? "✔ Signed certificate" : (owner ? "✍ Review &amp; sign" : "👁 Certificate")}</h2><div class="sub">${certEsc(c.employee_name)} · ${certTypeName(c)}</div></div>
-    <div class="cr-glass"><div class="cr-row"><div><div class="cr-name">${certEsc(c.ref_no)}</div><div class="cr-sub">${certEsc(certCompanyName(c.company))}${c.purpose ? " · " + certEsc(c.purpose) : ""}</div>
+    <div class="cr-glass"><div class="cr-row"><div><div class="cr-name">${certEsc(c.ref_no)}</div><div class="cr-sub">${certEsc(certCompanyName(c.company))}</div>
       <div class="cr-sub2">Prepared by ${certEsc(c.created_by_name || "HR")} on ${certDateShort(c.created_at && c.created_at.slice(0, 10))}${signed ? " · signed " + certDateShort(c.signed_at && c.signed_at.slice(0, 10)) + " by " + certEsc(c.signed_by_name || "") : ""}</div></div><span class="cr-chip ${st.cls}">${st.text}</span></div>
       ${c.status === "returned" && c.return_note ? `<div class="cr-note"><b>Owner's note:</b> ${certEsc(c.return_note)}</div>` : ""}</div>
     <div class="cr-glass"><label class="cr-label">${canSign ? "Which style do you want to sign?" : "Style"}</label>
@@ -10492,7 +10491,11 @@ function certHandleChange(e){
   const t = e.target;
   if(!CERT_VIEWS.includes(state.view)) return false;
   if(t.id === "certEmpSelect"){ certPickEmployee(t.value); return true; }
-  if(t.id === "certPurposeSelect" && state.certDraft){ state.certDraft.purpose = t.value === "Other" ? "" : t.value; render(); return true; }
+  if(t.id === "certJobSelect" && state.certDraft){
+    state.certJobOther = t.value === "__other";
+    state.certDraft.job_title = (t.value === "__other") ? "" : t.value;
+    render(); return true;
+  }
   const f = t.getAttribute && t.getAttribute("data-cert-field");
   if(f && state.certDraft && t.type === "checkbox"){
     if(f === "remember_job") state.certRememberJob = t.checked; else state.certDraft[f] = t.checked;
