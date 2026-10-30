@@ -569,6 +569,8 @@ body.cr-active #toggleHrTimesheetsSectionBtn{background:linear-gradient(155deg,#
 body.cr-active #toggleHrToOwnerSectionBtn::before,body.cr-active #toggleHrSecuritySectionBtn::before,body.cr-active #toggleHrTimesheetsSectionBtn::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:46%;border-radius:16px 16px 60% 60%/16px 16px 12px 12px;background:linear-gradient(180deg,rgba(255,255,255,.80),rgba(255,255,255,.05));pointer-events:none}
 body.cr-active #toggleHrToOwnerSectionBtn>*,body.cr-active #toggleHrSecuritySectionBtn>*,body.cr-active #toggleHrTimesheetsSectionBtn>*{position:relative}
 body.cr-active #toggleHrToOwnerSectionBtn:active,body.cr-active #toggleHrSecuritySectionBtn:active,body.cr-active #toggleHrTimesheetsSectionBtn:active{transform:translateY(2px) scale(.985)}
+
+.cr-manrow{border:1px solid rgba(255,255,255,.95);background:rgba(255,255,255,.60);border-radius:14px;padding:10px 12px;margin-top:8px;box-shadow:0 3px 10px rgba(60,70,150,.08)}
 </style>
 </head>
 <body>
@@ -8555,7 +8557,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "30 Oct 2026 - simpler certificates";
+const APP_VERSION = "30 Oct 2026 - typed-in months, warmer experience words";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -9626,7 +9628,7 @@ function certFooterText(lh){ return [lh.display_name, lh.address, lh.phone, lh.e
 
 // the sentences, shared by both styles
 function certTexts(c, lh, salary, prose){
-  const ms = c.title_prefix === "Ms.", pre = ms ? "Ms." : "Mr.", his = ms ? "her" : "his", His = ms ? "Her" : "His", him = ms ? "her" : "him";
+  const ms = c.title_prefix === "Ms.", pre = ms ? "Ms." : "Mr.", his = ms ? "her" : "his", His = ms ? "Her" : "His", him = ms ? "her" : "him", he = ms ? "she" : "he";
   const name = certEsc(String(c.employee_name || "").toUpperCase()), company = certEsc(lh.display_name);
   const job = certEsc(String(c.job_title || "").trim()), nat = certEsc(String(c.nationality || "").trim());
   const joined = certDateLong(c.joining_date), iqama = certEsc(c.iqama_number || "");
@@ -9646,7 +9648,10 @@ function certTexts(c, lh, salary, prose){
     core0 = left
       ? `This is to certify that ${who}, worked with <b>${company}</b>${job ? ` as <b>${job}</b>` : ""}${joined ? ` from <b>${joined}</b>` : ""} to <b>${left}</b>${dur ? ` (a period of ${dur})` : ""}.`
       : `This is to certify that ${who}, has been working with <b>${company}</b>${job ? ` as <b>${job}</b>` : ""}${joined ? ` since <b>${joined}</b>` : ""}, and is still working with us as of the date of this certificate${dur ? ` (${dur} of service)` : ""}.`;
-    if(c.conduct_line) core0 += left ? ` During this period, ${his} work and conduct were satisfactory, and we wish ${him} every success in ${his} future career.` : ` During ${his} service, ${his} work and conduct have been satisfactory.`;
+    // kind words (HR ticks them): thanks for his work and a good-luck wish when he has left
+    if(c.conduct_line) core0 += left
+      ? ` During ${his} service, ${he} carried out ${his} duties with dedication and sincerity, and ${his} work and conduct were satisfactory. We thank ${him} for ${his} efforts and wish ${him} the very best of luck and every success in ${his} future career.`
+      : ` During ${his} service, ${he} has carried out ${his} duties with dedication and sincerity, and ${his} work and conduct have been satisfactory. We wish ${him} continued success.`;
   }
   const intro = core0 + tail;
   // a salary certificate is written in words, with no table: the salary, then what the company provides, then how it is paid
@@ -9946,8 +9951,8 @@ async function openCertificates(){
 }
 function certNewDraft(){
   return { id: null, ref_no: "", employee_id: "", company: "PI", cert_type: "salary", title_prefix: "Mr.", employee_name: "", employee_no: "", iqama_number: "", nationality: "", job_title: "", joining_date: "",
-    basic_salary: "", housing_allowance: "", other_allowance: "", months_count: 0, months_data: [], show_bank_account: false, pay_bank_name: "", iban_last4: "",
-    addressed_to: "general", bank_name: "", purpose: "", issue_date: todayLocalISO(), suggested_style: "simple", status: "draft", leaving_date: "", conduct_line: false,
+    basic_salary: "", housing_allowance: "", other_allowance: "", months_count: 0, months_data: [], auto_months: [], manual_months: [], show_bank_account: false, pay_bank_name: "", iban_last4: "",
+    addressed_to: "general", bank_name: "", purpose: "", issue_date: todayLocalISO(), suggested_style: "simple", status: "draft", leaving_date: "", conduct_line: true,
     salary_layout: "benefits", benefit_accommodation: true, benefit_transport: true, benefit_other: true };
 }
 async function certStartNew(){
@@ -9962,6 +9967,9 @@ async function certEditExisting(id){
   state.loading = true; render();
   await loadCertEmployees();
   state.certDraft = { ...c, months_data: Array.isArray(c.months_data) ? c.months_data : [], basic_salary: c.basic_salary == null ? "" : c.basic_salary, housing_allowance: c.housing_allowance == null ? "" : c.housing_allowance, other_allowance: c.other_allowance == null ? "" : c.other_allowance };
+  { const rows = Array.isArray(c.months_data) ? c.months_data : [];
+    state.certDraft.auto_months = rows.filter(x => !x.manual);
+    state.certDraft.manual_months = rows.filter(x => x.manual).map(x => ({ key: x.key, fixed: x.fixed, overtime: x.overtime, deductions: x.deductions })); }
   state.certMonthsNote = ""; state.certRememberJob = false; state.certJobOther = false;
   state.loading = false; state.view = "certificate-form"; render();
 }
@@ -10004,26 +10012,65 @@ async function certPickEmployee(id){
   await certRefreshMonths();
   state.certBusy = false; render();
 }
+// ---- months typed in by hand (for the months before the app was used) ----
+function certPrevMonthKey(key){ const [y, m] = String(key).split("-").map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`; }
+function certManualRow(m){
+  const fixed = certNum(m.fixed), ot = certNum(m.overtime), ded = certNum(m.deductions);
+  return { key: m.key, label: certMonthLabel(m.key), fixed: certRound2(fixed), overtime: certRound2(ot), deductions: certRound2(ded), net: certRound2(fixed + ot - ded), manual: true };
+}
+// the table = the months from his approved timesheets + the months typed in, newest first, a month counted only once
+function certRebuildMonths(d){
+  const auto = d.auto_months || [], have = new Set(auto.map(x => x.key)), seen = new Set();
+  const manual = (d.manual_months || []).filter(x => /^\d{4}-\d{2}$/.test(String(x.key || "")) && !have.has(x.key) && !seen.has(x.key) && seen.add(x.key)).map(certManualRow);
+  d.months_data = auto.concat(manual).sort((p, q) => String(q.key).localeCompare(String(p.key))).slice(0, 6);
+}
+function certManualCap(d){ return Math.max(0, (Number(d.months_count) || 0) - (d.auto_months || []).length); }
+function certAddManualMonth(){
+  const d = state.certDraft; if(!d || (d.manual_months || []).length >= certManualCap(d)) return;
+  const keys = (d.auto_months || []).map(x => x.key).concat((d.manual_months || []).map(x => x.key).filter(Boolean)).sort();
+  const key = keys.length ? certPrevMonthKey(keys[0]) : certPrevMonthKey(todayLocalISO().slice(0, 7));
+  const total = certNum(d.basic_salary) + certNum(d.housing_allowance) + certNum(d.other_allowance);
+  (d.manual_months = d.manual_months || []).push({ key, fixed: total || "", overtime: "", deductions: "" });
+  certRebuildMonths(d); render();
+}
+function certManualProblems(d){
+  if(d.cert_type !== "payroll") return "";
+  const auto = new Set((d.auto_months || []).map(x => x.key)), seen = new Set(), thisMonth = String(d.issue_date || todayLocalISO()).slice(0, 7);
+  for(const x of (d.manual_months || [])){
+    if(!/^\d{4}-\d{2}$/.test(String(x.key || ""))) return "Choose the month for each month you typed in.";
+    if(certNum(x.fixed) <= 0) return `Enter the salary for ${certMonthLabel(x.key)}.`;
+    if(certNum(x.fixed) + certNum(x.overtime) - certNum(x.deductions) < 0) return `The deductions are bigger than the salary for ${certMonthLabel(x.key)}.`;
+    if(x.key > thisMonth) return `${certMonthLabel(x.key)} is in the future.`;
+    if(auto.has(x.key)) return `${certMonthLabel(x.key)} is already counted from his timesheets. Remove it from the months you typed in.`;
+    if(seen.has(x.key)) return `${certMonthLabel(x.key)} is typed in twice.`;
+    seen.add(x.key);
+  }
+  return "";
+}
 async function certRefreshMonths(){
   const d = state.certDraft;
   state.certMonthsNote = "";
   if(!d) return;
+  if(d.cert_type !== "payroll" || !Number(d.months_count)){ d.auto_months = []; d.manual_months = []; d.months_data = []; return; }
   const e = state.certEmployees.find(x => x.id === d.employee_id);
-  if(!e || d.cert_type !== "payroll" || !Number(d.months_count)){ d.months_data = []; return; }
+  if(!e){ d.auto_months = []; certRebuildMonths(d); return; }
   const h = await certLoadPayHistory(e, d.months_count);
-  if(h.error){ d.months_data = []; state.certMonthsNote = "Could not read his approved months: " + certErr(h.error); return; }
-  d.months_data = h.months;
+  if(h.error){ d.auto_months = []; certRebuildMonths(d); state.certMonthsNote = "Could not read his approved months: " + certErr(h.error); return; }
+  d.auto_months = h.months;
+  d.manual_months = (d.manual_months || []).slice(0, certManualCap(d));      // fewer months asked for: drop the extra typed ones
+  certRebuildMonths(d);
   if(h.months.length < Number(d.months_count)){
+    const need = Number(d.months_count) - h.months.length;
     state.certMonthsNote = h.months.length
-      ? `Only ${h.months.length} approved month${h.months.length === 1 ? " was" : "s were"} found for him, so the certificate will show ${h.months.length === 1 ? "that month" : "those months"}.`
-      : "He has no approved months yet, so no history can be shown.";
+      ? `Only ${h.months.length} approved month${h.months.length === 1 ? " was" : "s were"} found for him. Type in the other ${need} month${need === 1 ? "" : "s"} below (for example, months before the app was used).`
+      : "He has no approved months yet. Type the months in below.";
   }
 }
 async function certSetType(type){
   const d = state.certDraft; if(!d || d.cert_type === type) return;
   d.cert_type = type; state.certMonthsNote = "";
-  if(type === "salary"){ d.months_count = 0; d.months_data = []; }
-  else if(type === "experience"){ d.addressed_to = "general"; d.months_count = 0; d.months_data = []; }
+  if(type === "salary"){ d.months_count = 0; d.months_data = []; d.auto_months = []; d.manual_months = []; }
+  else if(type === "experience"){ d.addressed_to = "general"; d.months_count = 0; d.months_data = []; d.auto_months = []; d.manual_months = []; }
   else if(type === "payroll" && !Number(d.months_count)) d.months_count = 3;
   render();
   if(type === "payroll"){ state.certBusy = true; render(); await certRefreshMonths(); state.certBusy = false; render(); }
@@ -10075,7 +10122,8 @@ function certValidate(d, send){
   if(!String(d.employee_name || "").trim()) return "The employee's name is missing.";
   if(!String(d.iqama_number || "").trim()) return "His iqama number is missing. Add it in the Employee Directory first.";
   if(certIsSalaryType(d.cert_type) && certNum(d.basic_salary) + certNum(d.housing_allowance) + certNum(d.other_allowance) <= 0) return "Enter his monthly salary.";
-  if(d.cert_type === "payroll" && !(d.months_data && d.months_data.length)) return "He has no approved months to show, so a payroll certificate cannot be made. Make a salary certificate instead.";
+  if(d.cert_type === "payroll" && certManualProblems(d)) return certManualProblems(d);
+  if(d.cert_type === "payroll" && !(d.months_data && d.months_data.length)) return "He has no approved months yet. Type the months in by hand below, or make a salary certificate instead.";
   if(d.cert_type === "experience"){
     if(!d.joining_date) return "His joining date is missing. Add it in the Employee Directory, or type it here.";
     if(d.leaving_date && d.leaving_date < d.joining_date) return "His last working day cannot be before his joining date.";
@@ -10089,6 +10137,7 @@ async function certSave(send){
   const d = state.certDraft; if(!d || state.certBusy) return;
   const bad = certValidate(d, send); if(bad){ toast(bad); return; }
   state.certBusy = true; render();
+  if(d.cert_type === "payroll") certRebuildMonths(d);
   const payload = certDraftToRow(d);
   let res = d.id ? await sb.from("ts_certificates").update(payload).eq("id", d.id).select().single()
                  : await sb.from("ts_certificates").insert(payload).select().single();
@@ -10319,7 +10368,7 @@ function renderCertificateForm(){
       ${isExp ? `<div class="cr-two"><div><label class="cr-label">Date of joining</label><input class="cr-in" type="date" data-cert-field="joining_date" value="${certEsc(d.joining_date)}"></div>
       <div><label class="cr-label">Last working day</label><input class="cr-in" type="date" data-cert-field="leaving_date" value="${certEsc(d.leaving_date)}"></div></div>
       <div class="cr-sub2" style="margin-top:5px;">Leave the last working day empty if he still works here: the certificate then says he is still working with the company.</div>
-      <label class="cr-check"><input type="checkbox" data-cert-field="conduct_line" ${d.conduct_line ? "checked" : ""}><span>Add a line that his work and conduct were satisfactory</span></label>` : ""}
+      <label class="cr-check"><input type="checkbox" data-cert-field="conduct_line" ${d.conduct_line ? "checked" : ""}><span>Add kind words about his work, and a good-luck wish</span></label>` : ""}
       ${certIsFormer(emp) && salary ? `<div class="cr-warn">He has left the company. A salary or payroll certificate is normally for someone who still works here.</div>` : ""}
       ${!state.certJobTitleMissing && d.employee_id && !editing ? `<label class="cr-check"><input type="checkbox" data-cert-field="remember_job" ${state.certRememberJob ? "checked" : ""}><span>Remember this as his job title in his file</span></label>` : ""}
     </div>
@@ -10350,8 +10399,15 @@ function renderCertificateForm(){
       ${d.pay_bank_name ? `<label class="cr-check"><input type="checkbox" data-cert-field="show_bank_account" ${d.show_bank_account ? "checked" : ""}><span>Say that the salary is paid by bank transfer to his <b>${certEsc(d.pay_bank_name)}</b> account${d.iban_last4 ? " (last 4 digits …" + certEsc(d.iban_last4) + ")" : ""}</span></label>` : ""}
       ${isPayroll ? `<label class="cr-label">Months of salary to show</label>
       <div class="cr-mo">${[1, 2, 3, 4, 5, 6].map(m => `<button class="${Number(d.months_count) === m ? "on" : ""}" data-cert-months="${m}">${m}</button>`).join("")}</div>` : `<div class="cr-sub2" style="margin-top:10px;">A salary certificate shows the salary only. To show the months paid, choose a Payroll certificate.</div>`}
-      ${Number(d.months_count) > 0 && d.employee_id ? `<div class="cr-info"><b>Will show:</b> ${d.months_data && d.months_data.length ? d.months_data.map(m => certEsc(m.label) + " (" + certMoney(m.net) + ")").join(", ") + `. Average ${certMoney(certAverageNet(d.months_data))}.` : "no months yet."} Worked out from his approved timesheets, the same way as the Salary Sheet.</div>` : ""}
+      ${Number(d.months_count) > 0 && d.employee_id ? `<div class="cr-info"><b>Will show:</b> ${d.months_data && d.months_data.length ? d.months_data.map(m => certEsc(m.label) + " (" + certMoney(m.net) + ")").join(", ") + `. Average ${certMoney(certAverageNet(d.months_data))}.` : "no months yet."} Months from his timesheets are worked out the same way as the Salary Sheet; months you type in are used as typed.</div>` : ""}
       ${Number(d.months_count) > 0 && !d.employee_id ? `<div class="cr-info">Choose the employee to see which months are available.</div>` : ""}
+      ${isPayroll && Number(d.months_count) > 0 && (certManualCap(d) > 0 || (d.manual_months || []).length) ? `<label class="cr-label">Months you type in</label>
+        ${(d.manual_months || []).map((m, i) => `<div class="cr-manrow"><input class="cr-in" type="month" data-man-idx="${i}" data-man-field="key" value="${certEsc(m.key)}">
+          <div class="cr-three" style="margin-top:8px;"><div><div class="cr-sub2">Basic salary</div><input class="cr-in" inputmode="decimal" data-man-idx="${i}" data-man-field="fixed" value="${certEsc(m.fixed)}" placeholder="0"></div>
+          <div><div class="cr-sub2">Overtime</div><input class="cr-in" inputmode="decimal" data-man-idx="${i}" data-man-field="overtime" value="${certEsc(m.overtime)}" placeholder="0"></div>
+          <div><div class="cr-sub2">Deductions</div><input class="cr-in" inputmode="decimal" data-man-idx="${i}" data-man-field="deductions" value="${certEsc(m.deductions)}" placeholder="0"></div></div>
+          <div class="cr-row" style="margin-top:8px;align-items:center;"><span class="cr-sub2">Net paid: <b id="manNet-${i}">${certMoney(certNum(m.fixed) + certNum(m.overtime) - certNum(m.deductions))}</b></span><button class="cr-btn sm cr-glassbtn" style="margin:0;" data-man-del="${i}">Remove</button></div></div>`).join("")}
+        ${(d.manual_months || []).length < certManualCap(d) ? `<button class="cr-btn sm cr-glassbtn" data-man-add="1">＋ Add a month</button>` : ""}` : ""}
       ${state.certMonthsNote ? `<div class="cr-warn">${certEsc(state.certMonthsNote)}</div>` : ""}
       ${mismatch ? `<div class="cr-warn">${certEsc(mismatch)}</div>` : ""}
       ${Number(d.months_count) > 0 && d.employee_id ? `<button class="cr-btn sm cr-glassbtn" data-cert-recalc="1">↻ Recalculate the months</button>` : ""}
@@ -10473,6 +10529,8 @@ function certHandleClick(e){
     const ss = t.closest("[data-cert-sugstyle]"); if(ss){ d.suggested_style = ss.getAttribute("data-cert-sugstyle"); render(); return true; }
     const mo = t.closest("[data-cert-months]"); if(mo){ certSetMonths(Number(mo.getAttribute("data-cert-months"))); return true; }
     const lay = t.closest("[data-cert-layout]"); if(lay){ certSetLayout(lay.getAttribute("data-cert-layout")); return true; }
+    if(t.closest("[data-man-add]")){ certAddManualMonth(); return true; }
+    const md = t.closest("[data-man-del]"); if(md){ d.manual_months.splice(Number(md.getAttribute("data-man-del")), 1); certRebuildMonths(d); render(); return true; }
     if(t.closest("[data-cert-recalc]")){ state.certBusy = true; render(); certRefreshMonths().then(() => { state.certBusy = false; render(); }); return true; }
   }
   if(state.view === "certificate-review"){
@@ -10516,6 +10574,16 @@ function certHandleChange(e){
 function certHandleInput(e){
   const t = e.target;
   if(!CERT_VIEWS.includes(state.view)) return false;
+  const mi = t.getAttribute && t.getAttribute("data-man-idx");
+  if(mi !== null && mi !== undefined && state.certDraft){
+    const d = state.certDraft, row = (d.manual_months || [])[Number(mi)];
+    if(row){
+      row[t.getAttribute("data-man-field")] = t.value; certRebuildMonths(d);
+      const net = document.getElementById("manNet-" + mi); if(net) net.textContent = certMoney(certNum(row.fixed) + certNum(row.overtime) - certNum(row.deductions));
+      certUpdatePreview();
+    }
+    return true;
+  }
   const f = t.getAttribute && t.getAttribute("data-cert-field");
   if(f && state.certDraft && t.type !== "checkbox"){
     state.certDraft[f] = t.value;
