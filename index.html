@@ -684,12 +684,12 @@ body.cr-emp .btn-save-draft{background:linear-gradient(160deg,#FFC93C,#F08A00) !
 body.cr-emp .btn-submit{background:linear-gradient(160deg,#4BE0A6,#0B8F62) !important;box-shadow:0 10px 22px rgba(11,143,98,.45),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -3px 0 rgba(0,0,0,.14) !important}
 
 /* ================= The employee's pages: leave, contact the Owner, purchase, profile ================= */
-.cr-hero{position:relative;overflow:hidden;border-radius:26px !important;border:1px solid rgba(255,255,255,.78) !important;padding:16px 18px !important;color:#fff;background:var(--hg) !important;box-shadow:0 14px 30px var(--hs),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -3px 0 rgba(0,0,0,.13) !important}
-.cr-hero::before{content:"";position:absolute;left:0;right:0;top:0;height:48%;background:linear-gradient(180deg,rgba(255,255,255,.34),rgba(255,255,255,0));pointer-events:none}
-.cr-hero::after{content:"";position:absolute;right:-46px;top:-60px;width:170px;height:170px;border-radius:50%;background:radial-gradient(circle at 35% 35%,rgba(255,255,255,.45),rgba(255,255,255,0) 70%);pointer-events:none}
+.cr-hero[class*=" cr-hero-"]{position:relative;overflow:hidden;border-radius:26px !important;border:1px solid rgba(255,255,255,.78) !important;padding:16px 18px !important;color:#fff;background:var(--hg) !important;box-shadow:0 14px 30px var(--hs),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -3px 0 rgba(0,0,0,.13) !important}
+.cr-hero[class*=" cr-hero-"]::before{content:"";position:absolute;left:0;right:0;top:0;height:48%;background:linear-gradient(180deg,rgba(255,255,255,.34),rgba(255,255,255,0));pointer-events:none}
+.cr-hero[class*=" cr-hero-"]::after{content:"";position:absolute;right:-46px;top:-60px;width:170px;height:170px;border-radius:50%;background:radial-gradient(circle at 35% 35%,rgba(255,255,255,.45),rgba(255,255,255,0) 70%);pointer-events:none}
 .cr-hero>*{position:relative;z-index:1}
-.cr-hero h3{color:#fff !important;text-shadow:0 1px 3px rgba(0,0,0,.28);margin:0 0 4px}
-.cr-hero .meta,.cr-hero .meta b{color:rgba(255,255,255,.96) !important;text-shadow:0 1px 2px rgba(0,0,0,.22)}
+.cr-hero[class*=" cr-hero-"] h3{color:#fff !important;text-shadow:0 1px 3px rgba(0,0,0,.28);margin:0 0 4px}
+.cr-hero[class*=" cr-hero-"] .meta,.cr-hero[class*=" cr-hero-"] .meta b{color:rgba(255,255,255,.96) !important;text-shadow:0 1px 2px rgba(0,0,0,.22)}
 .cr-hero-blue{--hg:linear-gradient(135deg,#7A45F0,#2E7BFF 60%,#19C7D8);--hs:rgba(46,123,255,.40)}
 .cr-hero-green{--hg:linear-gradient(135deg,#27D3A0,#0E9C6C 70%,#0B7F5A);--hs:rgba(14,156,108,.40)}
 .cr-hero-magenta{--hg:linear-gradient(135deg,#FF8AD8,#C42B9A 70%,#8E2AD0);--hs:rgba(206,42,156,.40)}
@@ -847,6 +847,44 @@ div.hr-panel:not(.card){background:linear-gradient(135deg,rgba(255,255,255,.88),
 body.cr-active .card.hr-panel{background:linear-gradient(135deg,rgba(255,255,255,.90),rgba(255,255,255,.62));border-radius:22px;box-shadow:0 10px 24px rgba(70,80,170,.16),inset 0 1px 0 #fff;backdrop-filter:blur(12px) saturate(170%);-webkit-backdrop-filter:blur(12px) saturate(170%)}
 body.cr-hr main{padding-bottom:12px !important}
 .hr-tile.crys>.hr-badge{position:absolute}
+
+/* ================= Certificate screens: clearer, stronger colours ================= */
+.cr-hero:not([class*=" cr-hero-"]){background:linear-gradient(135deg,#FF7AD0 0%,#C42B9A 48%,#7B2FD0 100%);box-shadow:0 14px 34px rgba(196,43,154,.42),inset 0 1px 0 rgba(255,255,255,.55),inset 0 -2px 0 rgba(0,0,0,.12)}
+.cr-hero:not([class*=" cr-hero-"]) h2{font-size:20px}
+.cr-hero:not([class*=" cr-hero-"]) .sub{opacity:1;color:#FFEAF8;font-size:12.5px;font-weight:600}
+.cr-glass{background:linear-gradient(135deg,rgba(255,255,255,.93),rgba(255,255,255,.72))}
+.cr-glass.cr-tap{background:linear-gradient(135deg,rgba(255,255,255,.98),rgba(255,255,255,.88));border-left:7px solid var(--st,#8A97C0);box-shadow:0 12px 28px rgba(70,80,170,.20),0 2px 6px rgba(70,80,170,.10),inset 0 1px 0 #fff}
+.cr-st-draft{--st:#8A97C0}.cr-st-sent{--st:#F5A623}.cr-st-signed{--st:#18B67A}.cr-st-returned{--st:#EF4D6A}
+.cr-cardl{display:flex;gap:11px;align-items:flex-start;min-width:0;flex:1}
+.cr-tic{flex:none;width:42px;height:42px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:21px;border:1px solid rgba(255,255,255,.85);box-shadow:0 6px 14px rgba(60,70,150,.24),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -2px 0 rgba(0,0,0,.10)}
+.cr-tic-salary{background:linear-gradient(160deg,#62EBB8,#0E9C6C)}
+.cr-tic-payroll{background:linear-gradient(160deg,#62B0FF,#1F5FE0)}
+.cr-tic-experience{background:linear-gradient(160deg,#B592FF,#6C3DE0)}
+.cr-tic-employment{background:linear-gradient(160deg,#FFC93C,#F08A00)}
+.cr-name{font-size:16px;color:#0B2447}
+.cr-sub{font-size:13px;font-weight:700;color:#2B4166}
+.cr-sub2{font-size:11.5px;color:#46587A;line-height:1.4}
+.cr-chip{padding:5px 12px;font-size:11.5px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.75)}
+.cr-chip.gray{background:linear-gradient(160deg,#9AA7D0,#5E6C9C);color:#fff}
+.cr-chip.amber{background:linear-gradient(160deg,#FFC24D,#EE8A00);color:#fff}
+.cr-chip.green{background:linear-gradient(160deg,#4BE0A6,#0B8F62);color:#fff}
+.cr-chip.rose{background:linear-gradient(160deg,#FF8CA5,#DC2F4B);color:#fff}
+.cr-seg.tabs{background:rgba(255,255,255,.88);box-shadow:0 8px 20px rgba(70,80,170,.16),inset 0 1px 0 #fff}
+.cr-seg.tabs button{color:#23375A;font-size:13px;padding:10px 8px}
+.cr-seg.tabs button small{display:inline-block;min-width:18px;padding:1px 6px;border-radius:999px;background:rgba(35,55,90,.13);color:#23375A;font-size:11px;opacity:1}
+.cr-seg.tabs button.on{background:linear-gradient(135deg,#FF7AD0,#C42B9A 55%,#7B2FD0);color:#fff;box-shadow:0 6px 14px rgba(196,43,154,.42),inset 0 1px 0 rgba(255,255,255,.55)}
+.cr-seg.tabs button.on small{background:rgba(255,255,255,.30);color:#fff}
+.cr-label{color:#2B4166;font-size:11px}
+.cr-pick{background:rgba(255,255,255,.80);border-color:rgba(255,255,255,.95)}
+.cr-pick b{color:#0F2F55}
+.cr-pick span{color:#46587A}
+.cr-pick.on{border-color:#C42B9A;background:linear-gradient(135deg,rgba(255,255,255,.98),rgba(255,228,246,.92));box-shadow:0 0 0 4px rgba(196,43,154,.18),0 8px 18px rgba(196,43,154,.20)}
+
+.cr-seg.tabs{gap:2px;padding:4px}
+.cr-seg.tabs button{padding:10px 5px;font-size:12px}
+.cr-seg.tabs button small{min-width:15px;padding:1px 5px;font-size:10.5px}
+.cr-name{font-size:15px;line-height:1.25}
+.cr-sub2{font-size:11px}
 </style>
 </head>
 <body>
@@ -8833,7 +8871,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "31 Oct 2026 - HR midnight and orange";
+const APP_VERSION = "31 Oct 2026 - clearer certificate colours";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -9821,6 +9859,8 @@ const CERT_DUTIES = {
 };
 function certDuty(job, his){ return CERT_DUTIES[String(job || "").trim().toLowerCase()] || ["carried out", `${his} duties`]; }
 
+function certTypeIcon(t){ return ({ salary: "💰", payroll: "📊", experience: "🪪", employment: "📄" })[t] || "📄"; }
+
 // ======================================================================
 // Certificate pages (one A4 page, 595 x 842 CSS px): the Classic and the Modern style
 // ======================================================================
@@ -10668,9 +10708,9 @@ function renderCertificates(){
       if(owner) acts.push(`<button class="cr-btn sm cr-glassbtn" data-cert-act="withdraw" data-cert-id="${c.id}">Withdraw signature</button>`);
     }
     if(!owner && c.status === "sent") acts.push(`<button class="cr-btn sm cr-glassbtn" data-cert-act="review" data-cert-id="${c.id}">👁 View</button>`);
-    return `<div class="cr-glass cr-tap" data-cert-open="${c.id}">
-      <div class="cr-row"><div><div class="cr-name">${certEsc(c.employee_name)}</div><div class="cr-sub">${certTypeName(c)}</div>
-      <div class="cr-sub2">${certEsc(c.ref_no || "")} · ${certDateShort(c.issue_date)} · ${certEsc(certCompanyName(c.company))}${c.status === "signed" && c.style ? " · " + certStyleLabel(c.style) + " design" : ""}</div></div><span class="cr-chip ${st.cls}">${st.text}</span></div>
+    return `<div class="cr-glass cr-tap cr-st-${c.status}" data-cert-open="${c.id}">
+      <div class="cr-row"><div class="cr-cardl"><span class="cr-tic cr-tic-${c.cert_type}">${certTypeIcon(c.cert_type)}</span><div><div class="cr-name">${certEsc(c.employee_name)}</div><div class="cr-sub">${certTypeName(c)}</div>
+      <div class="cr-sub2">${certEsc(c.ref_no || "")} · ${certDateShort(c.issue_date)} · ${certEsc(certCompanyName(c.company))}${c.status === "signed" && c.style ? " · " + certStyleLabel(c.style) + " design" : ""}</div></div></div><span class="cr-chip ${st.cls}">${st.text}</span></div>
       ${c.status === "returned" && c.return_note ? `<div class="cr-note"><b>Owner's note:</b> ${certEsc(c.return_note)}</div>` : ""}
       ${acts.length ? `<div>${acts.join("")}</div>` : ""}</div>`;
   };
