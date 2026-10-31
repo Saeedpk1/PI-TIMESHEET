@@ -8598,7 +8598,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "30 Oct 2026 - PI Team Hub";
+const APP_VERSION = "30 Oct 2026 - no closing words";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -9562,6 +9562,15 @@ const HR_TILE_PALETTE = {
   "#054035": ["#62EBB8", "#0E9C6C"]    // green
 };
 
+// what each job title did, for the experience certificate's line about his work (used only when kind words are ticked)
+const CERT_DUTIES = {
+  "technician": ["carried out", "installation and maintenance work"],
+  "assistant technician": ["assisted in", "installation and maintenance work"],
+  "supervisor": ["supervised", "installation and maintenance work"],
+  "helper": ["helped in", "installation and maintenance work"]
+};
+function certDuty(job, his){ return CERT_DUTIES[String(job || "").trim().toLowerCase()] || ["carried out", `${his} duties`]; }
+
 // ======================================================================
 // Certificate pages (one A4 page, 595 x 842 CSS px): the Classic and the Modern style
 // ======================================================================
@@ -9657,7 +9666,6 @@ table.cx-t{width:100%;border-collapse:collapse;font-size:10.8px;margin:3px 0 12p
 .cx-t th,.cx-t td{border:1px solid var(--cline);padding:5px 9px;text-align:left}.cx-t th{background:var(--cmt2);color:var(--cd);font-weight:700}.cx-t .n{text-align:right}.cx-t th.n{text-align:right}.cx-t tr.tot td{font-weight:800;background:var(--cmt2);color:var(--cd)}
 .cx-by{font-style:italic;color:#333;font-size:10px}
 .cx-rule{height:1.4px;margin:12px 0 7px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
-.cx-yf{font-size:11.5px;margin:4px 0 0;color:#1B2433}
 .cx-sign{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:flex-end;color:#111}
 .cx-for{font-size:10px;color:#555;margin-bottom:3px}.cx-signm{font-weight:800;font-size:11.5px;color:var(--cd);border-top:1.2px solid var(--cd);padding-top:4px;width:190px}.cx-signrl{font-size:9.6px;color:#555;margin-top:1px}
 .cx-foot{position:absolute;left:52px;right:52px;bottom:20px;font-size:8.6px;color:#444;text-align:center;border-top:1px solid var(--cline);padding-top:6px}
@@ -9681,6 +9689,7 @@ function certLogoHtml(lh, size, cls){
 function certFooterText(lh){ return [lh.display_name, lh.address, lh.phone, lh.email, lh.website].map(x => String(x || "").trim()).filter(Boolean).join(" · "); }
 
 // the sentences, shared by both styles
+function certParas(cls, html){ return String(html).split("\n\n").map(p => `<p class="${cls}">${p}</p>`).join(""); }
 function certTexts(c, lh, salary, prose){
   const ms = c.title_prefix === "Ms.", pre = ms ? "Ms." : "Mr.", his = ms ? "her" : "his", His = ms ? "Her" : "His", him = ms ? "her" : "him", he = ms ? "she" : "he";
   const name = certEsc(String(c.employee_name || "").toUpperCase()), company = certEsc(lh.display_name);
@@ -9702,10 +9711,18 @@ function certTexts(c, lh, salary, prose){
     core0 = left
       ? `This is to certify that ${who}, worked with <b>${company}</b>${job ? ` as <b>${job}</b>` : ""}${joined ? ` from <b>${joined}</b>` : ""} to <b>${left}</b>${dur ? ` (a period of ${dur})` : ""}.`
       : `This is to certify that ${who}, has been working with <b>${company}</b>${job ? ` as <b>${job}</b>` : ""}${joined ? ` since <b>${joined}</b>` : ""}, and is still working with us as of the date of this certificate${dur ? ` (${dur} of service)` : ""}.`;
-    // kind words (HR ticks them): thanks for his work and a good-luck wish when he has left
-    if(c.conduct_line) core0 += left
-      ? ` During ${his} service, ${he} carried out ${his} duties with dedication and sincerity, and ${his} work and conduct were satisfactory. We thank ${him} for ${his} efforts and wish ${him} the very best of luck and every success in ${his} future career.`
-      : ` During ${his} service, ${he} has carried out ${his} duties with dedication and sincerity, and ${his} work and conduct have been satisfactory. We wish ${him} continued success.`;
+    // kind words (HR ticks them): his work and conduct, then thanks and a good-luck wish (when he has left)
+    if(c.conduct_line){
+      const [dv, dobj] = certDuty(job ? c.job_title : "", his), parts = [core0];
+      if(left){
+        parts.push(`During ${his} service, ${he} ${dv} ${dobj} with dedication and sincerity, and ${his} work and conduct were satisfactory.`);
+        parts.push(`We thank ${him} for ${his} efforts and wish ${him} the very best of luck and every success in ${his} future career.`);
+      }else{
+        parts.push(`During ${his} service, ${he} has ${dv} ${dobj} with dedication and sincerity, and ${his} work and conduct have been satisfactory.`);
+        parts.push(`We wish ${him} continued success.`);
+      }
+      core0 = parts.join("\n\n");
+    }
   }
   const intro = core0 + tail;
   // a salary certificate is written in words, with no table: the salary, then what the company provides, then how it is paid
@@ -9720,10 +9737,8 @@ function certTexts(c, lh, salary, prose){
       salaryPara = `${His} monthly salary is ${amt}${bits.length > 1 ? `, comprising ${certJoinList(bits)}` : ""}.${payLine}`;
     }else salaryPara = `${His} monthly basic salary is ${amt}.${benefitsLine}${payLine}`;
   }
-  const phrase = "";   // certificates are general: no purpose is written
-  const closing = `This certificate is issued at ${his} request${phrase ? ` for <b>${certEsc(phrase)}</b>` : ""}, without any liability on the company towards third parties.`;
   const subject = bank ? (salary ? "Salary certificate" : "Employment certificate") : "";
-  return { intro, introCore: core0, benefitsLine, salaryPara, closing, bank, bankName: certEsc(c.bank_name || ""), subject, his, His, pre, name };
+  return { intro, introCore: core0, benefitsLine, salaryPara, bank, bankName: certEsc(c.bank_name || ""), subject, his, His, pre, name };
 }
 function certSignBlock(c, lh, modern){
   const sig = c.signature_data ? `<img class="cf-sigimg" src="${c.signature_data}" alt="">` : `<div class="cf-sigph">Owner's signature</div>`;
@@ -9766,8 +9781,8 @@ function certClassicHtml(c, lh, T, months, parts, salary){
 ${head}
 <div class="cf-pills"${lhMode ? ' style="margin-top:0"' : ""}><span class="cf-pill">Ref <b>${certEsc(c.ref_no || "—")}</b></span><span class="cf-pill">Date <b>${certDateLong(c.issue_date)}</b></span></div>
 <div class="cf-ttl"><div class="t"><i></i>${title}<i></i></div><div class="s">${sub}</div></div>
-<p class="cf-p">${T.intro}</p>${T.salaryPara ? `<p class="cf-p cf-sal">${T.salaryPara}</p>` : salaryTable}${monthsTable}
-<p class="cf-p" style="margin-bottom:0">${T.closing}</p></div>
+${certParas("cf-p", T.intro)}${T.salaryPara ? `<p class="cf-p cf-sal">${T.salaryPara}</p>` : salaryTable}${monthsTable}
+</div>
 <div class="cf-sign"${lhMode ? ' style="bottom:0"' : ""}>${certSignBlock(c, lh, false)}</div>
 ${foot}</div>`;
 }
@@ -9827,7 +9842,7 @@ function certModernHtml(c, lh, T, months, parts, salary){
   const ref = `<div class="cf-ref"><div>Reference<b>${certEsc(c.ref_no || "—")}</b></div><div>Issued<b>${certDateShort(c.issue_date)}</b></div><div>Valid until<b>${certDateShort(validISO)}</b></div></div>`;
   const stamp = lh.stamp_data ? `<img class="cf-stampimg" src="${lh.stamp_data}" alt="">` : `<div class="cf-stamp">Company<br>stamp</div>`;
   const signLeft = certSignBlock(c, lh, true).split('<div class="cf-stamp')[0].split('<img class="cf-stampimg')[0];
-  const paragraph = `<p class="cf-mp">${salary ? T.introCore + T.benefitsLine : T.introCore} ${T.closing}</p>`;
+  const paragraph = `<p class="cf-mp">${(salary ? T.introCore + T.benefitsLine : T.introCore).replace(/\n\n/g, " ")}</p>`;
   if(lhMode){
     return `<img class="cf-pagebg" src="${lh.page_bg}" alt=""><div class="cf-lhwrap" style="top:${mt}px;bottom:${mb}px">${header}${card}<div class="cf-flow">${middle}${paragraph}</div>
 <div class="cf-msign" style="left:30px;right:30px;bottom:0"><div>${signLeft}</div>${ref}${stamp}</div></div>`;
@@ -9870,9 +9885,8 @@ function certSimpleHtml(c, lh, T, months, parts, salary){
 <div class="cx-in" style="${pos}"><div class="cf-flow">${plainHead}
 <div class="cf-pills"><span class="cf-pill">Ref <b>${certEsc(c.ref_no || "—")}</b></span><span class="cf-pill">Date <b>${certDateLong(c.issue_date)}</b></span></div>
 <div class="cf-ttl"><div class="t"><i></i>${title}<i></i></div><div class="s">${sub}</div></div>
-${salutation}<p class="cx-p">${T.intro}</p>${T.salaryPara ? `<p class="cx-p cx-sal">${T.salaryPara}</p>` : ""}${salaryTable}${monthsTable}
-<p class="cx-p" style="margin-bottom:0">${T.closing}</p>
-<div class="cx-rule"></div><p class="cx-yf">${T.bank ? "Yours faithfully," : "Sincerely,"}</p></div>
+${salutation}${certParas("cx-p", T.intro)}${T.salaryPara ? `<p class="cx-p cx-sal">${T.salaryPara}</p>` : ""}${salaryTable}${monthsTable}
+<div class="cx-rule"></div></div>
 <div class="cx-sign"><div><div class="cx-for">For and on behalf of ${certEsc(lh.display_name)}</div>${sig}<div class="cx-signm">${who}</div><div class="cx-signrl">Owner / CEO</div></div>${stamp}</div></div>${plainFoot}`;
 }
 
