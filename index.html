@@ -689,6 +689,114 @@ body.cr-emp .bottom-bar .btn::before{content:"";position:absolute;left:3px;right
 body.cr-emp .bottom-bar .btn:active{transform:translateY(2px) scale(.985)}
 body.cr-emp .btn-save-draft{background:linear-gradient(160deg,#FFC93C,#F08A00) !important;box-shadow:0 10px 22px rgba(240,138,0,.42),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -3px 0 rgba(0,0,0,.14) !important;color:#fff !important}
 body.cr-emp .btn-submit{background:linear-gradient(160deg,#4BE0A6,#0B8F62) !important;box-shadow:0 10px 22px rgba(11,143,98,.45),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -3px 0 rgba(0,0,0,.14) !important}
+
+/* ================= The employee's pages: leave, contact the Owner, purchase, profile ================= */
+.cr-hero{position:relative;overflow:hidden;border-radius:26px !important;border:1px solid rgba(255,255,255,.78) !important;padding:16px 18px !important;color:#fff;background:var(--hg) !important;box-shadow:0 14px 30px var(--hs),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -3px 0 rgba(0,0,0,.13) !important}
+.cr-hero::before{content:"";position:absolute;left:0;right:0;top:0;height:48%;background:linear-gradient(180deg,rgba(255,255,255,.34),rgba(255,255,255,0));pointer-events:none}
+.cr-hero::after{content:"";position:absolute;right:-46px;top:-60px;width:170px;height:170px;border-radius:50%;background:radial-gradient(circle at 35% 35%,rgba(255,255,255,.45),rgba(255,255,255,0) 70%);pointer-events:none}
+.cr-hero>*{position:relative;z-index:1}
+.cr-hero h3{color:#fff !important;text-shadow:0 1px 3px rgba(0,0,0,.28);margin:0 0 4px}
+.cr-hero .meta,.cr-hero .meta b{color:rgba(255,255,255,.96) !important;text-shadow:0 1px 2px rgba(0,0,0,.22)}
+.cr-hero-blue{--hg:linear-gradient(135deg,#7A45F0,#2E7BFF 60%,#19C7D8);--hs:rgba(46,123,255,.40)}
+.cr-hero-green{--hg:linear-gradient(135deg,#27D3A0,#0E9C6C 70%,#0B7F5A);--hs:rgba(14,156,108,.40)}
+.cr-hero-magenta{--hg:linear-gradient(135deg,#FF8AD8,#C42B9A 70%,#8E2AD0);--hs:rgba(206,42,156,.40)}
+.cr-hero-amber{--hg:linear-gradient(135deg,#FFC93C,#F08A00 70%,#E8590C);--hs:rgba(240,138,0,.40)}
+.cr-hero-violet{--hg:linear-gradient(135deg,#A98BFF,#6C3DE0 70%,#4A2BB8);--hs:rgba(108,61,224,.40)}
+.cr-profile-hero div,.cr-profile-hero .meta{color:#fff !important}
+.cr-profile-hero img,.cr-profile-hero div[style*="width:72px"]{width:84px !important;height:84px !important;box-shadow:0 0 0 4px rgba(255,255,255,.55),0 12px 26px rgba(0,0,0,.28) !important;border:3px solid #fff !important;margin:0 auto}
+.cr-profile-hero div[style*="width:72px"]{color:#2E5BC4 !important}
+/* glass sections */
+.cr-sec{border-radius:24px;padding:14px;border:1px solid rgba(255,255,255,.95);backdrop-filter:blur(12px) saturate(170%);-webkit-backdrop-filter:blur(12px) saturate(170%);box-shadow:0 10px 24px rgba(70,80,170,.16),inset 0 1px 0 #fff}
+.cr-sec-blue{background:linear-gradient(135deg,rgba(228,240,255,.92),rgba(196,218,255,.72))}
+.cr-sec-green{background:linear-gradient(135deg,rgba(222,251,239,.92),rgba(176,240,212,.72))}
+body.cr-form .purchase-field{border-radius:24px !important;border:1px solid rgba(255,255,255,.95) !important;background:linear-gradient(135deg,rgba(222,251,239,.92),rgba(176,240,212,.72)) !important;box-shadow:0 10px 24px rgba(70,80,170,.14),inset 0 1px 0 #fff;backdrop-filter:blur(12px) saturate(170%)}
+body.cr-form .purchase-field[style*="#F0F8FF"]{background:linear-gradient(135deg,rgba(228,240,255,.92),rgba(196,218,255,.72)) !important}
+body.cr-form label{color:#3A4C6E;font-weight:800;letter-spacing:.3px}
+body.cr-form .field-note{color:#566A8E;font-weight:600}
+/* crystal inputs */
+body.cr-form input:not([type=radio]):not([type=checkbox]):not([type=file]),body.cr-form select,body.cr-form textarea{background:rgba(255,255,255,.90) !important;border:1.5px solid rgba(255,255,255,.95) !important;border-radius:16px !important;padding:12px 14px;font-size:15px;color:#152436;box-shadow:inset 0 2px 5px rgba(60,70,150,.10),0 1px 0 rgba(255,255,255,.8)}
+body.cr-form input:not([type=radio]):not([type=checkbox]):focus,body.cr-form select:focus,body.cr-form textarea:focus{outline:none;border-color:#6A8CFF !important;box-shadow:0 0 0 4px rgba(106,140,255,.26),inset 0 2px 5px rgba(60,70,150,.06)}
+body.cr-form input[type=file]{background:rgba(255,255,255,.7);border-radius:14px;padding:8px}
+/* choices as glass pills */
+body.cr-form .checklist label{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.80);border:1.5px solid rgba(255,255,255,.95);border-radius:16px;padding:11px 14px;margin:0 0 8px;font-size:13.5px;font-weight:700;color:#23375A;text-transform:none;letter-spacing:0;box-shadow:0 4px 10px rgba(70,80,170,.10),inset 0 1px 0 #fff}
+body.cr-form .checklist label:has(input:checked){background:linear-gradient(135deg,#DFFBEF,#A9EFD0);border-color:#6FE0B2;color:#07603F}
+body.cr-form .checklist input{width:20px;height:20px;flex:none;accent-color:#0E9C6C}
+body.cr-form .sig-pad-wrap{background:linear-gradient(135deg,rgba(255,255,255,.94),rgba(238,245,255,.82)) !important;border:2px dashed #8FA6F0 !important;border-radius:24px !important;box-shadow:inset 0 2px 8px rgba(60,70,150,.10),0 10px 22px rgba(70,80,170,.12)}
+body.cr-form .leave-photo-circle{background:linear-gradient(135deg,#fff,#E4EEFF);border:3px solid #fff !important;box-shadow:0 8px 18px rgba(70,80,170,.22),inset 0 1px 0 #fff}
+/* buttons */
+body.cr-form .btn{position:relative;overflow:hidden;border-radius:18px;font-weight:800;transition:transform .12s ease}
+body.cr-form .btn::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:48%;border-radius:16px 16px 60% 60%/16px 16px 12px 12px;background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,.04));pointer-events:none}
+body.cr-form .btn:active{transform:translateY(2px) scale(.985)}
+body.cr-form .btn-submit{background:linear-gradient(160deg,#4BE0A6,#0B8F62) !important;color:#fff !important;border:1px solid rgba(255,255,255,.8) !important;text-shadow:0 1px 3px rgba(0,0,0,.30);box-shadow:0 10px 22px rgba(11,143,98,.42),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -3px 0 rgba(0,0,0,.14) !important}
+body.cr-form .btn-primary{background:linear-gradient(135deg,#7A45F0,#2E7BFF 60%,#19C7D8) !important;color:#fff !important;border:1px solid rgba(255,255,255,.8) !important;text-shadow:0 1px 3px rgba(0,0,0,.30);box-shadow:0 10px 22px rgba(46,123,255,.42),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -3px 0 rgba(0,0,0,.14) !important}
+body.cr-form .btn-outline{background:linear-gradient(135deg,rgba(255,255,255,.96),rgba(225,236,255,.72)) !important;color:#17375E !important;border:1px solid rgba(255,255,255,.95) !important;box-shadow:0 6px 16px rgba(70,80,170,.16),inset 0 1px 0 #fff !important}
+body.cr-form #scanBillBtn{background:linear-gradient(135deg,#FF8AD8,#B06FE0 55%,#6C3DE0) !important;color:#fff !important;border:1px solid rgba(255,255,255,.8) !important;text-shadow:0 1px 3px rgba(0,0,0,.30);padding:15px 16px;font-size:15.5px;box-shadow:0 12px 26px rgba(176,111,224,.5),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -3px 0 rgba(0,0,0,.14) !important}
+body.cr-form #submitAllPurchasesBtn{background:linear-gradient(160deg,#62B0FF,#1F5FE0) !important;color:#fff !important;border:1px solid rgba(255,255,255,.8) !important;text-shadow:0 1px 3px rgba(0,0,0,.30);box-shadow:0 10px 22px rgba(31,95,224,.42),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -3px 0 rgba(0,0,0,.14) !important}
+body.cr-form .link-btn{color:#2E5BC4;font-weight:800}
+body.cr-form .btn-outline[data-toggle-sent-batch]{border-radius:20px !important;padding:13px 16px;color:#0A6B45 !important;border-color:#8FE6C4 !important}
+/* list rows: leave history, messages */
+body.cr-form .emp-list-item{background:linear-gradient(135deg,rgba(255,255,255,.92),rgba(255,255,255,.64));border:1px solid rgba(255,255,255,.95);border-left:6px solid #7A9BFF;border-radius:20px;padding:12px 14px;margin-bottom:10px;box-shadow:0 8px 20px rgba(70,80,170,.14),inset 0 1px 0 #fff;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+body.cr-form .emp-list-item .name{font-weight:800;color:#0F2F55}
+body.cr-form .emp-list-item.li-submitted{border-left-color:#FF8AD8}
+body.cr-form .emp-list-item.li-approved{border-left-color:#4BE0A6}
+body.cr-form .emp-list-item .link-btn{background:linear-gradient(135deg,#FFFFFF,#DDE8FF);border:1px solid #fff;border-radius:999px;padding:5px 11px;font-size:11.5px;box-shadow:0 3px 8px rgba(70,80,170,.16)}
+body.cr-form .badge{border-radius:999px;padding:4px 11px;font-weight:800;font-size:10.5px;border:1px solid rgba(255,255,255,.9);box-shadow:0 3px 8px rgba(70,80,170,.18)}
+body.cr-form .empty-state{background:linear-gradient(135deg,rgba(255,255,255,.85),rgba(255,255,255,.55));border:1px solid #fff;border-radius:22px;box-shadow:0 8px 20px rgba(70,80,170,.12);padding:22px}
+body.cr-form div[style*="var(--ksa-gold)"][style*="#FFFBF0"]{background:linear-gradient(135deg,#FFF8E0,#FFE9A8) !important;border:1px solid #fff !important;border-radius:18px !important;box-shadow:0 6px 16px rgba(220,150,40,.2)}
+/* little icon buttons on the purchase list */
+body.cr-form .icon-sq{border-radius:10px;border:1px solid rgba(255,255,255,.85);box-shadow:0 4px 10px rgba(70,80,170,.22),inset 0 1px 0 rgba(255,255,255,.7)}
+body.cr-form .icon-sq-photo{background:linear-gradient(160deg,#9CC8FF,#3B6FF0)}
+body.cr-form .icon-sq-edit{background:linear-gradient(160deg,#FFD36B,#F08A00)}
+body.cr-form .icon-sq-delete{background:linear-gradient(160deg,#FFA3B5,#DC2F4B)}
+/* ---- the smart pieces ---- */
+.cr-leavesum{display:flex;align-items:center;gap:14px;margin-top:12px;background:rgba(255,255,255,.82);border:1px solid #fff;border-radius:22px;padding:12px 14px;box-shadow:0 8px 20px rgba(14,156,108,.14),inset 0 1px 0 #fff}
+.cr-daysbig{position:relative;overflow:hidden;flex:none;min-width:78px;text-align:center;border-radius:20px;padding:10px 8px;color:#fff;background:linear-gradient(160deg,#62EBB8,#0E9C6C);box-shadow:0 8px 18px rgba(14,156,108,.4),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -3px 0 rgba(0,0,0,.13)}
+.cr-daysbig::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:46%;border-radius:16px 16px 60% 60%/16px 16px 12px 12px;background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,.04));pointer-events:none}
+.cr-daysbig>*{position:relative}
+.cr-daysbig b{display:block;font-size:30px;line-height:1.05;text-shadow:0 2px 4px rgba(0,0,0,.28)}
+.cr-daysbig span{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px}
+.cr-leavetext{font-size:13px;color:#23375A;line-height:1.55;font-weight:600}
+.cr-warn{margin-top:4px;color:#9B1B3A;font-weight:800}
+.cr-quick{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px}
+.cr-quick>span{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#4A5A78;margin-right:2px}
+.cr-chipbtn{border:1px solid rgba(255,255,255,.95);background:linear-gradient(135deg,#FFFFFF,#E3ECFF);color:#2B49B8;font-weight:800;font-size:13px;border-radius:999px;padding:8px 14px;box-shadow:0 5px 12px rgba(70,80,170,.18),inset 0 1px 0 #fff;cursor:pointer;transition:transform .12s ease}
+.cr-chipbtn:active{transform:scale(.95)}
+.cr-chipbtn:disabled{opacity:.45;cursor:not-allowed}
+.cr-chipbtn.on{background:linear-gradient(135deg,#FF8AD8,#C42B9A);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.25);border-color:rgba(255,255,255,.7)}
+.cr-ready{margin-top:14px;border-radius:22px;padding:12px 14px;background:linear-gradient(135deg,rgba(255,255,255,.92),rgba(255,255,255,.64));border:1px solid #fff;box-shadow:0 8px 20px rgba(70,80,170,.14),inset 0 1px 0 #fff}
+.cr-ready-title{font-weight:800;color:#0F2F55;font-size:14px;margin-bottom:8px}
+.cr-rchip{display:inline-block;margin:0 6px 6px 0;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:800;border:1px solid #fff;box-shadow:0 3px 8px rgba(70,80,170,.14)}
+.cr-rchip.ok{background:linear-gradient(135deg,#DFFBEF,#A9EFD0);color:#07603F}
+.cr-rchip.need{background:linear-gradient(135deg,#FFE8EF,#FFBFD0);color:#8E1B3C}
+.cr-rchip.opt{background:linear-gradient(135deg,#FFF4D6,#FFE29A);color:#7A4B00}
+.cr-msgcount{font-size:12px;color:#4A5A78;font-weight:700;margin:6px 4px 0}
+.cr-totals{display:flex;gap:10px;margin-top:12px}
+.cr-tot{position:relative;overflow:hidden;flex:1;border-radius:20px;padding:11px 12px;color:#fff;text-align:center;border:1px solid rgba(255,255,255,.8);box-shadow:0 10px 22px rgba(70,80,170,.28),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -3px 0 rgba(0,0,0,.13)}
+.cr-tot::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:46%;border-radius:16px 16px 60% 60%/16px 16px 12px 12px;background:linear-gradient(180deg,rgba(255,255,255,.5),rgba(255,255,255,.04));pointer-events:none}
+.cr-tot>*{position:relative}
+.cr-tot span{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;text-shadow:0 1px 2px rgba(0,0,0,.2)}
+.cr-tot b{font-size:20px;text-shadow:0 2px 3px rgba(0,0,0,.25)}
+.cr-tot-amber{background:linear-gradient(160deg,#FFC93C,#F08A00)}
+.cr-tot-green{background:linear-gradient(160deg,#4BE0A6,#0B8F62)}
+.cr-doc{display:flex;align-items:center;gap:12px;margin-top:10px;padding:11px 13px;border-radius:20px;border:1px solid #fff;background:var(--db);box-shadow:0 8px 18px var(--ds),inset 0 1px 0 #fff}
+.cr-doc-ic{font-size:26px;flex:none}
+.cr-doc-main{flex:1;min-width:0}
+.cr-doc-main b{display:block;color:#0F2F55;font-size:13.5px}
+.cr-doc-main span{font-size:12px;color:#4A5A78;font-weight:600}
+.cr-doc-state{flex:none;border-radius:999px;padding:6px 12px;font-size:11.5px;font-weight:800;color:#fff;background:var(--dc);text-shadow:0 1px 2px rgba(0,0,0,.25);box-shadow:0 4px 10px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.5)}
+.cr-doc-ok{--db:linear-gradient(135deg,rgba(223,251,239,.96),rgba(190,244,220,.78));--dc:linear-gradient(160deg,#4BE0A6,#0B8F62);--ds:rgba(14,156,108,.16)}
+.cr-doc-warn{--db:linear-gradient(135deg,rgba(255,246,214,.96),rgba(255,230,160,.78));--dc:linear-gradient(160deg,#FFC93C,#E8920C);--ds:rgba(240,150,0,.18)}
+.cr-doc-soon{--db:linear-gradient(135deg,rgba(255,236,222,.96),rgba(255,200,170,.78));--dc:linear-gradient(160deg,#FF9A5C,#E0502A);--ds:rgba(224,80,42,.20)}
+.cr-doc-late{--db:linear-gradient(135deg,rgba(255,232,239,.96),rgba(255,190,208,.78));--dc:linear-gradient(160deg,#FF7C98,#DC2F4B);--ds:rgba(220,47,75,.22)}
+.cr-doc-none{--db:linear-gradient(135deg,rgba(240,243,252,.96),rgba(214,222,244,.78));--dc:linear-gradient(160deg,#A7B2D0,#7A87AA);--ds:rgba(100,115,160,.16)}
+.cr-chip{margin-left:8px;display:inline-block;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:800;color:#fff;background:linear-gradient(160deg,#9B7BFF,#3B6FF0);text-shadow:0 1px 2px rgba(0,0,0,.22)}
+
+.nw{white-space:nowrap}
+.cr-quick>span{flex-basis:100%;margin-bottom:-2px}
+.cr-quick .cr-chipbtn{flex:1;min-width:0;text-align:center;padding:8px 6px}
+body.cr-form .emp-list-item .name{font-size:13.5px}
+
+.cr-quick.cr-wrap .cr-chipbtn{flex:none;white-space:nowrap;padding:8px 14px}
 </style>
 </head>
 <body>
@@ -8675,7 +8783,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "31 Oct 2026 - crystal timesheet page";
+const APP_VERSION = "31 Oct 2026 - crystal employee pages";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -8684,7 +8792,7 @@ function render(){
   const root = document.getElementById("root");
   if(!checkConfig()) return;
 
-  if(!state.user){ document.body.classList.add("cr-active", "cr-login"); document.body.classList.remove("cr-emp"); root.innerHTML = renderLogin() + renderVersionTag(); return; }
+  if(!state.user){ document.body.classList.add("cr-active", "cr-login"); document.body.classList.remove("cr-emp", "cr-form"); root.innerHTML = renderLogin() + renderVersionTag(); return; }
 
   let header = renderHeader();
   let body = "";
@@ -8740,7 +8848,8 @@ function render(){
   attachViewEvents();
   document.body.classList.toggle("cr-active", CRYSTAL_VIEWS.includes(state.view));
   document.body.classList.toggle("cr-login", state.view === "login");
-  document.body.classList.toggle("cr-emp", state.view === "employee");
+  document.body.classList.toggle("cr-emp", EMP_VIEWS.includes(state.view));
+  document.body.classList.toggle("cr-form", EMP_FORM_VIEWS.includes(state.view));
   if(CERT_VIEWS.includes(state.view)) certFitAll();
   if(state.view === "supervisor-signature" || (state.view === "letter" && document.getElementById("sigCanvas"))) initSigPad();
   if(state.view === "leave-form") initLeaveSigPad();
@@ -9105,15 +9214,17 @@ function renderCeoContactForm(){
 
   return `
     <button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
-    <div class="card" style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);">
+    <div class="card cr-hero cr-hero-magenta">
       <h3 style="color:var(--navy);">📞 Direct Contact with Owner</h3>
       <div class="meta" style="color:var(--blue);">Write anything you'd like the Owner to know — sent directly and privately to him.</div>
     </div>
     <label style="margin-top:14px;">Your message</label>
-    <textarea id="ceoMessageInput" rows="5" placeholder="Type your message here...">${state.ceoMessageDraft}</textarea>
+    ${ceoTopicChips()}
+    <textarea id="ceoMessageInput" rows="5" placeholder="Type your message here..." style="margin-top:10px;">${state.ceoMessageDraft}</textarea>
+    <div class="cr-msgcount"><span id="ceoMsgCount">${String(state.ceoMessageDraft || "").length}</span> characters · 🔒 sent privately, only the Owner sees it</div>
     <button class="btn btn-submit btn-sm" id="sendCeoMessageBtn" style="margin-top:10px;width:100%;">📨 Send to CEO</button>
     ${historyHtml ? `
-    <div class="card" style="margin-top:18px;">
+    <div class="card cr-hero cr-hero-violet" style="margin-top:18px;">
       <h3 style="font-size:14px;">Your past messages</h3>
     </div>
     <div style="margin-top:10px;">${historyHtml}</div>` : ""}
@@ -9265,12 +9376,14 @@ function renderMyProfile(){
 
   return `
     <button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
-    <div style="background:linear-gradient(135deg,var(--ksa-green),var(--ksa-green-dark));border:2px solid var(--ksa-gold);border-radius:16px;padding:18px;text-align:center;">
+    <div class="cr-hero cr-hero-blue cr-profile-hero" style="text-align:center;">
       ${d.photo_data ? `<img src="${d.photo_data}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid #fff;">` : `<div style="width:72px;height:72px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto;">👤</div>`}
       <div style="font-weight:800;font-size:16px;color:var(--navy);margin-top:8px;">${p.name}</div>
       <div class="meta" style="color:var(--blue);">${p.employee_no || ""}</div>
+      ${profileServiceLine(p)}
     </div>
 
+    ${profileExpiryWarning(p, d)}
     <div class="card" style="margin-top:14px;">
       <h3 style="font-size:14px;">📋 Your details</h3>
       <table style="width:100%;font-size:12.5px;">
@@ -9283,11 +9396,12 @@ function renderMyProfile(){
       <div class="field-note">To fix Nationality, DOB, or Iqama Number, contact HR directly — these aren't self-editable.</div>
     </div>
 
+    ${profileDocsCard(p, d)}
     <div class="card" style="margin-top:14px;">
       <h3 style="font-size:14px;">🌴 Vacation History</h3>
       ${state.myProfileVacations.length ? state.myProfileVacations.map(v => `
         <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px dashed var(--line);font-size:12.5px;">
-          <span>${v.start_date} → ${v.end_date}</span>
+          <span>${v.start_date} → ${v.end_date}</span><span class="cr-chip">${leaveDaysBetween(v.start_date, v.end_date) || ""} day${leaveDaysBetween(v.start_date, v.end_date) === 1 ? "" : "s"}</span>
         </div>`).join("") : `<div class="meta">No vacation on record yet.</div>`}
     </div>
 
@@ -9399,7 +9513,9 @@ const AF_LETTERHEAD_PAGE = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2
 // Salary & employment certificates: core logic
 // ======================================================================
 const CERT_VIEWS = ["certificates", "certificate-form", "certificate-review", "certificate-letterheads"];
-const CRYSTAL_VIEWS = CERT_VIEWS.concat(["hr", "login", "employee"]);   // screens drawn on the colourful crystal background
+const EMP_VIEWS = ["employee", "leave-form", "ceo-contact-form", "purchase-form", "my-profile"];     // the employee's own pages
+const EMP_FORM_VIEWS = ["leave-form", "ceo-contact-form", "purchase-form", "my-profile"];             // the pages that the timesheet's buttons open
+const CRYSTAL_VIEWS = CERT_VIEWS.concat(["hr", "login"], EMP_VIEWS);   // screens drawn on the colourful crystal background
 const CERT_PURPOSES = [
   { label: "Bank loan", phrase: "a bank loan application" },
   { label: "Personal use", phrase: "personal use" },
@@ -10776,6 +10892,87 @@ function certHandleInput(e){
   }
   return false;
 }
+
+/* ---------------- smart touches on the employee's pages ---------------- */
+function leaveFmtDay(d){ return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()]}, ${d.getDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()]}`; }   // written out here, so every phone shows it the same way
+function leaveYmd(d){ return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+// the summary under the two date boxes: how many days, which days, when he is back, and a gentle warning
+function leaveSmartPanel(f, days){
+  const a = f.firstDay ? new Date(f.firstDay + "T00:00:00") : null, b = f.lastDay ? new Date(f.lastDay + "T00:00:00") : null;
+  const today = new Date(todayLocalISO() + "T00:00:00");
+  let line = "", warn = "";
+  if(a && b && !isNaN(a) && !isNaN(b) && b >= a){
+    const back = new Date(b); back.setDate(back.getDate() + 1);
+    line = `<b>${leaveFmtDay(a)}</b> → <b>${leaveFmtDay(b)}</b><br>Back to work on <b>${leaveFmtDay(back)}</b>`;
+    const diff = Math.round((a - today) / 86400000); if(diff < 0) warn = "⚠️ The first day is in the past.";
+  }else if(a && b && b < a) line = "", warn = "⚠️ The last day is before the first day.";
+  else if(a) line = "Now choose the last day, or tap a length below.";
+  else line = "Choose the first day, then the last day, or tap a length.";
+  const quick = [7, 14, 21, 30].map(n => `<button type="button" class="cr-chipbtn" data-leave-quick="${n}" ${a ? "" : "disabled"}>${n} days</button>`).join("");
+  return `<div class="cr-leavesum"><div class="cr-daysbig"><b>${days || "–"}</b><span>${days === 1 ? "day" : "days"}</span></div><div class="cr-leavetext">${line}${warn ? `<div class="cr-warn">${warn}</div>` : ""}</div></div>
+    <div class="cr-quick"><span>Quick length</span>${quick}</div>`;
+}
+function leaveReadyItems(f){
+  return [
+    { ok: !!(f.firstDay && f.lastDay && new Date(f.lastDay) >= new Date(f.firstDay)), label: "Dates", must: true },
+    { ok: !!(leaveSigHasStroke || state.editingLeaveRequestId), label: "Signature", must: true },
+    { ok: !!String(f.mobileNumber || "").trim(), label: "Mobile number", must: false },
+    { ok: !!f.currentProjectSite, label: "Project", must: false }
+  ];
+}
+function leaveReadyInner(f){
+  const items = leaveReadyItems(f), ready = items.filter(i => i.must).every(i => i.ok);
+  return `<div class="cr-ready-title">${ready ? "✅ Ready to submit" : "📝 Before you submit"}</div>` + items.map(i => `<span class="cr-rchip ${i.ok ? "ok" : (i.must ? "need" : "opt")}">${i.ok ? "✓" : (i.must ? "!" : "○")} ${i.label}${!i.ok && !i.must ? " (recommended)" : ""}</span>`).join("");
+}
+function leaveReadyPanel(f){ return `<div class="cr-ready" id="leaveReady">${leaveReadyInner(f)}</div>`; }
+function refreshLeaveReady(){ const el = document.getElementById("leaveReady"); if(el && state.leaveFormDraft) el.innerHTML = leaveReadyInner(state.leaveFormDraft); }
+function leaveQuickLength(n){
+  const f = state.leaveFormDraft; if(!f || !f.firstDay) return;
+  const d = new Date(f.firstDay + "T00:00:00"); d.setDate(d.getDate() + n - 1); f.lastDay = leaveYmd(d); render();
+}
+const CEO_TOPICS = [["💰", "Salary"], ["🌴", "Leave"], ["🛠️", "Work"], ["🙏", "Request"], ["💬", "Other"]];
+function ceoTopicChips(){ return `<div class="cr-quick cr-wrap" style="margin-top:6px;"><span>Topic</span>${CEO_TOPICS.map(([ic, t]) => `<button type="button" class="cr-chipbtn" data-ceo-topic="${t}">${ic} ${t}</button>`).join("")}</div>`; }
+function ceoPickTopic(topic, btn){
+  const ta = document.getElementById("ceoMessageInput"); if(!ta) return;
+  const rest = ta.value.replace(/^Regarding [a-z ]+: /, "");
+  ta.value = (topic === "Other" ? "" : `Regarding ${topic.toLowerCase()}: `) + rest; state.ceoMessageDraft = ta.value;
+  document.querySelectorAll("[data-ceo-topic]").forEach(b => b.classList.toggle("on", b === btn));
+  const n = document.getElementById("ceoMsgCount"); if(n) n.textContent = String(ta.value.length);
+  ta.focus(); try{ ta.setSelectionRange(ta.value.length, ta.value.length); }catch(e){}
+}
+function profileDaysLeft(dateStr){
+  if(!dateStr) return null;
+  const t = new Date(todayLocalISO() + "T00:00:00"), d = new Date(String(dateStr).slice(0, 10) + "T00:00:00");
+  return isNaN(d) ? null : Math.round((d - t) / 86400000);
+}
+function profileDocTone(n){ return n === null ? "none" : n < 0 ? "late" : n <= 30 ? "soon" : n <= 90 ? "warn" : "ok"; }
+function profileDocChip(label, icon, dateStr){
+  const n = profileDaysLeft(dateStr), tone = profileDocTone(n);
+  const text = n === null ? "Not on file" : n < 0 ? `Expired ${-n} day${-n === 1 ? "" : "s"} ago` : n <= 30 ? `Expires in ${n} day${n === 1 ? "" : "s"}` : `${n} days left`;
+  return `<div class="cr-doc cr-doc-${tone}"><div class="cr-doc-ic">${icon}</div><div class="cr-doc-main"><b>${label}</b><span>${dateStr ? formatDateDMY(dateStr) : "—"}</span></div><div class="cr-doc-state">${text}</div></div>`;
+}
+function profileDocDates(p, d){ return { iqama: (d && d.iqama_expiry_date) || p.iqama_expiry_date || "", passport: (d && d.passport_expiry) || p.passport_expiry || "", medical: p.medical_insurance_expiry || "" }; }
+function profileDocsCard(p, d){
+  const x = profileDocDates(p, d);
+  return `<div class="card" style="margin-top:14px;"><h3 style="font-size:14px;">🛡️ Your documents</h3>${profileDocChip("Iqama", "🪪", x.iqama)}${profileDocChip("Passport", "🛂", x.passport)}${profileDocChip("Medical insurance", "🏥", x.medical)}</div>`;
+}
+function profileExpiryWarning(p, d){
+  const x = profileDocDates(p, d), names = { iqama: "Iqama", passport: "Passport", medical: "Medical insurance" };
+  const bad = Object.keys(x).map(k => ({ k, n: profileDaysLeft(x[k]) })).filter(o => o.n !== null && o.n <= 30).sort((a, b) => a.n - b.n);
+  if(!bad.length) return "";
+  const o = bad[0];
+  return `<div class="status-banner status-rejected" style="margin-top:14px;">⚠️ ${names[o.k]} ${o.n < 0 ? `expired ${-o.n} day${-o.n === 1 ? "" : "s"} ago` : `expires in ${o.n} day${o.n === 1 ? "" : "s"}`}${bad.length > 1 ? ` (and ${bad.length - 1} more document${bad.length > 2 ? "s" : ""} need attention)` : ""}. Please tell HR, and update the date below once it is renewed.</div>`;
+}
+function profileServiceLine(p){
+  const t = p.joining_date ? certServiceText(p.joining_date, todayLocalISO()) : "";
+  return t ? `<div class="meta" style="margin-top:6px;">With the company: <b>${t}</b></div>` : "";
+}
+// the live pieces: the "before you submit" list and the message counter
+(function(){
+  const later = () => setTimeout(refreshLeaveReady, 0);
+  ["input", "change", "click", "touchend", "mouseup", "pointerup"].forEach(ev => document.addEventListener(ev, later, true));
+  document.addEventListener("input", (e) => { if(e.target && e.target.id === "ceoMessageInput"){ const n = document.getElementById("ceoMsgCount"); if(n) n.textContent = String(e.target.value.length); } }, true);
+})();
 
 // ---------------- Project Summary: manpower and lump-sum, side by side ----------------
 function psFmt(n){ return Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
@@ -12658,7 +12855,7 @@ function renderLeaveForm(){
     return `
     <div class="emp-list-item li-approved">
       <div style="flex:1;min-width:0;">
-        <div class="name">${r.first_day} → ${r.last_day} (${r.number_of_days} day${r.number_of_days===1?"":"s"})</div>
+        <div class="name"><span class="nw">${r.first_day}</span> → <span class="nw">${r.last_day}</span> <span class="nw">(${r.number_of_days} day${r.number_of_days===1?"":"s"})</span></div>
         <div class="sub">${r.status === "rejected" ? (r.hr_rejection_reason || r.supervisor_rejection_reason || "Rejected") : "Applied " + (r.application_date||"")}</div>
       </div>
       <span class="badge ${b.cls}">${b.label}</span>
@@ -12669,7 +12866,7 @@ function renderLeaveForm(){
 
   return `
     <button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
-    <div class="card" style="background:linear-gradient(135deg,#E7F1FC,#F3F8FD);border:2px solid var(--blue-light);">
+    <div class="card cr-hero cr-hero-blue">
       <h3 style="color:var(--navy);">🌴 ${isEditing ? "Editing Leave Application" : "Annual Leave Application"}</h3>
       <div class="meta">${isEditing ? "Update the details below, then resubmit." : "Submitted to your supervisor first, then HR for final approval."}</div>
     </div>
@@ -12688,7 +12885,7 @@ function renderLeaveForm(){
       </div>
     </div>
 
-    <div style="background:#F0F8FF;border:2px solid #B8D4EC;border-radius:12px;padding:12px;">
+    <div class="cr-sec cr-sec-blue">
       <label style="margin-top:0;color:#1B5A96;">🗓️ Last Vacation Date</label>
       <input type="date" id="leaveLastVacation" value="${f.lastVacationDate}" style="border-color:#B8D4EC;">
       ${f.lastVacationDate ? `<div class="field-note">📅 ${humanDuration(f.lastVacationDate)}</div>` : ""}
@@ -12701,7 +12898,7 @@ function renderLeaveForm(){
       <input type="tel" id="leaveHomeMobile" placeholder="Optional" value="${f.homeMobileNumber}" style="border-color:#B8D4EC;">
     </div>
 
-    <div style="background:#F3FBF9;border:2px solid #A9DCCF;border-radius:12px;padding:12px;margin-top:12px;">
+    <div class="cr-sec cr-sec-green" style="margin-top:12px;">
       <div class="row-between" style="gap:10px;">
         <div style="flex:1;">
           <label style="margin-top:0;color:#1B7A6B;">▶️ First Day of Leave</label>
@@ -12712,9 +12909,7 @@ function renderLeaveForm(){
           <input type="date" id="leaveLastDay" value="${f.lastDay}" style="border-color:#A9DCCF;">
         </div>
       </div>
-      <div style="margin-top:8px;font-size:13px;background:#fff;border-radius:8px;padding:8px 10px;border:1px solid #A9DCCF;">
-        Number of days: <b style="color:#1B7A6B;">${days || "-"}</b>
-      </div>
+      ${leaveSmartPanel(f, days)}
     </div>
 
     <div class="remarks-card" style="margin-top:12px;">
@@ -12756,12 +12951,13 @@ function renderLeaveForm(){
     <label style="margin-top:16px;">✍️ Employee Signature</label>
     ${isEditing ? `<div class="field-note">Your previous signature is shown below — leave as-is or clear and re-sign.</div>` : ""}
     <div class="sig-pad-wrap"><canvas id="leaveSigCanvas"></canvas></div>
+    ${leaveReadyPanel(f)}
     <div style="display:flex;gap:10px;margin-top:12px;">
       <button class="btn btn-outline btn-sm" id="clearLeaveSigBtn" style="flex:1;">Clear</button>
       <button class="btn btn-submit btn-sm" id="submitLeaveBtn" style="flex:1;">✅ ${isEditing ? "Update Application" : "Submit Application"}</button>
     </div>
 
-    <div class="card" style="margin-top:28px;background:linear-gradient(135deg,var(--navy),var(--blue));border:none;">
+    <div class="card cr-hero cr-hero-violet" style="margin-top:28px;">
       <h3 style="color:#fff;font-size:14px;">My Leave Applications</h3>
     </div>
     <div style="margin-top:6px;">${historyRows}</div>
@@ -13696,7 +13892,7 @@ function renderPurchaseForm(){
 
   return `
     <button class="back-link-glow" id="backToTeamBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
-    <div class="card" style="background:linear-gradient(135deg,#0F5C4E,#1B7A6B);border:none;">
+    <div class="card cr-hero cr-hero-green">
       <h3 style="color:#fff;">🧾 ${isEditing ? "Editing Item" : "Record a Purchase"}</h3>
       <div class="meta" style="color:#D6F0E8;">${isEditing ? "Fix the details below, then update it." : "Save items here, then submit them all to HR when ready."}</div>
     </div>
@@ -13736,9 +13932,7 @@ function renderPurchaseForm(){
         <label><input type="checkbox" id="purchaseHasVat" ${f.hasVat?"checked":""}> This purchase has 15% VAT</label>
       </div>
       <div class="field-note">Untick this for labor-only jobs (e.g. car repair hand work) with no VAT.</div>
-      <div style="margin-top:10px;font-size:13px;background:#fff;border-radius:8px;padding:8px 10px;border:1px solid #F0C766;">
-        VAT amount: <b id="purchaseVatDisplay" style="color:#966109;">${vatAmt.toFixed(2)} SAR</b> &nbsp;•&nbsp; Total: <b id="purchaseTotalDisplay" style="color:#1C8A4E;">${total.toFixed(2)} SAR</b>
-      </div>
+      <div class="cr-totals"><div class="cr-tot cr-tot-amber"><span>VAT</span><b id="purchaseVatDisplay">${vatAmt.toFixed(2)} SAR</b></div><div class="cr-tot cr-tot-green"><span>Total</span><b id="purchaseTotalDisplay">${total.toFixed(2)} SAR</b></div></div>
     </div>
 
     <label style="margin-top:16px;">📷 Receipt Photo</label>
@@ -13755,9 +13949,9 @@ function renderPurchaseForm(){
     <button class="btn btn-submit" id="savePurchaseBtn" style="margin-top:16px;">💾 ${isEditing ? "Update Item" : "Save Item"}</button>
     ${drafts.length ? `<button class="btn btn-primary" id="submitAllPurchasesBtn" style="margin-top:10px;background:linear-gradient(135deg,#1B7A6B,#25A88F);box-shadow:0 4px 14px rgba(27,122,107,0.3);">📤 Submit to HR — ${draftsTotal.toFixed(2)} SAR</button>` : ""}
 
-    <div class="card" style="margin-top:24px;background:linear-gradient(135deg,#E8A33D,#F0C766);border:none;">
+    <div class="card cr-hero cr-hero-amber" style="margin-top:24px;">
       <h3 style="font-size:14px;color:#fff;">📋 Not Yet Submitted (${drafts.length})</h3>
-      <div class="meta" style="color:#FFF3D9;">Saved items waiting to be sent to HR.</div>
+      <div class="meta" style="color:#FFF3D9;">Saved items waiting to be sent to HR${drafts.length ? ` · total <b>${draftsTotal.toFixed(2)} SAR</b>` : ""}.</div>
     </div>
     <div class="card" style="margin-top:10px;padding:6px 4px 2px;overflow-x:auto;border:2px solid #F0C766;">
       ${draftRows ? `
@@ -13776,7 +13970,7 @@ function renderPurchaseForm(){
     </div>
 
     ${sent.length ? `
-    <div class="card" style="margin-top:24px;background:linear-gradient(135deg,var(--navy),var(--blue));border:none;">
+    <div class="card cr-hero cr-hero-blue" style="margin-top:24px;">
       <h3 style="font-size:14px;color:#fff;">✅ Sent to HR</h3>
       <div class="meta" style="color:#DCEAFB;">Tap a submission to see what's inside it.</div>
     </div>
@@ -14613,6 +14807,10 @@ function handleDelegatedClick(e){
   if(rejectLeaveCeoEl){ rejectLeaveCeo(rejectLeaveCeoEl.getAttribute("data-reject-leave-ceo")); return; }
   const deleteLeaveCeoEl = e.target.closest("[data-delete-leave-ceo]");
   if(deleteLeaveCeoEl){ deleteLeaveRequestCeo(deleteLeaveCeoEl.getAttribute("data-delete-leave-ceo")); return; }
+  const leaveQuickEl = e.target.closest("[data-leave-quick]");
+  if(leaveQuickEl){ if(!leaveQuickEl.disabled) leaveQuickLength(Number(leaveQuickEl.getAttribute("data-leave-quick"))); return; }
+  const ceoTopicEl = e.target.closest("[data-ceo-topic]");
+  if(ceoTopicEl){ ceoPickTopic(ceoTopicEl.getAttribute("data-ceo-topic"), ceoTopicEl); return; }
   if(el("clearLeaveSigBtn")){ clearLeaveSigPad(); return; }
   if(el("leavePhotoBtn")){ document.getElementById("leavePhotoInput")?.click(); return; }
   if(el("submitLeaveBtn")){ submitLeaveRequest(); return; }
