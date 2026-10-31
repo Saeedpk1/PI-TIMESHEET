@@ -925,6 +925,32 @@ body select#certEmpSelect.cr-in{font-size:16px;padding:14px 14px}
 /* the 1 to 6 month buttons: coloured like the other fields */
 .cr-mo button{background:linear-gradient(135deg,#EEF0FF,#D2D9FF);border:2px solid #8EA0F5;color:#1B2A5E;font-weight:800;box-shadow:0 5px 12px rgba(110,125,240,.26),inset 0 1px 0 rgba(255,255,255,.75)}
 .cr-mo button.on{background:linear-gradient(135deg,#FF7AD0,#C42B9A 55%,#7B2FD0);border-color:#fff;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.25);box-shadow:0 7px 16px rgba(196,43,154,.42),inset 0 1px 0 rgba(255,255,255,.55)}
+
+/* ================= Manpower project summary: simple table and the add-invoice form ================= */
+.ps-na{color:#9AA7BA;font-weight:700}
+.ps-ib.ps-add{background:linear-gradient(160deg,#4BE0A6,#0B8F62);color:#fff;border:1px solid rgba(255,255,255,.7);font-weight:800;box-shadow:0 3px 8px rgba(11,143,98,.35)}
+.ps-ib.ps-edit{background:linear-gradient(160deg,#FFD36B,#F08A00);color:#fff;border:none;margin-left:6px}
+.ps-addbig{width:auto;margin:0;background:linear-gradient(160deg,#4BE0A6,#0B8F62);color:#fff;border:none;font-weight:800;box-shadow:0 6px 14px rgba(11,143,98,.35)}
+.ps-warn{font-size:11px;line-height:1.5;color:#7A4B00;background:#FFF6DC;border:1px solid #F5D98A;border-radius:10px;padding:7px 10px;margin:8px 0}
+.ps-how{font-size:10.5px;color:#5B6B7C;margin-top:6px;line-height:1.5}
+.mpdlg-back{position:fixed;inset:0;z-index:9999;background:rgba(10,25,60,.55);display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.mpdlg{width:100%;max-width:380px;background:#fff;border-radius:22px;padding:20px 18px 16px;box-shadow:0 24px 60px rgba(0,0,0,.35);max-height:92vh;overflow:auto}
+.mpdlg-h{font-size:17px;font-weight:800;color:#0F3556}
+.mpdlg-sub{font-size:12.5px;font-weight:700;color:#0B7A75;margin:2px 0 6px}
+.mpdlg label{display:block;font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#4A5A78;margin:12px 0 5px}
+.mpdlg input{width:100%;box-sizing:border-box;border:2px solid #B7D8D4;background:#F2FBFA;border-radius:14px;padding:12px 14px;font-size:16px;font-weight:700;color:#0F3556;outline:none}
+.mpdlg input:focus{border-color:#0B7A75;box-shadow:0 0 0 4px rgba(11,122,117,.18)}
+.mpdlg-vat{font-size:11.5px;color:#5B6B7C;min-height:16px;margin-top:6px}
+.mpdlg-err{font-size:12.5px;font-weight:700;color:#B3261E;min-height:18px;margin-top:8px}
+.mpdlg-btns{display:flex;gap:8px;margin-top:10px}
+.mpdlg-btns button{flex:1;border:none;border-radius:14px;padding:13px 10px;font-size:15px;font-weight:800;cursor:pointer}
+.mpdlg-save{background:linear-gradient(160deg,#4BE0A6,#0B8F62);color:#fff;box-shadow:0 6px 14px rgba(11,143,98,.35)}
+.mpdlg-cancel{background:#E8EEF6;color:#2B3F5C}
+.mpdlg-del{flex:0 0 auto !important;background:#FFE3E3;color:#B3261E}
+.mpdlg-save:disabled{opacity:.6}
+
+.ps-expand td>.ps-xin{position:sticky;left:0;box-sizing:border-box;width:min(100%,calc(100vw - 76px));max-width:380px}
+.ps-ib.ps-add{width:auto;min-width:32px;padding:0 9px}
 </style>
 </head>
 <body>
@@ -7938,10 +7964,11 @@ async function loadProjectSummary(showArchived){
   }
 
   const allEmpIds = [...new Set((reports || []).flatMap(r => r.team_member_ids || []))];
-  let rateById = {}, claimRateById = {};
+  let rateById = {}, claimRateById = {}, nameById = {};
   if(allEmpIds.length){
-    const { data: emps } = await sb.from("ts_employees").select("id, expenses_per_day, claim_rate_per_hour").in("id", allEmpIds);
+    const { data: emps } = await sb.from("ts_employees").select("id, name, expenses_per_day, claim_rate_per_hour").in("id", allEmpIds);
     (emps || []).forEach(e => {
+      nameById[e.id] = e.name || "";
       rateById[e.id] = Number(e.expenses_per_day) || 0;
       claimRateById[e.id] = Number(e.claim_rate_per_hour) || 0;
     });
@@ -7963,10 +7990,11 @@ async function loadProjectSummary(showArchived){
     poByProject[u.project_id] = (poByProject[u.project_id] || 0) + Number(u.po_value || 0);
   });
 
-  const expensesByProject = {}, claimByProject = {};
+  const expensesByProject = {}, claimByProject = {}, missingByProject = {};
   const monthStats = {};   // project -> month -> { days (dates worked), manDays, claim, expenses }
   (reports || []).forEach(r => {
     const cost = (r.team_member_ids || []).reduce((s,id) => s + (rateById[id] || 0), 0);
+    (r.team_member_ids || []).forEach(id => { if(!(rateById[id] > 0)) (missingByProject[r.project_id] || (missingByProject[r.project_id] = new Set())).add(nameById[id] || "an employee"); });
     const mk = String(r.report_date || "").slice(0, 7);
     const st = ((monthStats[r.project_id] || (monthStats[r.project_id] = {}))[mk] || (monthStats[r.project_id][mk] = { days: new Set(), manDays: 0, claim: 0, expenses: 0 }));
     st.days.add(r.report_date);
@@ -8028,33 +8056,40 @@ async function loadProjectSummary(showArchived){
       const invoiceMonths = projectInvoices.map(v => v._month).filter(Boolean).sort();
       const latestInvoiceMonthKey = invoiceMonths.length ? invoiceMonths[invoiceMonths.length - 1] : null;
       const monthKey = latestInvoiceMonthKey || thisMonth;
-      const claimMonth = ((monthStats[p.id] || {})[monthKey] || {}).claim || 0;
+      const claimMonth = ((monthStats[p.id] || {})[monthKey] || {}).claim || 0;      // never used as an invoice
       const expensesMonth = ((monthStats[p.id] || {})[monthKey] || {}).expenses || 0;
       const invoicesMonth = projectInvoices.filter(v => v._month === monthKey).reduce((s, v) => s + Number(v.amount_no_vat || 0), 0);
-      const basis = invoicesMonth > 0 ? invoicesMonth : claimMonth;
-      row.since = { poValue, expenses, invoicesTotal, balance, margin };
+      const hasInvoiceMonth = invoicesMonth > 0;
+      row.since = { expenses, invoicesTotal, difference: invoicesTotal - expenses, margin: invoicesTotal > 0 ? (invoicesTotal - expenses) / invoicesTotal : null };
       row.monthly = true;
       row.kind = "manpower";
       row.monthKey = monthKey;
       row.monthLabel = monthLabelFromKey(monthKey);
       row.latestInvoiceMonthKey = latestInvoiceMonthKey;
-      // every month, for the Monthly Sheet: what was claimed, spent and invoiced, and the difference.
-      // A month with no invoice yet uses its claim as the best estimate (flagged), like the margin elsewhere.
+      // every month, for the Monthly Sheet: what was spent (from the daily reports) and what was actually invoiced.
+      // A month with no invoice yet has no difference and no margin: nothing is estimated.
       const keys = new Set([...Object.keys(monthStats[p.id] || {}), ...projectInvoices.map(v => v._month).filter(Boolean)]);
       row.months = [...keys].filter(Boolean).sort().map(k => {
         const st = (monthStats[p.id] || {})[k] || {};
-        const claim = st.claim || 0, spent = st.expenses || 0;
+        const spent = st.expenses || 0, claim = st.claim || 0;
         const invoiced = projectInvoices.filter(v => v._month === k).reduce((t, v) => t + Number(v.amount_no_vat || 0), 0);
-        const basis = invoiced > 0 ? invoiced : claim;
-        return { key: k, label: monthLabelFromKey(k), days: st.days ? st.days.size : 0, manDays: st.manDays || 0, claim, expenses: spent, invoiced,
-                 notInvoiced: claim - invoiced, difference: basis - spent, estimated: invoiced <= 0, margin: basis > 0 ? (basis - spent) / basis : null };
+        const has = invoiced > 0;
+        return { key: k, label: monthLabelFromKey(k), days: st.days ? st.days.size : 0, manDays: st.manDays || 0, claim, expenses: spent, invoiced, hasInvoice: has,
+                 difference: has ? invoiced - spent : null, margin: has ? (invoiced - spent) / invoiced : null };
       });
       row.claimByMonth = Object.fromEntries(row.months.map(m => [m.key, m.claim]));
+      const waiting = row.months.filter(m => !m.hasInvoice && m.expenses > 0);
+      row.uninvoicedMonths = waiting.map(m => m.label);
+      row.uninvoicedExpenses = waiting.reduce((t, m) => t + m.expenses, 0);
+      row.missingRates = [...(missingByProject[p.id] || [])].sort();
+      row.monthManDays = ((monthStats[p.id] || {})[monthKey] || {}).manDays || 0;
       row.poValue = claimMonth;
       row.expenses = expensesMonth;
       row.invoicesTotal = invoicesMonth;
-      row.balance = claimMonth - invoicesMonth;
-      row.margin = basis > 0 ? (basis - expensesMonth) / basis : null;
+      row.hasInvoice = hasInvoiceMonth;
+      row.balance = 0;
+      row.difference = hasInvoiceMonth ? invoicesMonth - expensesMonth : null;
+      row.margin = hasInvoiceMonth ? (invoicesMonth - expensesMonth) / invoicesMonth : null;
     }
     return row;
   });
@@ -8911,7 +8946,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "31 Oct 2026 - coloured certificate fields";
+const APP_VERSION = "31 Oct 2026 - simple manpower summary";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -11121,13 +11156,85 @@ function psPill(m){
   return `<span class="ps-pill ${m >= 0.2 ? "ps-pill-good" : (m >= 0 ? "ps-pill-mid" : "ps-pill-bad")}">${(m * 100).toFixed(1)}%</span>`;
 }
 // A manpower project over every month, plus anything entered from before the app.
+function psDash(v){ return (v === null || v === undefined) ? `<span class="ps-na">–</span>` : psMoney(v); }
+function mpRound2(x){ return Math.round(Number(x || 0) * 100) / 100; }
+function mpParseAmount(v){ const n = Number(String(v || "").replace(/[,\s]/g, "")); return isFinite(n) ? n : 0; }
+
+// Expenses come from the daily reports. Invoices are only actual invoices (without VAT): nothing is ever estimated from the claim.
 function manpowerTotals(p){
-  const sum = (k) => (p.months || []).reduce((t, m) => t + m[k], 0);
-  const openingExp = Number(p.openingExpenses || 0), openingInv = Number(p.openingInvoices || 0);
-  const basis = (p.months || []).reduce((t, m) => t + (m.invoiced > 0 ? m.invoiced : m.claim), 0) + openingInv;
-  const difference = sum("difference") + (openingInv - openingExp);
-  return { days: sum("days"), manDays: sum("manDays"), claim: sum("claim"), expenses: sum("expenses") + openingExp, invoiced: sum("invoiced") + openingInv,
-           notInvoiced: sum("notInvoiced"), difference, margin: basis > 0 ? difference / basis : null, basis, openingExp, openingInv };
+  const months = p.months || [], sum = (k) => months.reduce((t, m) => t + (m[k] || 0), 0);
+  const openingExp = Number(p.openingExp !== undefined ? p.openingExp : (p.openingExpenses || 0)), openingInv = Number(p.openingInv !== undefined ? p.openingInv : (p.openingInvoices || 0));
+  const expenses = sum("expenses") + openingExp, invoiced = sum("invoiced") + openingInv, difference = invoiced - expenses;
+  const waiting = months.filter(m => !m.hasInvoice && m.expenses > 0);
+  return { days: sum("days"), manDays: sum("manDays"), expenses, invoiced, difference, margin: invoiced > 0 ? difference / invoiced : null,
+           openingExp, openingInv, uninvoicedExpenses: waiting.reduce((t, m) => t + m.expenses, 0), uninvoicedMonths: waiting.map(m => m.label) };
+}
+
+// ---- adding, editing and deleting an actual invoice (HR only): month, amount without VAT, optional invoice number ----
+function mpInvoiceMonthDefault(p){ return p.latestInvoiceMonthKey ? nextMonthKey(p.latestInvoiceMonthKey) : todayLocalISO().slice(0, 7); }
+function closeMpInvoiceDialog(){ const d = document.getElementById("mpInvDlg"); if(d) d.remove(); }
+function openMpInvoiceDialog(projectId, monthKey, invoiceId){
+  if(state.user.role !== "hr") return;
+  const p = state.projectSummaryRows.find(x => x.id === projectId); if(!p) return;
+  const editing = invoiceId ? (p.invoices || []).find(v => String(v.id) === String(invoiceId)) : null;
+  if(invoiceId && !editing){ toast("Could not find that invoice."); return; }
+  const key = editing ? editing._month : (monthKey || mpInvoiceMonthDefault(p));
+  closeMpInvoiceDialog();
+  const dlg = document.createElement("div"); dlg.id = "mpInvDlg"; dlg.className = "mpdlg-back";
+  dlg.innerHTML = `<div class="mpdlg" role="dialog" aria-modal="true">
+    <div class="mpdlg-h">${editing ? "✎ Edit invoice" : "＋ Add invoice"}</div>
+    <div class="mpdlg-sub">${escapeHtml(p.name)}</div>
+    <label for="mpInvMonth">Invoice month</label>
+    <input id="mpInvMonth" type="month" value="${key || ""}" placeholder="2026-09">
+    <label for="mpInvAmount">Invoice amount, without VAT (SAR)</label>
+    <input id="mpInvAmount" inputmode="decimal" placeholder="0.00" value="${editing ? mpRound2(editing.amount_no_vat) : ""}">
+    <div class="mpdlg-vat" id="mpInvVat"></div>
+    <label for="mpInvNo">Invoice no. (optional)</label>
+    <input id="mpInvNo" type="text" value="${editing ? escapeHtml(editing.invoice_no || "") : ""}" placeholder="For example: 1245">
+    <div class="mpdlg-err" id="mpInvErr"></div>
+    <div class="mpdlg-btns">${editing ? `<button type="button" class="mpdlg-del" id="mpInvDelete">Delete</button>` : ""}<button type="button" class="mpdlg-cancel" id="mpInvCancel">Cancel</button><button type="button" class="mpdlg-save" id="mpInvSave">Save</button></div>
+  </div>`;
+  document.body.appendChild(dlg);
+  const amt = dlg.querySelector("#mpInvAmount"), vat = dlg.querySelector("#mpInvVat");
+  const showVat = () => { const a = mpParseAmount(amt.value); vat.textContent = a > 0 ? `With ${Math.round(VAT_RATE * 100)}% VAT it would be SAR ${mpRound2(a * (1 + VAT_RATE)).toLocaleString(undefined, { maximumFractionDigits: 2 })} (for reference only)` : ""; };
+  amt.addEventListener("input", showVat); showVat();
+  dlg.querySelector("#mpInvCancel").addEventListener("click", closeMpInvoiceDialog);
+  dlg.addEventListener("click", (e) => { if(e.target === dlg) closeMpInvoiceDialog(); });
+  dlg.querySelector("#mpInvSave").addEventListener("click", () => saveMpInvoice(projectId, editing ? editing.id : null));
+  const del = dlg.querySelector("#mpInvDelete"); if(del) del.addEventListener("click", () => deleteMpInvoice(projectId, editing.id));
+  setTimeout(() => { try{ amt.focus(); }catch(e){} }, 50);
+}
+async function saveMpInvoice(projectId, invoiceId){
+  if(state.user.role !== "hr") return;
+  const p = state.projectSummaryRows.find(x => x.id === projectId); if(!p) return;
+  const err = (m) => { const e = document.getElementById("mpInvErr"); if(e) e.textContent = m; };
+  const key = monthKeyFromText((document.getElementById("mpInvMonth") || {}).value, todayLocalISO());
+  const amount = mpParseAmount((document.getElementById("mpInvAmount") || {}).value);
+  const invNo = String((document.getElementById("mpInvNo") || {}).value || "").trim();
+  if(!key){ err("Choose the invoice month."); return; }
+  if(!(amount > 0)){ err("Enter the invoice amount, without VAT."); return; }
+  if(invNo){
+    const same = state.projectSummaryRows.flatMap(r => (r.invoices || []).map(v => ({ v, r }))).find(o => String(o.v.invoice_no || "").trim().toLowerCase() === invNo.toLowerCase() && String(o.v.id) !== String(invoiceId || ""));
+    if(same){ err(`Invoice no. ${invNo} is already used (${same.r.name}${same.v.invoice_month ? ", " + same.v.invoice_month : ""}). Use a different number.`); return; }
+  }
+  const money = { amount_no_vat: mpRound2(amount), amount_with_vat: mpRound2(amount * (1 + VAT_RATE)) };
+  const btn = document.getElementById("mpInvSave"); if(btn){ btn.disabled = true; btn.textContent = "Saving…"; }
+  const res = invoiceId
+    ? await sb.from("ts_financial_invoices").update({ ...money, invoice_no: invNo, invoice_month: monthLabelFromKey(key) }).eq("id", invoiceId)
+    : await sb.from("ts_financial_invoices").insert({ ...money, description: p.name, invoice_no: invNo, invoice_month: monthLabelFromKey(key), project_id: projectId, report_date: todayLocalISO() });
+  if(res && res.error){ if(btn){ btn.disabled = false; btn.textContent = "Save"; } err("Could not save the invoice. " + (res.error.message || "")); return; }
+  closeMpInvoiceDialog();
+  toast(invoiceId ? "Invoice updated." : `Invoice saved for ${monthLabelFromKey(key)}.`);
+  await loadProjectSummary(state.projectSummaryShowArchived);
+}
+async function deleteMpInvoice(projectId, invoiceId){
+  if(state.user.role !== "hr") return;
+  const p = state.projectSummaryRows.find(x => x.id === projectId), v = p && (p.invoices || []).find(x => String(x.id) === String(invoiceId)); if(!v) return;
+  if(!confirm(`Delete this invoice (SAR ${mpRound2(v.amount_no_vat).toLocaleString()}${v.invoice_month ? ", " + v.invoice_month : ""})? This cannot be undone.`)) return;
+  const res = await sb.from("ts_financial_invoices").delete().eq("id", invoiceId);
+  if(res && res.error){ const e = document.getElementById("mpInvErr"); if(e) e.textContent = "Could not delete the invoice. " + (res.error.message || ""); return; }
+  closeMpInvoiceDialog(); toast("Invoice deleted.");
+  await loadProjectSummary(state.projectSummaryShowArchived);
 }
 
 function renderProjectSummary(){
@@ -11138,28 +11245,31 @@ function renderProjectSummary(){
   const showingArchived = state.projectSummaryShowArchived;
   const manpowerRows = state.projectSummaryRows.filter(p => p.kind === "manpower");
   const lumpRows = state.projectSummaryRows.filter(p => p.kind !== "manpower");
-  const cols = 6 + (canEdit ? 1 : 0);
+  const colsLump = 6 + (canEdit ? 1 : 0), colsMp = 5 + (canEdit ? 1 : 0);
 
-  const actionCell = (p) => !canEdit ? "" : `<td class="ps-actions"><div>${!showingArchived ? `<button class="ps-ib" data-edit-project-name="${p.id}" title="Rename">🏷️</button><button class="ps-ib" data-edit-project-opening="${p.id}" title="Opening balances">✎</button>` : ""}${(!showingArchived && p.claimValue > 0) ? `<button class="ps-ib" data-raise-invoice-claim="${p.id}" title="Save manpower claim as an invoice">📥</button>` : ""}${showingArchived ? `<button class="ps-ib" data-restore-project="${p.id}" title="Bring back">↩</button>` : `<button class="ps-ib" data-archive-project="${p.id}" title="Hide from summary">🗄</button>`}</div></td>`;
+  const actionCell = (p) => !canEdit ? "" : `<td class="ps-actions"><div>${!showingArchived ? `<button class="ps-ib" data-edit-project-name="${p.id}" title="Rename">🏷️</button><button class="ps-ib" data-edit-project-opening="${p.id}" title="Opening balances">✎</button>` : ""}${(!showingArchived && p.kind === "manpower") ? `<button class="ps-ib ps-add" data-add-mp-invoice="${p.id}" title="Add an actual invoice">＋</button>` : ""}${(!showingArchived && p.kind !== "manpower" && p.claimValue > 0) ? `<button class="ps-ib" data-raise-invoice-claim="${p.id}" title="Save manpower claim as an invoice">📥</button>` : ""}${showingArchived ? `<button class="ps-ib" data-restore-project="${p.id}" title="Bring back">↩</button>` : `<button class="ps-ib" data-archive-project="${p.id}" title="Hide from summary">🗄</button>`}</div></td>`;
 
   const invoiceList = (p) => p.invoices.length ? p.invoices.map((v, i) => `
-      <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:4px 0;border-top:1px dashed #D5DEE8;gap:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;padding:4px 0;border-top:1px dashed #D5DEE8;gap:10px;">
         <span>${i + 1}. ${escapeHtml(v.description || "-")}${v.invoice_no ? " · " + escapeHtml(v.invoice_no) : ""}${v.invoice_month ? ` · <span style="color:#6A7B8F;">${escapeHtml(v.invoice_month)}</span>` : ""}</span>
-        <span style="font-weight:800;white-space:nowrap;">${psFmt(v.amount_no_vat)}</span>
+        <span style="font-weight:800;white-space:nowrap;">${psFmt(v.amount_no_vat)}${(canEdit && p.kind === "manpower" && !showingArchived) ? ` <button class="ps-ib ps-edit" data-edit-mp-invoice="${v.id}" data-project="${p.id}" title="Edit or delete this invoice">✎</button>` : ""}</span>
       </div>`).join("") : `<div class="meta">No invoices raised yet.</div>`;
 
-  const expandRow = (p, extra) => state.expandedProjectSummaryId !== p.id ? "" : `
-      <tr class="ps-expand"><td colspan="${cols}">${extra || ""}${invoiceList(p)}</td></tr>`;
+  const expandRow = (p, extra, cols) => state.expandedProjectSummaryId !== p.id ? "" : `
+      <tr class="ps-expand"><td colspan="${cols}"><div class="ps-xin">${extra || ""}${invoiceList(p)}</div></td></tr>`;
 
   const manpowerBody = manpowerRows.map(p => `
       <tr>
-        <td><span class="ps-name-btn" data-toggle-project-invoices="${p.id}">${escapeHtml(p.name)} ▾</span><br><span class="ps-month">📅 ${p.monthLabel}</span></td>
-        <td>${psMoney(p.poValue)}</td><td>${psMoney(p.expenses)}</td><td>${psMoney(p.invoicesTotal)}</td>
-        <td><b>${psMoney(p.balance)}</b></td><td>${psPill(p.margin)}</td>${actionCell(p)}
+        <td><span class="ps-name-btn" data-toggle-project-invoices="${p.id}">${escapeHtml(p.name)} ▾</span><br><span class="ps-month">📅 ${p.monthLabel}</span>${!p.hasInvoice ? `<span class="ps-tag" style="background:#FFF1D2;color:#8A5A00;">not invoiced yet</span>` : ""}</td>
+        <td>${psMoney(p.expenses)}</td><td>${p.hasInvoice ? psMoney(p.invoicesTotal) : `<span class="ps-na">–</span>`}</td>
+        <td><b>${psDash(p.difference)}</b></td><td>${psPill(p.margin)}</td>${actionCell(p)}
       </tr>${expandRow(p, `
         <div style="font-weight:800;font-size:10.5px;color:#0B7A75;margin-bottom:5px;">SINCE THE START</div>
-        <div><span class="ps-chip">Claim<b>${psMoney(p.since.poValue)}</b></span><span class="ps-chip">Expenses<b>${psMoney(p.since.expenses)}</b></span><span class="ps-chip">Invoices<b>${psMoney(p.since.invoicesTotal)}</b></span><span class="ps-chip">Balance<b>${psMoney(p.since.balance)}</b></span><span class="ps-chip">Margin<b>${p.since.margin === null ? "–" : (p.since.margin * 100).toFixed(1) + "%"}</b></span></div>
-        <button class="btn btn-sm btn-outline" data-open-manpower-sheet="${p.id}" style="width:auto;margin:2px 0 8px;">📅 Open the monthly sheet</button>`)}`).join("");
+        <div><span class="ps-chip">Expenses<b>${psMoney(p.since.expenses)}</b></span><span class="ps-chip">Invoices<b>${psMoney(p.since.invoicesTotal)}</b></span><span class="ps-chip">Difference<b>${psMoney(p.since.difference)}</b></span><span class="ps-chip">Margin<b>${p.since.margin === null ? "–" : (p.since.margin * 100).toFixed(1) + "%"}</b></span></div>
+        ${p.uninvoicedMonths.length ? `<div class="ps-warn">ⓘ The expenses of ${p.uninvoicedMonths.join(", ")} (SAR ${psFmt(p.uninvoicedExpenses)}) are not invoiced yet, so the difference above is lower until ${p.uninvoicedMonths.length === 1 ? "that invoice is" : "those invoices are"} added.</div>` : ""}
+        ${p.missingRates.length ? `<div class="ps-warn">⚠️ No daily expense rate is set for ${p.missingRates.map(escapeHtml).join(", ")}: their days count as 0 in the expenses.</div>` : ""}
+        <div class="ps-how">How expenses are worked out: each team member's daily expense × the days he is in the daily reports (${p.monthManDays} man-day${p.monthManDays === 1 ? "" : "s"} in ${p.monthLabel}).</div>
+        <div style="margin:6px 0 8px;display:flex;gap:8px;flex-wrap:wrap;">${canEdit && !showingArchived ? `<button class="btn btn-sm ps-addbig" data-add-mp-invoice="${p.id}">＋ Add invoice</button>` : ""}<button class="btn btn-sm btn-outline" data-open-manpower-sheet="${p.id}" style="width:auto;margin:0;">📅 Open the monthly sheet</button></div>`, colsMp)}`).join("");
 
   const lumpBody = lumpRows.map(p => {
     const pct = p.poValue > 0 ? Math.round(Math.min(100, Math.max(0, p.invoicesTotal / p.poValue * 100)) * 10) / 10 : 0;
@@ -11169,7 +11279,7 @@ function renderProjectSummary(){
           <div class="ps-bar"><div style="width:${pct}%;"></div></div><div class="ps-pct">${pct.toFixed(0)}% invoiced</div></td>
         <td>${psMoney(p.poValue)}</td><td>${psMoney(p.expenses)}</td><td>${psMoney(p.invoicesTotal)}</td>
         <td><b>${psMoney(p.balance)}</b></td><td>${psPill(p.margin)}</td>${actionCell(p)}
-      </tr>${expandRow(p)}`;
+      </tr>${expandRow(p, "", colsLump)}`;
   }).join("");
 
   const lumpTotals = (() => {
@@ -11180,16 +11290,17 @@ function renderProjectSummary(){
     return `<tfoot><tr><td>TOTAL</td><td>${psMoney(sum("poValue"))}</td><td>${psMoney(exp)}</td><td>${psMoney(sum("invoicesTotal"))}</td><td>${psMoney(sum("balance"))}</td><td>${psPill(margin)}</td>${canEdit ? "<td></td>" : ""}</tr></tfoot>`;
   })();
 
-  const head = (first, a) => `<thead><tr><th>${first}</th><th>${a}</th><th>Expenses</th><th>Invoices</th><th>Balance</th><th>Margin</th>${canEdit ? "<th></th>" : ""}</tr></thead>`;
+  const headLump = (first, a) => `<thead><tr><th>${first}</th><th>${a}</th><th>Expenses</th><th>Invoices</th><th>Balance</th><th>Margin</th>${canEdit ? "<th></th>" : ""}</tr></thead>`;
+  const headMp = `<thead><tr><th>Project</th><th>Expenses</th><th>Invoices</th><th>Difference</th><th>Margin</th>${canEdit ? "<th></th>" : ""}</tr></thead>`;
 
   const manpowerSection = `
     <div class="ps-wrap mp">
       <div class="ps-banner mp">
-        <div><h4>👷 Manpower Projects<span class="ps-count">${manpowerRows.length}</span></h4><div class="ps-sub">Billed monthly by manpower claim. Each shows the month of its latest invoice.</div></div>
+        <div><h4>👷 Manpower Projects<span class="ps-count">${manpowerRows.length}</span></h4><div class="ps-sub">Expenses come from the daily reports. Invoices are the actual invoices, without VAT. Each project shows the month of its latest invoice.</div></div>
         ${manpowerRows.length ? `<button id="openManpowerSheetBtn">📅 Monthly Sheet</button>` : ""}
       </div>
-      ${manpowerRows.length ? `<div class="ps-scroll"><table class="ps-table">${head("Project", "Claim")}<tbody>${manpowerBody}</tbody></table></div>
-      <div class="ps-note">Claim = rate × 8 hours × days worked, for the month shown. Balance = claim − invoices. Tap a name for the totals since the start.</div>`
+      ${manpowerRows.length ? `<div class="ps-scroll"><table class="ps-table">${headMp}<tbody>${manpowerBody}</tbody></table></div>
+      <div class="ps-note">Difference = Invoices − Expenses. Margin = Difference ÷ Invoices. A month shows – until its invoice is added${canEdit ? " with ＋" : ""}. Tap a name for the totals since the start.</div>`
       : `<div class="ps-empty">${showingArchived ? "No manpower projects in History." : "No manpower projects."}</div>`}
     </div>`;
 
@@ -11198,7 +11309,7 @@ function renderProjectSummary(){
       <div class="ps-banner ls">
         <div><h4>📦 Lump Sum Projects<span class="ps-count">${lumpRows.length}</span></h4><div class="ps-sub">Fixed PO, shown for the whole project since the start.</div></div>
       </div>
-      ${lumpRows.length ? `<div class="ps-scroll"><table class="ps-table">${head("Project", "PO Value")}<tbody>${lumpBody}</tbody>${lumpTotals}</table></div>
+      ${lumpRows.length ? `<div class="ps-scroll"><table class="ps-table">${headLump("Project", "PO Value")}<tbody>${lumpBody}</tbody>${lumpTotals}</table></div>
       <div class="ps-note">PO Value = each unit's fixed PO plus any manpower claim in the project. Balance = PO − invoices.</div>`
       : `<div class="ps-empty">${showingArchived ? "No lump sum projects in History." : "No lump sum projects."}</div>`}
     </div>`;
@@ -11208,10 +11319,10 @@ function renderProjectSummary(){
     <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:16px 18px;margin-bottom:14px;box-shadow:0 4px 14px rgba(15,53,86,0.25);position:relative;overflow:hidden;">
       <div style="position:absolute;top:-10px;right:-8px;font-size:56px;opacity:0.12;">📊</div>
       <h3 style="color:#fff;font-size:16px;margin:0;position:relative;">📊 Project Summary${showingArchived ? " — History" : ""}</h3>
-      <div class="meta" style="color:#BFDCF5;position:relative;">PO / Claim (w/o VAT) · Expenses · Invoices · Balance · Margin</div>
+      <div class="meta" style="color:#BFDCF5;position:relative;">Expenses · Invoices (w/o VAT) · Difference · Margin</div>
     </div>
     <button class="btn btn-sm" id="toggleProjectSummaryArchiveBtn" style="width:100%;margin-bottom:12px;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff;border:none;font-weight:800;">${showingArchived ? "📋 View Current Projects" : "🗄 View History (hidden projects)"}</button>
-    ${canEdit ? `<div class="field-note" style="margin-bottom:12px;">${showingArchived ? "Tap ↩ to bring a project back to the current list." : "🏷️ renames a project. ✎ sets the starting date or opening Expenses/Invoices. 📥 saves a month's manpower claim as an actual invoice. 🗄 hides a project from the summary; it stays fully available in Daily Reports and Timesheets."}</div>` : `<div class="field-note" style="margin-bottom:12px;">Tap a project's name to see its invoices.</div>`}
+    ${canEdit ? `<div class="field-note" style="margin-bottom:12px;">${showingArchived ? "Tap ↩ to bring a project back to the current list." : "🏷️ renames a project. ✎ sets the starting date or opening Expenses/Invoices. ＋ adds an actual invoice to a manpower project. 📥 saves a lump sum project's manpower claim as an invoice. 🗄 hides a project from the summary; it stays fully available in Daily Reports and Timesheets."}</div>` : `<div class="field-note" style="margin-bottom:12px;">Tap a project's name to see its invoices.</div>`}
     ${state.projectSummaryRows.length ? manpowerSection + lumpSection : `<div class="empty-state"><div class="ic">📊</div>${showingArchived ? "No projects in History." : "No active projects found."}</div>`}
   `;
 }
@@ -11222,28 +11333,30 @@ function renderManpowerMonthlySheet(){
   const chosen = state.manpowerSheetProjectId || "all";
   const shown = chosen === "all" ? manpowerRows : manpowerRows.filter(p => p.id === chosen);
   const thisMonth = todayLocalISO().slice(0, 7);
-  const canExport = ["hr", "ceo"].includes(state.user.role);
+  const canExport = ["hr", "ceo"].includes(state.user.role), canEdit = state.user.role === "hr";
   const options = `<option value="all">All manpower projects</option>` + manpowerRows.map(p => `<option value="${p.id}" ${p.id === chosen ? "selected" : ""}>${escapeHtml(p.name)}</option>`).join("");
 
   const projectCard = (p) => {
     const t = manpowerTotals(p);
     const monthRows = p.months.slice().reverse().map(m => `
         <tr class="${m.key === p.monthKey ? "ps-hl" : ""}">
-          <td>${m.label}${(m.key === thisMonth || m.key === p.monthKey) ? "<br>" : ""}${m.key === thisMonth ? `<span class="ps-tag" style="background:#FFF1D2;color:#8A5A00;">this month</span>` : ""}${m.key === p.monthKey ? `<span class="ps-tag" style="background:#E3F4F2;color:#0B7A75;">📌 summary</span>` : ""}</td>
-          <td>${psMoney(m.expenses)}</td><td>${psMoney(m.invoiced)}</td>
-          <td>${m.estimated ? `<span class="ps-est">≈ ${psMoney(m.difference)}</span>` : psMoney(m.difference)}</td><td>${psPill(m.margin)}</td>
-          <td>${psMoney(m.claim)}</td><td>${psMoney(m.notInvoiced)}</td><td>${m.days}</td><td>${m.manDays}</td>
+          <td>${m.label}${(m.key === thisMonth || m.key === p.monthKey || (!m.hasInvoice && m.expenses > 0)) ? "<br>" : ""}${m.key === thisMonth ? `<span class="ps-tag" style="background:#FFF1D2;color:#8A5A00;">this month</span>` : ""}${m.key === p.monthKey ? `<span class="ps-tag" style="background:#E3F4F2;color:#0B7A75;">📌 summary</span>` : ""}${(!m.hasInvoice && m.expenses > 0) ? `<span class="ps-tag" style="background:#FDECEA;color:#B23A3A;">not invoiced</span>` : ""}${canEdit ? `<br><button class="ps-ib ps-add" data-add-mp-invoice="${p.id}" data-month="${m.key}" title="Add an invoice for ${m.label}">＋</button>` : ""}</td>
+          <td>${psMoney(m.expenses)}</td><td>${m.hasInvoice ? psMoney(m.invoiced) : `<span class="ps-na">–</span>`}</td>
+          <td>${psDash(m.difference)}</td><td>${psPill(m.margin)}</td>
+          <td>${m.days}</td><td>${m.manDays}</td>
         </tr>`).join("");
     const opening = (t.openingExp || t.openingInv) ? `
-        <tr><td>Before the app</td><td>${psMoney(t.openingExp)}</td><td>${psMoney(t.openingInv)}</td><td>${psMoney(t.openingInv - t.openingExp)}</td><td></td><td></td><td></td><td></td><td></td></tr>` : "";
+        <tr><td>Before the app</td><td>${psMoney(t.openingExp)}</td><td>${t.openingInv ? psMoney(t.openingInv) : `<span class="ps-na">–</span>`}</td><td>${t.openingInv ? psMoney(t.openingInv - t.openingExp) : `<span class="ps-na">–</span>`}</td><td>${psPill(t.openingInv > 0 ? (t.openingInv - t.openingExp) / t.openingInv : null)}</td><td></td><td></td></tr>` : "";
     return `
       <div class="ps-wrap mp">
-        <div class="ps-banner mp"><div><h4>${escapeHtml(p.name)}</h4><div class="ps-sub">${p.months.length} month${p.months.length === 1 ? "" : "s"} · the summary shows ${p.monthLabel}</div></div></div>
+        <div class="ps-banner mp"><div><h4>${escapeHtml(p.name)}</h4><div class="ps-sub">${p.months.length} month${p.months.length === 1 ? "" : "s"} · the summary shows ${p.monthLabel}</div></div>${canEdit ? `<button data-add-mp-invoice="${p.id}">＋ Invoice</button>` : ""}</div>
         ${p.months.length ? `<div class="ps-scroll"><table class="ps-table">
-          <thead><tr><th>Month</th><th>Expenses</th><th>Invoiced</th><th>Difference</th><th>Margin</th><th>Claim</th><th>Not invoiced</th><th>Days</th><th>Man-days</th></tr></thead>
+          <thead><tr><th>Month</th><th>Expenses</th><th>Invoices</th><th>Difference</th><th>Margin</th><th>Days</th><th>Man-days</th></tr></thead>
           <tbody>${monthRows}${opening}</tbody>
-          <tfoot><tr><td>TOTAL</td><td>${psMoney(t.expenses)}</td><td>${psMoney(t.invoiced)}</td><td>${psMoney(t.difference)}</td><td>${psPill(t.margin)}</td><td>${psMoney(t.claim)}</td><td>${psMoney(t.notInvoiced)}</td><td>${t.days}</td><td>${t.manDays}</td></tr></tfoot>
-        </table></div>` : `<div class="ps-empty">No daily reports or invoices yet.</div>`}
+          <tfoot><tr><td>TOTAL</td><td>${psMoney(t.expenses)}</td><td>${psMoney(t.invoiced)}</td><td>${psMoney(t.difference)}</td><td>${psPill(t.margin)}</td><td>${t.days}</td><td>${t.manDays}</td></tr></tfoot>
+        </table></div>
+        ${t.uninvoicedMonths.length ? `<div class="ps-warn" style="margin:8px 12px;">ⓘ The total difference includes SAR ${psFmt(t.uninvoicedExpenses)} of expenses for ${t.uninvoicedMonths.join(", ")}, not invoiced yet.</div>` : ""}
+        ${p.missingRates.length ? `<div class="ps-warn" style="margin:8px 12px;">⚠️ No daily expense rate is set for ${p.missingRates.map(escapeHtml).join(", ")}: their days count as 0 in the expenses.</div>` : ""}` : `<div class="ps-empty">No daily reports or invoices yet.</div>`}
       </div>`;
   };
 
@@ -11251,7 +11364,7 @@ function renderManpowerMonthlySheet(){
     <button class="link-btn" id="backToProjectSummaryBtn" style="margin-bottom:12px;">‹ Project Summary</button>
     <div style="background:linear-gradient(135deg,#0B7A75,#1B5A96);border-radius:16px;padding:16px 18px;margin-bottom:14px;box-shadow:0 4px 14px rgba(15,53,86,0.25);">
       <h3 style="color:#fff;font-size:16px;margin:0;">📅 Monthly Sheet — Manpower Projects</h3>
-      <div class="meta" style="color:#D3EEF0;">Every month, newest first: claim, expenses, invoices and the difference</div>
+      <div class="meta" style="color:#D3EEF0;">Every month, newest first: expenses, invoices, difference and margin</div>
     </div>
     <div class="card" style="margin-bottom:14px;">
       <label style="margin-top:0;">Project</label>
@@ -11260,7 +11373,7 @@ function renderManpowerMonthlySheet(){
     </div>
     ${shown.length ? shown.map(projectCard).join("") : `<div class="empty-state"><div class="ic">📅</div>No manpower projects.</div>`}
     <div class="ps-note" style="padding-top:0;">
-      <b>Claim</b> = rate × 8 hours × days worked. <b>Not invoiced</b> = claim − invoiced. <b>Difference</b> = invoiced − expenses; a month with no invoice yet uses its claim instead (shown as ≈ and in grey).
+      <b>Expenses</b> come from the daily reports: each team member's daily expense × the days he is in the reports. <b>Invoices</b> are the actual invoices, without VAT${canEdit ? ", added with ＋" : ""}. <b>Difference</b> = Invoices − Expenses. <b>Margin</b> = Difference ÷ Invoices. A month shows – until its invoice is added.
       An invoice counts in the month typed on it. "Before the app" is whatever was entered as opening Expenses/Invoices.
     </div>`;
 }
@@ -11282,73 +11395,74 @@ function buildManpowerMonthlyWorkbook(projects){
   projects.forEach(p => {
     const t = manpowerTotals(p);
     const ws = wb.addWorksheet(worklogSheetName(p.name, taken), { views: [{ state: "frozen", ySplit: 3 }], pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
-    ws.columns = [{ width: 16 }, { width: 8 }, { width: 11 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 10 }, { width: 18 }];
-    ws.mergeCells("A1:J1");
+    ws.columns = [{ width: 16 }, { width: 8 }, { width: 11 }, { width: 15 }, { width: 15 }, { width: 15 }, { width: 11 }];
+    ws.mergeCells("A1:G1");
     ws.getCell("A1").value = `${p.name} - Monthly Sheet`;
     ws.getCell("A1").font = { name: "Arial", size: 14, bold: true };
     ws.getCell("A1").alignment = { horizontal: "center", vertical: "middle" };
     ws.getRow(1).height = 26;
-    ws.mergeCells("A2:J2");
-    ws.getCell("A2").value = "Claim = rate x 8 hours x days worked. Not invoiced = Claim - Invoiced. Difference = Invoiced - Expenses; a month with no invoice uses its Claim instead.";
+    ws.mergeCells("A2:G2");
+    ws.getCell("A2").value = "Expenses come from the daily reports. Invoices are the actual invoices, without VAT. Difference = Invoices - Expenses. Margin = Difference / Invoices. A month with no invoice yet shows no difference.";
     ws.getCell("A2").font = { name: "Arial", size: 9, italic: true, color: { argb: "FF5B6B7C" } };
     ws.getCell("A2").alignment = { horizontal: "center", wrapText: true };
     ws.getRow(2).height = 26;
-    ["Month", "Days", "Man-days", "Claim", "Expenses", "Invoiced", "Not invoiced", "Difference", "Margin", "Difference based on"].forEach((h, i) => {
+    ["Month", "Days", "Man-days", "Expenses", "Invoices", "Difference", "Margin"].forEach((h, i) => {
       const c = ws.getRow(3).getCell(i + 1);
       c.value = h; c.font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } }; c.fill = HEAD; c.border = BOX;
       c.alignment = { horizontal: i === 0 ? "left" : "center", vertical: "middle", wrapText: true };
     });
     ws.getRow(3).height = 22;
 
-    const basisF = (r) => `IF(F${r}>0,F${r},D${r})`;
-    const writeRow = (r, label, m, opts) => {
-      const cells = [label, m.days, m.manDays, m.claim, m.expenses, m.invoiced];
-      cells.forEach((v, i) => { const c = ws.getRow(r).getCell(i + 1); if(v !== null && v !== "") c.value = v; });
-      if(!opts.opening) ws.getRow(r).getCell(7).value = { formula: `D${r}-F${r}`, result: m.notInvoiced };
-      const basis = m.invoiced > 0 ? m.invoiced : m.claim;
-      ws.getRow(r).getCell(8).value = { formula: `${basisF(r)}-E${r}`, result: m.difference };
-      ws.getRow(r).getCell(9).value = { formula: `IF(${basisF(r)}>0,H${r}/${basisF(r)},"")`, result: basis > 0 ? m.difference / basis : "" };
-      ws.getRow(r).getCell(10).value = opts.opening ? "Entered before the app" : (m.estimated ? "Claim (estimated)" : "Invoice");
-      for(let c = 1; c <= 10; c++){
-        const cell = ws.getRow(r).getCell(c);
-        cell.font = FONT({ italic: c === 10 || (m.estimated && c === 8) });
-        cell.border = BOX;
-        cell.alignment = { horizontal: c === 1 || c === 10 ? "left" : "right", vertical: "middle" };
-        if(c >= 4 && c <= 8) cell.numFmt = MONEY;
-        if(c === 9) cell.numFmt = "0.0%";
+    const writeRow = (r, label, m) => {
+      const row = ws.getRow(r), has = m.invoiced > 0;
+      row.getCell(1).value = label;
+      if(m.days !== "" && m.days !== undefined) row.getCell(2).value = m.days;
+      if(m.manDays !== "" && m.manDays !== undefined) row.getCell(3).value = m.manDays;
+      row.getCell(4).value = m.expenses;
+      if(has) row.getCell(5).value = m.invoiced;
+      row.getCell(6).value = { formula: `IF(E${r}>0,E${r}-D${r},"")`, result: has ? m.invoiced - m.expenses : "" };
+      row.getCell(7).value = { formula: `IF(E${r}>0,F${r}/E${r},"")`, result: has ? (m.invoiced - m.expenses) / m.invoiced : "" };
+      for(let c = 1; c <= 7; c++){
+        const cell = row.getCell(c);
+        cell.font = FONT(); cell.border = BOX;
+        cell.alignment = { horizontal: c === 1 ? "left" : "right", vertical: "middle" };
+        if(c >= 4 && c <= 6) cell.numFmt = MONEY;
+        if(c === 7) cell.numFmt = "0.0%";
       }
     };
     let r = 4;
-    p.months.forEach(m => { writeRow(r, m.label, m, {}); r++; });
-    if(t.openingExp || t.openingInv){
-      writeRow(r, "Before the app", { days: "", manDays: "", claim: 0, expenses: t.openingExp, invoiced: t.openingInv, notInvoiced: 0, difference: t.openingInv - t.openingExp, estimated: false }, { opening: true });
-      r++;
-    }
+    p.months.forEach(m => { writeRow(r, m.label, m); r++; });
+    if(t.openingExp || t.openingInv){ writeRow(r, "Before the app", { days: "", manDays: "", expenses: t.openingExp, invoiced: t.openingInv }); r++; }
     const first = 4, last = r - 1;
-    ws.getRow(r).getCell(1).value = "TOTAL";
-    ["B", "C", "D", "E", "F", "G", "H"].forEach((col, i) => {
-      const v = [t.days, t.manDays, t.claim, t.expenses, t.invoiced, t.notInvoiced, t.difference][i];
-      ws.getRow(r).getCell(i + 2).value = { formula: `SUM(${col}${first}:${col}${last})`, result: v };
-    });
-    ws.getRow(r).getCell(9).value = { formula: `IFERROR(H${r}/SUMPRODUCT((F${first}:F${last}>0)*F${first}:F${last}+(F${first}:F${last}<=0)*D${first}:D${last}),"")`, result: t.margin === null ? "" : t.margin };
-    for(let c = 1; c <= 10; c++){
-      const cell = ws.getRow(r).getCell(c);
+    const tr = ws.getRow(r);
+    tr.getCell(1).value = "TOTAL";
+    [["B", t.days], ["C", t.manDays], ["D", t.expenses], ["E", t.invoiced]].forEach(([col, v], i) => { tr.getCell(i + 2).value = { formula: `SUM(${col}${first}:${col}${last})`, result: v }; });
+    tr.getCell(6).value = { formula: `E${r}-D${r}`, result: t.difference };
+    tr.getCell(7).value = { formula: `IF(E${r}>0,F${r}/E${r},"")`, result: t.margin === null ? "" : t.margin };
+    for(let c = 1; c <= 7; c++){
+      const cell = tr.getCell(c);
       cell.font = FONT({ bold: true }); cell.fill = TOTAL; cell.border = BOX;
       cell.alignment = { horizontal: c === 1 ? "left" : "right", vertical: "middle" };
-      if(c >= 4 && c <= 8) cell.numFmt = MONEY;
-      if(c === 9) cell.numFmt = "0.0%";
+      if(c >= 4 && c <= 6) cell.numFmt = MONEY;
+      if(c === 7) cell.numFmt = "0.0%";
+    }
+    if(t.uninvoicedMonths.length){
+      ws.mergeCells(`A${r + 2}:G${r + 2}`);
+      ws.getCell(`A${r + 2}`).value = `The total difference includes ${Math.round(t.uninvoicedExpenses * 100) / 100} of expenses for ${t.uninvoicedMonths.join(", ")}, not invoiced yet.`;
+      ws.getCell(`A${r + 2}`).font = { name: "Arial", size: 9, italic: true, color: { argb: "FF8A5A00" } };
+      ws.getCell(`A${r + 2}`).alignment = { horizontal: "left", wrapText: true }; ws.getRow(r + 2).height = 26;
     }
     ws.pageSetup.printTitlesRow = "1:3";
     refs.push({ p, t, sheet: ws.name, totalRow: r });
   });
 
   if(overview){
-    overview.columns = [{ width: 34 }, { width: 10 }, { width: 16 }, { width: 16 }, { width: 16 }, { width: 16 }, { width: 16 }, { width: 10 }];
-    overview.mergeCells("A1:H1");
+    overview.columns = [{ width: 34 }, { width: 10 }, { width: 16 }, { width: 16 }, { width: 16 }, { width: 10 }];
+    overview.mergeCells("A1:F1");
     overview.getCell("A1").value = "Manpower Projects - Monthly Sheet Overview";
     overview.getCell("A1").font = { name: "Arial", size: 14, bold: true }; overview.getCell("A1").alignment = { horizontal: "center", vertical: "middle" };
     overview.getRow(1).height = 26;
-    ["Project", "Months", "Claim", "Expenses", "Invoiced", "Not invoiced", "Difference", "Margin"].forEach((h, i) => {
+    ["Project", "Months", "Expenses", "Invoices", "Difference", "Margin"].forEach((h, i) => {
       const c = overview.getRow(2).getCell(i + 1);
       c.value = h; c.font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } }; c.fill = HEAD; c.border = BOX; c.alignment = { horizontal: i === 0 ? "left" : "center", vertical: "middle" };
     });
@@ -11356,9 +11470,9 @@ function buildManpowerMonthlyWorkbook(projects){
     refs.forEach((o, i) => {
       const row = overview.getRow(3 + i), t = o.t;
       row.getCell(1).value = o.p.name; row.getCell(2).value = o.p.months.length;
-      [["D", t.claim], ["E", t.expenses], ["F", t.invoiced], ["G", t.notInvoiced], ["H", t.difference]].forEach(([col, v], k) => { row.getCell(3 + k).value = { formula: x(o.sheet, `${col}${o.totalRow}`), result: v }; row.getCell(3 + k).numFmt = MONEY; });
-      row.getCell(8).value = { formula: x(o.sheet, `I${o.totalRow}`), result: t.margin === null ? "" : t.margin }; row.getCell(8).numFmt = "0.0%";
-      for(let c = 1; c <= 8; c++){ const cell = row.getCell(c); cell.font = FONT(); cell.border = BOX; cell.alignment = { horizontal: c === 1 ? "left" : "right", vertical: "middle" }; }
+      [["D", t.expenses], ["E", t.invoiced], ["F", t.difference]].forEach(([col, v], k) => { row.getCell(3 + k).value = { formula: x(o.sheet, `${col}${o.totalRow}`), result: v }; row.getCell(3 + k).numFmt = MONEY; });
+      row.getCell(6).value = { formula: x(o.sheet, `G${o.totalRow}`), result: t.margin === null ? "" : t.margin }; row.getCell(6).numFmt = "0.0%";
+      for(let c = 1; c <= 6; c++){ const cell = row.getCell(c); cell.font = FONT(); cell.border = BOX; cell.alignment = { horizontal: c === 1 ? "left" : "right", vertical: "middle" }; }
     });
   }
   return wb;
@@ -14660,6 +14774,10 @@ function handleDelegatedClick(e){
   if(archiveProjectEl){ archiveProjectSummary(archiveProjectEl.getAttribute("data-archive-project")); return; }
   const restoreProjectEl = e.target.closest("[data-restore-project]");
   if(restoreProjectEl){ restoreProjectSummary(restoreProjectEl.getAttribute("data-restore-project")); return; }
+  const addMpInvoiceEl = e.target.closest("[data-add-mp-invoice]");
+  if(addMpInvoiceEl){ openMpInvoiceDialog(addMpInvoiceEl.getAttribute("data-add-mp-invoice"), addMpInvoiceEl.getAttribute("data-month") || null, null); return; }
+  const editMpInvoiceEl = e.target.closest("[data-edit-mp-invoice]");
+  if(editMpInvoiceEl){ openMpInvoiceDialog(editMpInvoiceEl.getAttribute("data-project"), null, editMpInvoiceEl.getAttribute("data-edit-mp-invoice")); return; }
   const raiseInvoiceClaimEl = e.target.closest("[data-raise-invoice-claim]");
   if(raiseInvoiceClaimEl){ raiseInvoiceFromClaim(raiseInvoiceClaimEl.getAttribute("data-raise-invoice-claim")); return; }
   const editProjectOpeningEl = e.target.closest("[data-edit-project-opening]");
