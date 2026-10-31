@@ -952,25 +952,34 @@ body select#certEmpSelect.cr-in{font-size:16px;padding:14px 14px}
 .ps-expand td>.ps-xin{position:sticky;left:0;box-sizing:border-box;width:min(100%,calc(100vw - 76px));max-width:380px}
 .ps-ib.ps-add{width:auto;min-width:32px;padding:0 9px}
 
-/* ---- manpower projects: one small table per project ---- */
-.mp-proj{border-top:1px solid #DDE6EE;padding:6px 0 10px}
+/* ---- manpower projects: one framed table per project, with clear grid lines ---- */
+.mp-proj{padding:12px 0 14px;border-top:1px solid #D6E0EA}
 .mp-proj:first-of-type{border-top:none}
-.mp-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px 6px}
-.mp-head>b{font-size:14.5px;color:#0F3556;min-width:0}
+.mp-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 12px 9px}
+.mp-head>b{font-size:15px;color:#0B2E4A;min-width:0;border-left:4px solid #0E7C86;padding-left:9px;line-height:1.2}
 .mp-acts{display:flex;align-items:center;gap:6px;flex:none}
-.mp-add{border:none;border-radius:999px;padding:7px 12px;font-size:12px;font-weight:800;color:#fff;background:linear-gradient(160deg,#4BE0A6,#0B8F62);box-shadow:0 4px 10px rgba(11,143,98,.35);cursor:pointer;white-space:nowrap}
-.mp-amt{border:1px solid #B7DCD8;background:#EAF7F6;border-radius:10px;padding:4px 8px;font-weight:800;font-size:12px;color:#0B5E5A;cursor:pointer;display:block;margin:2px auto}
-.mp-table{width:calc(100% - 16px);margin:0 8px}
-.mp-table th,.mp-table td{padding:7px 4px;font-size:11.5px;text-align:right}
-.mp-table th:first-child,.mp-table td:first-child{text-align:left;white-space:nowrap}
-.mp-foot{font-size:10.5px;color:#7A4B00;padding:6px 12px 0}
-
-.mp-table{table-layout:fixed;min-width:0 !important;width:calc(100% - 16px) !important;margin:0 8px;border-collapse:collapse}
-.mp-table th:nth-child(1){width:24%}.mp-table th:nth-child(2){width:22%}.mp-table th:nth-child(3){width:19%}.mp-table th:nth-child(4){width:20%}.mp-table th:nth-child(5){width:15%}
-.mp-table th{font-size:10px;padding:8px 3px}
-.mp-table td{overflow:hidden}
+.mp-add{border:none;border-radius:999px;padding:8px 13px;font-size:12px;font-weight:800;color:#fff;background:linear-gradient(160deg,#4BE0A6,#0B8F62);box-shadow:0 4px 10px rgba(11,143,98,.35);cursor:pointer;white-space:nowrap}
+.mp-grid{margin:0 10px;border:1.5px solid #6F8FAB;border-radius:10px;overflow-x:auto;overflow-y:hidden;background:#fff;box-shadow:0 3px 10px rgba(15,53,86,.10)}
+table.mp-table{width:100%;min-width:330px;border-collapse:collapse;table-layout:fixed;margin:0;font-size:11.5px;font-variant-numeric:tabular-nums;color:#16324A}
+.mp-table th{background:linear-gradient(180deg,#167A93,#0E5A78);color:#fff;font-size:9.2px;letter-spacing:.25px;text-transform:uppercase;font-weight:800;padding:10px 2px;text-align:center;border:1px solid rgba(255,255,255,.30)}
+.mp-table td{border:1px solid #C3D1DE;padding:0 6px;height:42px;text-align:right;background:#fff;vertical-align:middle;overflow:hidden;white-space:nowrap;font-weight:600}
+.mp-table tbody tr:nth-child(even) td{background:#F4F8FB}
+.mp-table td.mp-m{text-align:left;font-weight:800;color:#0B2E4A;background:#E9F0F6 !important;white-space:normal;line-height:1.2;font-size:11.5px}
+.mp-table tr.ps-hl td.mp-m{box-shadow:inset 4px 0 0 #E8A33D}
+.mp-table td.mp-i{text-align:center}
+.mp-table td.mp-c{text-align:center;padding:0 3px}
+.mp-table tr>*:first-child{border-left:none}
+.mp-table tr>*:last-child{border-right:none}
+.mp-table thead tr>*{border-top:none}
+.mp-table tfoot td{background:#D9E8F2 !important;font-weight:800;color:#0A2A44;border-top:3px double #0E5A78;border-bottom:none;height:44px}
+.mp-table tr.mp-open td{font-style:italic;color:#5B6B7C}
+.mp-table .ps-pos{color:#0A6B45;font-weight:800}
+.mp-table .ps-neg{color:#B3261E;font-weight:800}
+.mp-table .ps-na{color:#9AA7BA;font-weight:700}
 .mp-table .ps-pill{padding:3px 6px;font-size:10.5px}
-.mp-table .mp-amt{padding:4px 6px;font-size:11.5px}
+.mp-amt{border:none;background:transparent;font-weight:800;font-size:11.5px;color:#0B5E5A;cursor:pointer;padding:6px 4px;border-bottom:1.5px dotted #0E7C86;font-variant-numeric:tabular-nums;display:inline-block}
+.mp-amt:active{background:#E3F4F2}
+.mp-foot{font-size:10.5px;color:#6B5A2E;padding:7px 12px 0;font-style:italic}
 </style>
 </head>
 <body>
@@ -8966,7 +8975,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "31 Oct 2026 - monthly table per manpower project";
+const APP_VERSION = "31 Oct 2026 - professional manpower tables";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -11177,6 +11186,11 @@ function psPill(m){
 }
 // A manpower project over every month, plus anything entered from before the app.
 function psDash(v){ return (v === null || v === undefined) ? `<span class="ps-na">–</span>` : psMoney(v); }
+function mpMoney(n, tone){
+  const v = Number(n || 0), s = Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return v < 0 ? `<span class="ps-neg">(${s})</span>` : (tone && v > 0 ? `<span class="ps-pos">${s}</span>` : s);
+}
+function mpDash(v, tone){ return (v === null || v === undefined) ? `<span class="ps-na">–</span>` : mpMoney(v, tone); }
 function mpRound2(x){ return Math.round(Number(x || 0) * 100) / 100; }
 function mpParseAmount(v){ const n = Number(String(v || "").replace(/[,\s]/g, "")); return isFinite(n) ? n : 0; }
 
@@ -11282,29 +11296,30 @@ function renderProjectSummary(){
   const expandRow = (p, extra, cols) => state.expandedProjectSummaryId !== p.id ? "" : `
       <tr class="ps-expand"><td colspan="${cols}"><div class="ps-xin">${extra || ""}${invoiceList(p)}</div></td></tr>`;
 
-  // ---- one small table for each manpower project: a row for every month ----
+  // ---- one table for each manpower project: a row for every month, with clear grid lines ----
   const mpCard = (p) => {
     const t = manpowerTotals(p), editable = canEdit && !showingArchived;
     const invoiceCell = (m) => {
       const invs = (p.invoices || []).filter(v => v._month === m.key);
-      if(invs.length) return editable ? invs.map(v => `<button class="mp-amt" data-edit-mp-invoice="${v.id}" data-project="${p.id}" title="Tap to change or delete this invoice">${psFmt(v.amount_no_vat)}</button>`).join("") : psFmt(m.invoiced);
+      if(invs.length) return editable ? invs.map(v => `<button class="mp-amt" data-edit-mp-invoice="${v.id}" data-project="${p.id}" title="Tap to change or delete this invoice">${mpMoney(v.amount_no_vat)}</button>`).join("") : mpMoney(m.invoiced);
       return editable ? `<button class="ps-ib ps-add" data-add-mp-invoice="${p.id}" data-month="${m.key}" title="Add the invoice for ${m.label}">＋</button>` : `<span class="ps-na">–</span>`;
     };
     const rows = p.months.slice().reverse().map(m => `
-        <tr class="${m.key === thisMonth ? "ps-hl" : ""}"><td>${m.label}</td><td>${invoiceCell(m)}</td><td>${psMoney(m.expenses)}</td><td>${psDash(m.difference)}</td><td>${psPill(m.margin)}</td></tr>`).join("");
+        <tr class="${m.key === thisMonth ? "ps-hl" : ""}"><td class="mp-m">${m.label}</td><td class="mp-i">${invoiceCell(m)}</td><td>${mpMoney(m.expenses)}</td><td>${mpDash(m.difference, true)}</td><td class="mp-c">${psPill(m.margin)}</td></tr>`).join("");
     const opening = (t.openingExp || t.openingInv) ? `
-        <tr><td>Before the app</td><td>${t.openingInv ? psFmt(t.openingInv) : `<span class="ps-na">–</span>`}</td><td>${psMoney(t.openingExp)}</td><td>${t.openingInv ? psMoney(t.openingInv - t.openingExp) : `<span class="ps-na">–</span>`}</td><td>${psPill(t.openingInv > 0 ? (t.openingInv - t.openingExp) / t.openingInv : null)}</td></tr>` : "";
+        <tr class="mp-open"><td class="mp-m">Before the app</td><td class="mp-i">${t.openingInv ? mpMoney(t.openingInv) : `<span class="ps-na">–</span>`}</td><td>${mpMoney(t.openingExp)}</td><td>${t.openingInv ? mpMoney(t.openingInv - t.openingExp, true) : `<span class="ps-na">–</span>`}</td><td class="mp-c">${psPill(t.openingInv > 0 ? (t.openingInv - t.openingExp) / t.openingInv : null)}</td></tr>` : "";
     return `
       <div class="mp-proj">
         <div class="mp-head">
           <b>${escapeHtml(p.name)}</b>
           <span class="mp-acts">${editable ? `<button class="mp-add" data-add-mp-invoice="${p.id}">＋ Invoice</button><button class="ps-ib" data-edit-project-name="${p.id}" title="Rename">🏷️</button><button class="ps-ib" data-edit-project-opening="${p.id}" title="Opening balances">✎</button><button class="ps-ib" data-archive-project="${p.id}" title="Hide from summary">🗄</button>` : ""}${(canEdit && showingArchived) ? `<button class="ps-ib" data-restore-project="${p.id}" title="Bring back">↩</button>` : ""}</span>
         </div>
-        ${p.months.length || opening ? `<table class="ps-table mp-table">
+        ${p.months.length || opening ? `<div class="mp-grid"><table class="mp-table">
+          <colgroup><col style="width:21%"><col style="width:23%"><col style="width:20%"><col style="width:20%"><col style="width:16%"></colgroup>
           <thead><tr><th>Month</th><th>Invoice</th><th>Expenses</th><th>Difference</th><th>Margin</th></tr></thead>
           <tbody>${rows}${opening}</tbody>
-          <tfoot><tr><td>TOTAL</td><td>${psMoney(t.invoiced)}</td><td>${psMoney(t.expenses)}</td><td>${psMoney(t.difference)}</td><td>${psPill(t.margin)}</td></tr></tfoot>
-        </table>` : `<div class="ps-empty">No daily reports or invoices yet.</div>`}
+          <tfoot><tr><td class="mp-m">TOTAL</td><td>${mpMoney(t.invoiced)}</td><td>${mpMoney(t.expenses)}</td><td>${mpMoney(t.difference, true)}</td><td class="mp-c">${psPill(t.margin)}</td></tr></tfoot>
+        </table></div>` : `<div class="ps-empty">No daily reports or invoices yet.</div>`}
         ${t.uninvoicedMonths.length ? `<div class="mp-foot">Difference and margin count only the months that have an invoice.</div>` : ""}
         ${p.missingRates.length ? `<div class="ps-warn">⚠️ No daily expense rate for ${p.missingRates.map(escapeHtml).join(", ")}: their days count as 0 in the expenses.</div>` : ""}
       </div>`;
@@ -11461,11 +11476,13 @@ function buildManpowerMonthlyWorkbook(projects){
       row.getCell(7).value = { formula: `IF(E${r}>0,F${r}/E${r},"")`, result: has ? (m.invoiced - m.expenses) / m.invoiced : "" };
       for(let c = 1; c <= 7; c++){
         const cell = row.getCell(c);
-        cell.font = FONT(); cell.border = BOX;
+        cell.font = FONT({ bold: c === 1 }); cell.border = BOX;
+        if(c === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE9F0F6" } };
         cell.alignment = { horizontal: c === 1 ? "left" : "right", vertical: "middle" };
         if(c >= 4 && c <= 6) cell.numFmt = MONEY;
         if(c === 7) cell.numFmt = "0.0%";
       }
+      row.height = 18;
     };
     let r = 4;
     p.months.forEach(m => { writeRow(r, m.label, m); r++; });
@@ -11478,11 +11495,12 @@ function buildManpowerMonthlyWorkbook(projects){
     tr.getCell(7).value = { formula: `IF(E${r}>0,F${r}/E${r},"")`, result: t.margin === null ? "" : t.margin };
     for(let c = 1; c <= 7; c++){
       const cell = tr.getCell(c);
-      cell.font = FONT({ bold: true }); cell.fill = TOTAL; cell.border = BOX;
+      cell.font = FONT({ bold: true }); cell.fill = TOTAL; cell.border = { ...BOX, top: { style: "double", color: { argb: "FF0E5A78" } } };
       cell.alignment = { horizontal: c === 1 ? "left" : "right", vertical: "middle" };
       if(c >= 4 && c <= 6) cell.numFmt = MONEY;
       if(c === 7) cell.numFmt = "0.0%";
     }
+    tr.height = 20;
     if(t.uninvoicedMonths.length){
       ws.mergeCells(`A${r + 2}:G${r + 2}`);
       ws.getCell(`A${r + 2}`).value = "The total difference and margin count only the months that have an invoice.";
