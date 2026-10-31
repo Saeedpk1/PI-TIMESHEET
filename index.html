@@ -613,6 +613,82 @@ body.cr-active .login-wrap .btn-primary[disabled]{filter:grayscale(.6) opacity(.
 body.cr-active .login-wrap .btn-outline{border-radius:16px;background:linear-gradient(135deg,rgba(255,255,255,.95),rgba(225,236,255,.7));border:1px solid rgba(255,255,255,.95);color:#17375E;font-weight:800;box-shadow:0 6px 16px rgba(70,80,170,.16),inset 0 1px 0 #fff}
 body.cr-active .login-wrap .link-btn{display:block;margin:12px auto 0;color:#2E5BC4;font-weight:700}
 body.cr-active .login-wrap .error-box{background:linear-gradient(135deg,#FFE9EF,#FFD3DE);border:1px solid #FFC0D0;color:#8E1B3C;border-radius:14px;font-weight:600}
+
+/* ================= Employee timesheet page: crystal ================= */
+body.cr-emp main{padding-bottom:110px}
+body.cr-emp .back-link-glow{position:relative;overflow:hidden;background:linear-gradient(135deg,#7A45F0,#2E7BFF 60%,#19C7D8);border:1px solid rgba(255,255,255,.65);padding:9px 20px;box-shadow:0 8px 18px rgba(46,123,255,.38),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -2px 0 rgba(0,0,0,.12);text-shadow:0 1px 2px rgba(0,0,0,.25)}
+body.cr-emp .back-link-glow::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:48%;border-radius:18px 18px 60% 60%/18px 18px 14px 14px;background:linear-gradient(180deg,rgba(255,255,255,.60),rgba(255,255,255,.05));pointer-events:none}
+
+/* month bar */
+body.cr-emp .month-nav{position:relative;overflow:hidden;background:linear-gradient(135deg,rgba(255,255,255,.90),rgba(255,255,255,.56));border:1px solid rgba(255,255,255,.95);border-radius:26px;padding:10px 12px;box-shadow:0 12px 28px rgba(70,80,170,.22),inset 0 1px 0 #fff,inset 0 -2px 0 rgba(255,255,255,.4);backdrop-filter:blur(14px) saturate(170%);-webkit-backdrop-filter:blur(14px) saturate(170%)}
+body.cr-emp .month-nav .m-label{color:#0F2F55;font-size:17px;font-weight:800;text-shadow:0 1px 0 rgba(255,255,255,.85)}
+body.cr-emp .month-nav button{position:relative;overflow:hidden;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.75);background:linear-gradient(135deg,#7A45F0,#2E7BFF 60%,#19C7D8);box-shadow:0 8px 16px rgba(46,123,255,.40),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -2px 0 rgba(0,0,0,.14);font-size:22px;line-height:1;text-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .12s ease}
+body.cr-emp .month-nav button::before{content:"";position:absolute;left:5px;right:5px;top:3px;height:46%;border-radius:50% 50% 60% 60%/60% 60% 40% 40%;background:linear-gradient(180deg,rgba(255,255,255,.65),rgba(255,255,255,.05));pointer-events:none}
+body.cr-emp .month-nav button:active{transform:scale(.92)}
+/* status banners: draft = amber, submitted = blue, approved = green, rejected = rose; notes = violet-blue and amber */
+body.cr-emp .status-banner{position:relative;overflow:hidden;border-radius:20px;border:1px solid rgba(255,255,255,.95) !important;box-shadow:0 8px 20px rgba(70,80,170,.14),inset 0 1px 0 rgba(255,255,255,.9);font-weight:700;line-height:1.35}
+body.cr-emp .status-banner::before{content:"";position:absolute;left:0;right:0;top:0;height:46%;background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,0));pointer-events:none}
+body.cr-emp .status-banner.status-draft{background:linear-gradient(135deg,#FFF3CF,#FFDE8A) !important;color:#7A4B00 !important}
+body.cr-emp .status-banner.status-submitted{background:linear-gradient(135deg,#E4F0FF,#B4D4FF) !important;color:#0F3F8F !important}
+body.cr-emp .status-banner.status-approved{background:linear-gradient(135deg,#DFFBEF,#A9EFD0) !important;color:#07603F !important}
+body.cr-emp .status-banner.status-rejected{background:linear-gradient(135deg,#FFE8EF,#FFBFD0) !important;color:#8E1B3C !important}
+body.cr-emp .status-banner[style*="#EAF2FA"]{background:linear-gradient(135deg,#ECE8FF,#C9D9FF) !important;color:#2B3F9E !important}
+body.cr-emp .status-banner[style*="#FFF3D9"]{background:linear-gradient(135deg,#FFF4D6,#FFE29A) !important;color:#7A4B00 !important}
+/* summary tiles */
+body.cr-emp .summary-grid{gap:10px}
+body.cr-emp .summary-item{position:relative;overflow:hidden;border-radius:20px;padding:13px 6px 10px;border:1px solid rgba(255,255,255,.8) !important;box-shadow:0 10px 22px var(--sh,rgba(70,80,170,.3)),inset 0 1px 0 rgba(255,255,255,.75),inset 0 -3px 0 rgba(0,0,0,.14)}
+body.cr-emp .summary-item::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:46%;border-radius:18px 18px 60% 60%/18px 18px 14px 14px;background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,.04));pointer-events:none}
+body.cr-emp .summary-item>*{position:relative}
+body.cr-emp .summary-item .n{color:#fff !important;font-size:27px;text-shadow:0 2px 4px rgba(0,0,0,.28)}
+body.cr-emp .summary-item .l{color:#fff !important;opacity:1;display:inline-block;background:rgba(255,255,255,.24);border-radius:999px;padding:2px 9px;margin-top:4px;text-shadow:0 1px 1px rgba(0,0,0,.22)}
+body.cr-emp .summary-item.s-present{background:linear-gradient(160deg,#62EBB8,#0E9C6C) !important;--sh:rgba(14,156,108,.45)}
+body.cr-emp .summary-item.s-absent{background:linear-gradient(160deg,#FF8FA0,#DC2F4B) !important;--sh:rgba(220,47,75,.42)}
+body.cr-emp .summary-item.s-total{background:linear-gradient(160deg,#B592FF,#6C3DE0) !important;--sh:rgba(108,61,224,.45)}
+body.cr-emp .summary-item.s-sick{background:linear-gradient(160deg,#FFCB45,#EE8A00) !important;--sh:rgba(238,138,0,.42)}
+body.cr-emp .summary-item.s-leave{background:linear-gradient(160deg,#FF92DC,#CE2A9C) !important;--sh:rgba(206,42,156,.42)}
+body.cr-emp .summary-item.s-ot{background:linear-gradient(160deg,#62B0FF,#1F5FE0) !important;--sh:rgba(31,95,224,.42)}
+/* the action buttons */
+body.cr-emp #downloadMyPdfBtn,body.cr-emp #openLeaveFormBtn,body.cr-emp #openCeoContactBtn,body.cr-emp #openPurchaseFormBtn,body.cr-emp #openMyProfileBtn{position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.75) !important;border-radius:20px !important;padding:15px 16px !important;font-size:15px !important;color:#fff !important;text-shadow:0 1px 3px rgba(0,0,0,.30);box-shadow:0 10px 22px var(--sh),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -3px 0 rgba(0,0,0,.14);transition:transform .12s ease}
+body.cr-emp #downloadMyPdfBtn::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:48%;border-radius:18px 18px 60% 60%/18px 18px 14px 14px;background:linear-gradient(180deg,rgba(255,255,255,.60),rgba(255,255,255,.05));pointer-events:none}
+body.cr-emp #openLeaveFormBtn::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:48%;border-radius:18px 18px 60% 60%/18px 18px 14px 14px;background:linear-gradient(180deg,rgba(255,255,255,.60),rgba(255,255,255,.05));pointer-events:none}
+body.cr-emp #openCeoContactBtn::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:48%;border-radius:18px 18px 60% 60%/18px 18px 14px 14px;background:linear-gradient(180deg,rgba(255,255,255,.60),rgba(255,255,255,.05));pointer-events:none}
+body.cr-emp #openPurchaseFormBtn::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:48%;border-radius:18px 18px 60% 60%/18px 18px 14px 14px;background:linear-gradient(180deg,rgba(255,255,255,.60),rgba(255,255,255,.05));pointer-events:none}
+body.cr-emp #openMyProfileBtn::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:48%;border-radius:18px 18px 60% 60%/18px 18px 14px 14px;background:linear-gradient(180deg,rgba(255,255,255,.60),rgba(255,255,255,.05));pointer-events:none}
+body.cr-emp #downloadMyPdfBtn:active,body.cr-emp #openLeaveFormBtn:active,body.cr-emp #openCeoContactBtn:active,body.cr-emp #openPurchaseFormBtn:active,body.cr-emp #openMyProfileBtn:active{transform:translateY(2px) scale(.985)}
+body.cr-emp #downloadMyPdfBtn{background:linear-gradient(135deg,#7A45F0,#2E7BFF 60%,#19C7D8) !important;--sh:rgba(46,123,255,.45)}
+body.cr-emp #openLeaveFormBtn{background:linear-gradient(160deg,#FFB830,#E8590C) !important;--sh:rgba(232,89,12,.42)}
+body.cr-emp #openCeoContactBtn{background:linear-gradient(160deg,#FF92DC,#CE2A9C) !important;--sh:rgba(206,42,156,.42)}
+body.cr-emp #openPurchaseFormBtn{background:linear-gradient(160deg,#62EBB8,#0E9C6C) !important;--sh:rgba(14,156,108,.42)}
+body.cr-emp #openMyProfileBtn{background:linear-gradient(160deg,#62B0FF,#1F5FE0) !important;--sh:rgba(31,95,224,.42)}
+/* the day-by-day table */
+body.cr-emp .card{background:linear-gradient(135deg,rgba(255,255,255,.88),rgba(255,255,255,.60));border:1px solid rgba(255,255,255,.95);border-radius:26px;box-shadow:0 14px 32px rgba(70,80,170,.20),inset 0 1px 0 #fff;backdrop-filter:blur(14px) saturate(170%);-webkit-backdrop-filter:blur(14px) saturate(170%)}
+body.cr-emp table.grid th{background:linear-gradient(135deg,#7A45F0,#2E7BFF 65%,#19C7D8);border-bottom:none;padding:9px 4px;text-shadow:0 1px 2px rgba(0,0,0,.28);box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
+body.cr-emp table.grid th:first-child{border-radius:12px 0 0 12px}body.cr-emp table.grid th:last-child{border-radius:0 12px 12px 0}
+body.cr-emp table.grid td{background:rgba(255,255,255,.84);border-top:1.5px solid rgba(150,165,235,.30);border-bottom:1.5px solid rgba(150,165,235,.30);border-right:1px solid rgba(150,165,235,.16)}
+body.cr-emp table.grid td:first-child{border-left:1.5px solid rgba(150,165,235,.30)}body.cr-emp table.grid td:last-child{border-right:1.5px solid rgba(150,165,235,.30);border-radius:0 12px 12px 0}
+body.cr-emp table.grid tbody tr:nth-child(even) td:not(.date-cell){background:rgba(236,243,255,.88)}
+body.cr-emp table.grid td.date-cell{background:linear-gradient(160deg,#9B7BFF,#3B6FF0);border-radius:12px !important;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -2px 0 rgba(0,0,0,.12);text-shadow:0 1px 2px rgba(0,0,0,.25)}
+body.cr-emp table.grid td.date-cell small{color:#E8EEFF}
+body.cr-emp table.grid .friday-row td.date-cell{background:linear-gradient(160deg,#FFA06E,#E0502A)}
+body.cr-emp .friday-row td:not(.date-cell){background:rgba(255,238,228,.9) !important}
+body.cr-emp .status-select{border-radius:12px;border:1.5px solid rgba(255,255,255,.95);padding:7px 3px;font-size:9.5px;font-weight:800;box-shadow:0 3px 8px rgba(70,80,170,.16),inset 0 1px 0 rgba(255,255,255,.9)}
+body.cr-emp .status-select.st-Present,body.cr-emp .st-Present{background:linear-gradient(160deg,#EAFFF6,#B2F1D6) !important;color:#07603F !important;border-color:#74DDB4 !important}
+body.cr-emp .status-select.st-Absent,body.cr-emp .st-Absent{background:linear-gradient(160deg,#FFEBF1,#FFC0CF) !important;color:#9B1B3A !important;border-color:#FF9DB2 !important}
+body.cr-emp .status-select.st-Sick,body.cr-emp .st-Sick{background:linear-gradient(160deg,#FFF4D8,#FFD58A) !important;color:#7A4B00 !important;border-color:#FFC25A !important}
+body.cr-emp .status-select.st-Friday,body.cr-emp .st-Friday{background:linear-gradient(160deg,#F1ECFF,#CDBFFF) !important;color:#4B2CB0 !important;border-color:#B6A2FF !important}
+body.cr-emp .status-select.st-Leave,body.cr-emp .status-select.st-Holiday{background:linear-gradient(160deg,#FFECFA,#FFC2EC) !important;color:#9A1E78 !important;border-color:#FF9FDD !important}
+body.cr-emp .status-select.project-select{background:linear-gradient(160deg,#FFFFFF,#E6EEFF) !important;color:#17375E !important;border-color:#B6CCFF !important}
+body.cr-emp .grid .link-btn{background:rgba(255,255,255,.85);border:1px solid currentColor;border-radius:8px;padding:2px 6px !important}
+/* remarks */
+body.cr-emp .remarks-card{border-radius:24px;border:1px solid rgba(255,255,255,.95);background:linear-gradient(135deg,rgba(255,248,224,.94),rgba(255,229,166,.80));box-shadow:0 12px 26px rgba(220,150,40,.22),inset 0 1px 0 #fff}
+body.cr-emp .remarks-card textarea{border:1.5px solid #FFD27A;border-radius:16px;background:rgba(255,255,255,.92);box-shadow:inset 0 2px 5px rgba(180,120,20,.10)}
+/* bottom bar: Save draft and Submit */
+body.cr-emp .bottom-bar{background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,.88));backdrop-filter:blur(18px) saturate(180%);-webkit-backdrop-filter:blur(18px) saturate(180%);border-top:1px solid rgba(255,255,255,.95);box-shadow:0 -10px 28px rgba(70,80,170,.20);padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px))}
+body.cr-emp .bottom-bar .btn{position:relative;overflow:hidden;border-radius:20px;border:1px solid rgba(255,255,255,.8);padding:15px 6px;font-size:13.5px;white-space:nowrap;font-weight:800;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.30);transition:transform .12s ease}
+body.cr-emp .bottom-bar .btn::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:48%;border-radius:18px 18px 60% 60%/18px 18px 14px 14px;background:linear-gradient(180deg,rgba(255,255,255,.60),rgba(255,255,255,.05));pointer-events:none}
+body.cr-emp .bottom-bar .btn:active{transform:translateY(2px) scale(.985)}
+body.cr-emp .btn-save-draft{background:linear-gradient(160deg,#FFC93C,#F08A00) !important;box-shadow:0 10px 22px rgba(240,138,0,.42),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -3px 0 rgba(0,0,0,.14) !important;color:#fff !important}
+body.cr-emp .btn-submit{background:linear-gradient(160deg,#4BE0A6,#0B8F62) !important;box-shadow:0 10px 22px rgba(11,143,98,.45),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -3px 0 rgba(0,0,0,.14) !important}
 </style>
 </head>
 <body>
@@ -8599,7 +8675,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "31 Oct 2026 - new app icon, PI Team Hub";
+const APP_VERSION = "31 Oct 2026 - crystal timesheet page";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -8608,7 +8684,7 @@ function render(){
   const root = document.getElementById("root");
   if(!checkConfig()) return;
 
-  if(!state.user){ document.body.classList.add("cr-active", "cr-login"); root.innerHTML = renderLogin() + renderVersionTag(); return; }
+  if(!state.user){ document.body.classList.add("cr-active", "cr-login"); document.body.classList.remove("cr-emp"); root.innerHTML = renderLogin() + renderVersionTag(); return; }
 
   let header = renderHeader();
   let body = "";
@@ -8664,6 +8740,7 @@ function render(){
   attachViewEvents();
   document.body.classList.toggle("cr-active", CRYSTAL_VIEWS.includes(state.view));
   document.body.classList.toggle("cr-login", state.view === "login");
+  document.body.classList.toggle("cr-emp", state.view === "employee");
   if(CERT_VIEWS.includes(state.view)) certFitAll();
   if(state.view === "supervisor-signature" || (state.view === "letter" && document.getElementById("sigCanvas"))) initSigPad();
   if(state.view === "leave-form") initLeaveSigPad();
@@ -9322,7 +9399,7 @@ const AF_LETTERHEAD_PAGE = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2
 // Salary & employment certificates: core logic
 // ======================================================================
 const CERT_VIEWS = ["certificates", "certificate-form", "certificate-review", "certificate-letterheads"];
-const CRYSTAL_VIEWS = CERT_VIEWS.concat(["hr", "login"]);   // screens drawn on the colourful crystal background
+const CRYSTAL_VIEWS = CERT_VIEWS.concat(["hr", "login", "employee"]);   // screens drawn on the colourful crystal background
 const CERT_PURPOSES = [
   { label: "Bank loan", phrase: "a bank loan application" },
   { label: "Personal use", phrase: "personal use" },
