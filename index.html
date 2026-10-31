@@ -7,10 +7,11 @@
 <!-- build-marker: arabic-v2 -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1B5A96">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180-v2.png">
+<link rel="icon" type="image/png" href="icon-192-v2.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="PI Timesheets">
+<meta name="apple-mobile-web-app-title" content="PI Team Hub">
 <script>
   // Load required libraries with fallback CDN sources — some networks/firewalls
   // block one CDN provider but allow another. Shows a clear message if all fail.
@@ -8598,7 +8599,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "30 Oct 2026 - no closing words";
+const APP_VERSION = "31 Oct 2026 - new app icon, PI Team Hub";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }

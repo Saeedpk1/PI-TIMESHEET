@@ -1,15 +1,28 @@
 {
-  "name": "PI Timesheets",
-  "short_name": "PI",
-  "description": "Online monthly timesheets for Professional Installation Co",
+  "name": "PI Team Hub",
+  "short_name": "PI Team Hub",
+  "description": "PI Team Hub: timesheets, leave, payroll and certificates for Professional Installation Co",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#EAF2FA",
   "theme_color": "#1B5A96",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icon-192-v2.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512-v2.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512-maskable-v2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

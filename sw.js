@@ -1,5 +1,5 @@
-const CACHE_NAME = "pi-timesheets-v3";
-const APP_SHELL = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
+const CACHE_NAME = "pi-team-hub-v3";
+const APP_SHELL = ["./", "./index.html", "./manifest.json", "./icon-180-v2.png", "./icon-192-v2.png", "./icon-512-v2.png", "./icon-512-maskable-v2.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
