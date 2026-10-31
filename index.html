@@ -885,6 +885,46 @@ body.cr-hr main{padding-bottom:12px !important}
 .cr-seg.tabs button small{min-width:15px;padding:1px 5px;font-size:10.5px}
 .cr-name{font-size:15px;line-height:1.25}
 .cr-sub2{font-size:11px}
+
+/* ================= Certificate form: colour-filled fields ================= */
+.cr-in{--f1:#EEF0FF;--f2:#D6DCFF;--fb:#8EA0F5;--ft:#1B2A5E;--fs:rgba(110,125,240,.26)}
+body input.cr-in,body select.cr-in,body textarea.cr-in{width:100%;background:linear-gradient(135deg,var(--f1),var(--f2)) !important;border:2px solid var(--fb) !important;color:var(--ft) !important;font-weight:700;font-size:15px;padding:12px 14px;border-radius:15px;
+  box-shadow:0 6px 14px var(--fs),inset 0 1px 0 rgba(255,255,255,.75),inset 0 -2px 0 rgba(0,0,0,.05)}
+body input.cr-in:focus,body select.cr-in:focus,body textarea.cr-in:focus{outline:none;border-color:var(--fb) !important;box-shadow:0 0 0 4px var(--fs),0 6px 14px var(--fs),inset 0 1px 0 rgba(255,255,255,.75)}
+.cr-in::placeholder{color:rgba(20,30,70,.42);font-weight:600}
+/* the employee: violet */
+#certEmpSelect{--f1:#EAE2FF;--f2:#C9B9FF;--fb:#7A45F0;--ft:#1F1450;--fs:rgba(122,69,240,.30)}
+body select#certEmpSelect.cr-in{font-size:16px;padding:14px 14px}
+/* dates: amber */
+.cr-in[type=date]{--f1:#FFF1CC;--f2:#FFDB8C;--fb:#F5A623;--ft:#5A3A00;--fs:rgba(245,166,35,.30)}
+/* job title: green */
+#certJobSelect,.cr-in[data-cert-field="job_title"]{--f1:#DDFBEF;--f2:#A6EDCE;--fb:#18B67A;--ft:#064F31;--fs:rgba(24,182,122,.28)}
+/* nationality: magenta */
+.cr-in[data-cert-field="nationality"]{--f1:#FFE4F5;--f2:#FFC0E3;--fb:#C42B9A;--ft:#5E0F48;--fs:rgba(196,43,154,.26)}
+/* the bank: sky blue */
+.cr-in[data-cert-field="bank_name"]{--f1:#E1F0FF;--f2:#B6D8FF;--fb:#2E7BFF;--ft:#0F3364;--fs:rgba(46,123,255,.26)}
+/* salary amounts: teal */
+.cr-in[data-cert-field="basic_salary"],.cr-in[data-cert-field="housing_allowance"],.cr-in[data-cert-field="other_allowance"]{--f1:#D9FAF7;--f2:#A3ECE8;--fb:#12A5A5;--ft:#064A4A;--fs:rgba(18,165,165,.28)}
+/* months typed in: orange month, teal salary, green overtime, rose deductions */
+.cr-in[data-man-field="key"]{--f1:#FFE9D6;--f2:#FFC79C;--fb:#F2692E;--ft:#5C2305;--fs:rgba(242,105,46,.28)}
+.cr-in[data-man-field="fixed"]{--f1:#D9FAF7;--f2:#A3ECE8;--fb:#12A5A5;--ft:#064A4A;--fs:rgba(18,165,165,.28)}
+.cr-in[data-man-field="overtime"]{--f1:#DDFBEF;--f2:#A6EDCE;--fb:#18B67A;--ft:#064F31;--fs:rgba(24,182,122,.28)}
+.cr-in[data-man-field="deductions"]{--f1:#FFE3EA;--f2:#FFBBCB;--fb:#EF4D6A;--ft:#7A1230;--fs:rgba(239,77,106,.28)}
+.cr-manrow{background:linear-gradient(135deg,rgba(255,244,230,.95),rgba(255,230,205,.85));border:1.5px solid #FFC79C}
+/* switches and tick boxes: coloured too */
+.cr-seg{background:linear-gradient(135deg,#EEF0FF,#D9DFFF);border:1.5px solid #B7C2FF;box-shadow:0 4px 12px rgba(110,125,240,.18),inset 0 2px 5px rgba(60,70,150,.08)}
+.cr-seg button{color:#2B3F7A}
+.cr-seg.tabs{background:rgba(255,255,255,.88);border-color:rgba(255,255,255,.9)}
+.cr-seg.tabs button{color:#23375A}
+.cr-check{background:linear-gradient(135deg,#FFF6D6,#FFE7A0);border:1.5px solid #F5C451;border-radius:14px;padding:10px 12px;color:#5A3A00;font-weight:700;box-shadow:0 4px 10px rgba(245,166,35,.20)}
+.cr-check input{accent-color:#C42B9A}
+.cr-pick{background:linear-gradient(135deg,rgba(255,255,255,.95),rgba(240,236,255,.85));border-color:#D3C9FF}
+.cr-pick.on{border-color:#C42B9A}
+.cr-label{color:#2B4166;font-weight:800}
+
+/* the 1 to 6 month buttons: coloured like the other fields */
+.cr-mo button{background:linear-gradient(135deg,#EEF0FF,#D2D9FF);border:2px solid #8EA0F5;color:#1B2A5E;font-weight:800;box-shadow:0 5px 12px rgba(110,125,240,.26),inset 0 1px 0 rgba(255,255,255,.75)}
+.cr-mo button.on{background:linear-gradient(135deg,#FF7AD0,#C42B9A 55%,#7B2FD0);border-color:#fff;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.25);box-shadow:0 7px 16px rgba(196,43,154,.42),inset 0 1px 0 rgba(255,255,255,.55)}
 </style>
 </head>
 <body>
@@ -8871,7 +8911,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "31 Oct 2026 - clearer certificate colours";
+const APP_VERSION = "31 Oct 2026 - coloured certificate fields";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -10766,7 +10806,6 @@ function renderCertificateForm(){
       ${!isExp ? `<label class="cr-label">Addressed to</label>
       <div class="cr-seg"><button class="${d.addressed_to === "general" ? "on" : ""}" data-cert-addr="general">To whom it may concern</button><button class="${d.addressed_to === "bank" ? "on" : ""}" data-cert-addr="bank">A bank</button></div>
       ${d.addressed_to === "bank" ? `<label class="cr-label">Bank name and branch</label><input class="cr-in" type="text" data-cert-field="bank_name" value="${certEsc(d.bank_name)}" placeholder="For example: Al Rajhi Bank, Dammam">` : ""}` : ""}
- : ""}
     </div>
 
     ${salary ? `<div class="cr-glass">
