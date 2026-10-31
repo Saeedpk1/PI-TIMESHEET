@@ -563,13 +563,6 @@ body.cr-active #mySelfTimesheetBtn{position:relative;overflow:hidden;background:
 body.cr-active #mySelfTimesheetBtn::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:48%;border-radius:18px 18px 60% 60%/18px 18px 14px 14px;background:linear-gradient(180deg,rgba(255,255,255,.60),rgba(255,255,255,.06));pointer-events:none}
 body.cr-active #mySelfTimesheetBtn>*{position:relative}
 body.cr-active #mySelfTimesheetBtn:active{transform:translateY(2px) scale(.985)}
-body.cr-active #toggleHrToOwnerSectionBtn,body.cr-active #toggleHrSecuritySectionBtn,body.cr-active #toggleHrTimesheetsSectionBtn{position:relative;overflow:hidden;border-radius:18px;border:1px solid rgba(255,255,255,.95) !important;box-shadow:0 9px 20px rgba(70,80,170,.16),inset 0 1px 0 #fff,inset 0 -3px 0 rgba(0,0,0,.05) !important;backdrop-filter:blur(8px) saturate(160%);-webkit-backdrop-filter:blur(8px) saturate(160%);transition:transform .12s ease}
-body.cr-active #toggleHrToOwnerSectionBtn{background:linear-gradient(155deg,#F2FFF9,#CDF5E2 60%,#B4EBD2) !important}
-body.cr-active #toggleHrSecuritySectionBtn{background:linear-gradient(155deg,#FFF5F6,#FFD9DF 60%,#FFC2CB) !important}
-body.cr-active #toggleHrTimesheetsSectionBtn{background:linear-gradient(155deg,#F4F9FF,#D4E6FB 60%,#BCD6F4) !important}
-body.cr-active #toggleHrToOwnerSectionBtn::before,body.cr-active #toggleHrSecuritySectionBtn::before,body.cr-active #toggleHrTimesheetsSectionBtn::before{content:"";position:absolute;left:3px;right:3px;top:2px;height:46%;border-radius:16px 16px 60% 60%/16px 16px 12px 12px;background:linear-gradient(180deg,rgba(255,255,255,.80),rgba(255,255,255,.05));pointer-events:none}
-body.cr-active #toggleHrToOwnerSectionBtn>*,body.cr-active #toggleHrSecuritySectionBtn>*,body.cr-active #toggleHrTimesheetsSectionBtn>*{position:relative}
-body.cr-active #toggleHrToOwnerSectionBtn:active,body.cr-active #toggleHrSecuritySectionBtn:active,body.cr-active #toggleHrTimesheetsSectionBtn:active{transform:translateY(2px) scale(.985)}
 
 .cr-manrow{border:1px solid rgba(255,255,255,.95);background:rgba(255,255,255,.60);border-radius:14px;padding:10px 12px;margin-top:8px;box-shadow:0 3px 10px rgba(60,70,150,.08)}
 
@@ -828,6 +821,32 @@ body.cr-daily table.report-table thead th:first-child{border-top-left-radius:14p
 body.cr-daily table.report-table thead th:last-child{border-top-right-radius:14px !important}
 body.cr-daily table.report-table tbody tr:last-child td:first-child{border-bottom-left-radius:14px !important}
 body.cr-daily table.report-table tbody tr:last-child td:last-child{border-bottom-right-radius:14px !important}
+
+/* ================= HR page: one compact grid ================= */
+.hr-hero-compact{padding:11px 16px !important;border-radius:20px !important;margin-bottom:10px !important}
+.hr-hero-month{position:relative;z-index:1;color:#fff;font-weight:800;font-size:13px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.55);border-radius:999px;padding:6px 13px;text-shadow:0 1px 2px rgba(0,0,0,.25);white-space:nowrap}
+.hr-me{display:flex;align-items:center;gap:11px;padding:10px 14px;margin-bottom:10px;cursor:pointer;color:#fff}
+.hr-me-ic{font-size:25px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
+.hr-me-tx{flex:1;min-width:0}
+.hr-me-tx b{display:block;font-size:14.5px;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.hr-me-tx span{font-size:11px;color:#E4FBEF}
+.hr-me-go{font-size:26px;font-weight:800;line-height:1}
+.hr-all-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.hr-all-grid.hr-grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.hr-all-grid .hr-tile.crys.v{min-height:clamp(72px, calc((100vh - 344px) / 6), 112px);padding:8px 3px 6px;border-radius:16px}
+.hr-all-grid.hr-grid-2 .hr-tile.crys.v{min-height:74px}
+.hr-all-grid .hr-tile.crys.v .icon{font-size:22px;margin-bottom:0}
+.hr-all-grid .hr-tile.crys.v .label{display:flex;align-items:center;justify-content:center;font-size:10.5px;line-height:1.14;padding:4px 2px;border-radius:9px;width:calc(100% - 4px);margin-top:3px;min-height:2.5em;text-align:center}
+.hr-all-grid .hr-tile.crys.v .label i{font-style:normal}
+.hr-tile.crys.v.open{outline:3px solid #fff;outline-offset:-2px;filter:saturate(1.15) brightness(1.04)}
+.hr-badge{position:absolute;top:4px;right:4px;z-index:3;min-width:18px;height:18px;border-radius:999px;background:linear-gradient(160deg,#FF7C98,#DC2F4B);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 5px;border:1.5px solid #fff;box-shadow:0 2px 6px rgba(220,47,75,.5)}
+.hr-badge-inline{background:linear-gradient(160deg,#FF7C98,#DC2F4B);color:#fff;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:999px;margin-left:6px}
+.hr-panel{margin-top:12px}
+div.hr-panel:not(.card){background:linear-gradient(135deg,rgba(255,255,255,.88),rgba(255,255,255,.60));border:1px solid rgba(255,255,255,.95);border-radius:22px;padding:12px 12px 14px;box-shadow:0 10px 24px rgba(70,80,170,.16),inset 0 1px 0 #fff;backdrop-filter:blur(12px) saturate(170%);-webkit-backdrop-filter:blur(12px) saturate(170%)}
+.hr-panel-t{font-weight:800;font-size:14px;color:#0F2F55;margin-bottom:8px}
+body.cr-active .card.hr-panel{background:linear-gradient(135deg,rgba(255,255,255,.90),rgba(255,255,255,.62));border-radius:22px;box-shadow:0 10px 24px rgba(70,80,170,.16),inset 0 1px 0 #fff;backdrop-filter:blur(12px) saturate(170%);-webkit-backdrop-filter:blur(12px) saturate(170%)}
+body.cr-hr main{padding-bottom:12px !important}
+.hr-tile.crys>.hr-badge{position:absolute}
 </style>
 </head>
 <body>
@@ -8814,7 +8833,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "31 Oct 2026 - crystal daily reports page";
+const APP_VERSION = "31 Oct 2026 - compact HR page";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -8823,7 +8842,7 @@ function render(){
   const root = document.getElementById("root");
   if(!checkConfig()) return;
 
-  if(!state.user){ document.body.classList.add("cr-active", "cr-login"); document.body.classList.remove("cr-emp", "cr-form", "cr-daily"); root.innerHTML = renderLogin() + renderVersionTag(); return; }
+  if(!state.user){ document.body.classList.add("cr-active", "cr-login"); document.body.classList.remove("cr-emp", "cr-form", "cr-daily", "cr-hr"); root.innerHTML = renderLogin() + renderVersionTag(); return; }
 
   let header = renderHeader();
   let body = "";
@@ -8882,6 +8901,7 @@ function render(){
   document.body.classList.toggle("cr-emp", EMP_VIEWS.includes(state.view));
   document.body.classList.toggle("cr-form", EMP_FORM_VIEWS.includes(state.view));
   document.body.classList.toggle("cr-daily", DAILY_VIEWS.includes(state.view));
+  document.body.classList.toggle("cr-hr", state.view === "hr");
   if(CERT_VIEWS.includes(state.view)) certFitAll();
   if(state.view === "supervisor-signature" || (state.view === "letter" && document.getElementById("sigCanvas"))) initSigPad();
   if(state.view === "leave-form") initLeaveSigPad();
@@ -9786,7 +9806,10 @@ const HR_TILE_PALETTE = {
   "#5B1F55": ["#FF92DC", "#CE2A9C"],   // magenta (certificates)
   "#7A2E10": ["#FFAE72", "#E5551A"],   // orange  (approvals)
   "#7A1F1F": ["#FF8FA0", "#DC2F4B"],   // coral   (renewals and directory)
-  "#054035": ["#62EBB8", "#0E9C6C"]    // green
+  "#054035": ["#62EBB8", "#0E9C6C"],   // green
+  "#0F6E56": ["#B7F070", "#4DB01F"],   // lime     (to owner)
+  "#1B2B44": ["#9DB0D0", "#4B6390"],   // slate    (security)
+  "#1A237E": ["#A2AEFF", "#3C4AD8"]    // indigo   (monthly sheets)
 };
 
 // what each job title did, for the experience certificate's line about his work (used only when kind words are ticked)
@@ -11006,6 +11029,9 @@ function profileServiceLine(p){
   ["input", "change", "click", "touchend", "mouseup", "pointerup"].forEach(ev => document.addEventListener(ev, later, true));
   document.addEventListener("input", (e) => { if(e.target && e.target.id === "ceoMessageInput"){ const n = document.getElementById("ceoMsgCount"); if(n) n.textContent = String(e.target.value.length); } }, true);
 })();
+
+// when a bar on the HR page opens a panel below the tiles, bring the panel into view
+function hrScrollToPanel(){ setTimeout(() => { const p = document.querySelector(".hr-panel"); if(p) p.scrollIntoView({ behavior: "smooth", block: "start" }); }, 60); }
 
 // ---------------- Project Summary: manpower and lump-sum, side by side ----------------
 function psFmt(n){ return Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
@@ -12579,14 +12605,15 @@ function renderHrTimesheetReview(){
   `;
 }
 
-function hrTileLight(icon, label, id, color, tint){
+function hrTileLight(icon, label, id, color, tint, extra){
   const hex6 = (h) => /^#[0-9a-f]{6}$/i.test(String(h || ""));
   const vivid = HR_TILE_PALETTE[color];
   if(vivid){
     // a vivid crystal button; the name sits on a white strip so it is always easy to read
-    return `<div class="hr-tile crys v" id="${id}" style="--g1:${vivid[0]};--g2:${vivid[1]};--lc:${color};--sh:${vivid[1]}77;">
+    return `<div class="hr-tile crys v${extra && extra.cls ? " " + extra.cls : ""}" id="${id}" style="--g1:${vivid[0]};--g2:${vivid[1]};--lc:${color};--sh:${vivid[1]}77;">
+    ${extra && extra.badge ? `<span class="hr-badge">${extra.badge}</span>` : ""}
     <span class="icon">${icon}</span>
-    <span class="label">${label}</span>
+    <span class="label"><i>${label}</i></span>
   </div>`;
   }
   if(hex6(color) && hex6(tint)){
@@ -12657,107 +12684,62 @@ function renderHrView(){
     </div>`;
   }).join("") || `<div class="empty-state"><div class="ic">📄</div>No approved timesheets yet for this month.</div>`;
 
+  const waitTag = hrPendingCeoMessageCount ? String(hrPendingCeoMessageCount) : "";
   return `
-    <div class="hr-hero" style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:18px;position:relative;overflow:hidden;margin-bottom:14px;">
-      <div style="position:absolute;top:-10px;right:-8px;font-size:64px;opacity:0.12;">🗂️</div>
-      <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#BFDCF5;font-weight:700;position:relative;">Professional Installation Co.</div>
-      <div style="font-size:19px;font-weight:800;color:#fff;margin-top:4px;position:relative;">HR Dashboard</div>
-      <div style="font-size:12.5px;color:#BFDCF5;margin-top:2px;position:relative;">${monthLabel(state.monthDate)}</div>
-    </div>
-
-    <div class="card" style="padding:16px;margin-bottom:14px;cursor:pointer;background:linear-gradient(135deg,#1C8A4E,#2FAE68);border:none;box-shadow:0 3px 10px rgba(28,138,78,0.3);" id="mySelfTimesheetBtn">
-      <div class="row-between">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:26px;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.25));">🕒</span>
-          <div>
-            <div style="font-weight:800;font-size:15px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.3);">My Timesheet</div>
-            <div style="font-size:11.5px;color:#DFF3E6;">Fill in your own hours</div>
-          </div>
+    <div class="hr-hero hr-hero-compact" style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:12px 16px;position:relative;overflow:hidden;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;position:relative;">
+        <div>
+          <div style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:#BFDCF5;font-weight:700;">Professional Installation Co.</div>
+          <div style="font-size:18px;font-weight:800;color:#fff;margin-top:1px;">HR Dashboard</div>
         </div>
-        <span style="color:#fff;font-size:22px;font-weight:800;">›</span>
+        <div class="hr-hero-month">${monthLabel(state.monthDate)}</div>
       </div>
     </div>
 
-    <div class="hr-section-label" style="color:#B8912A;">📋 Daily Reports</div>
-    <div class="hr-tile-grid">
-      ${hrTileLight("📋", "Add Daily<br>Report", "openDailyReportBtn", "#6B4E0A", "#F0D488")}
-      ${hrTileLight("👁", "View Daily<br>Reports", "openCombinedReportsBtn", "#6B4E0A", "#F0D488")}
-      ${hrTileLight("📊", "Attendance<br>by Project", "exportAttendanceByProjectBtn", "#6B4E0A", "#F0D488")}
-      ${hrTileLight("🗂️", "Project<br>Work Log", "openProjectWorklogBtn", "#6B4E0A", "#F0D488")}
+    <div class="hr-me" id="mySelfTimesheetBtn">
+      <span class="hr-me-ic">🕒</span>
+      <div class="hr-me-tx"><b>My Timesheet</b><span>Fill in your own hours</span></div>
+      <span class="hr-me-go">›</span>
     </div>
 
-    <div class="hr-section-label" style="color:#0C3A66;">📄 Blank Timesheet</div>
-    <div class="hr-tile-grid">
-      ${hrTileLight("📄", "Blank<br>Timesheet", "openBlankTimesheetScreenBtn", "#0A4F55", "#9BDDE2")}
+    <div class="hr-all-grid">
+      ${hrTileLight("📋", "Add<br>Report", "openDailyReportBtn", "#6B4E0A", "#FFFFFF")}
+      ${hrTileLight("👁", "View<br>Reports", "openCombinedReportsBtn", "#6B4E0A", "#FFFFFF")}
+      ${hrTileLight("📊", "Attendance", "exportAttendanceByProjectBtn", "#6B4E0A", "#FFFFFF")}
+      ${hrTileLight("🗂️", "Work<br>Log", "openProjectWorklogBtn", "#6B4E0A", "#FFFFFF")}
+      ${hrTileLight("📄", "Blank<br>Sheet", "openBlankTimesheetScreenBtn", "#0A4F55", "#FFFFFF")}
+      ${hrTileLight("💰", "Finance", "openFinancialReportBtn", "#0C3A66", "#FFFFFF")}
+      ${hrTileLight("👁", "Finance<br>View", "viewFinancialReportOnlyBtn", "#0C3A66", "#FFFFFF")}
+      ${hrTileLight("📊", "Summary", "openProjectSummaryBtn", "#0C3A66", "#FFFFFF")}
+      ${hrTileLight("💵", "Commission", "openCommissionTrackerBtn", "#0C3A66", "#FFFFFF")}
+      ${hrTileLight("📐", "Quote", "openProjectQuoteBtn", "#0C3A66", "#FFFFFF")}
+      ${hrTileLight("📊", "Salary<br>Sheet", "salarySheetBtn", "#3D2A66", "#FFFFFF")}
+      ${hrTileLight("🏦", "WPS<br>PI + Saudi", "wpsPiSaudiBtn", "#3D2A66", "#FFFFFF")}
+      ${hrTileLight("🏦", "WPS<br>Al Falak", "wpsAlFalakBtn", "#3D2A66", "#FFFFFF")}
+      ${hrTileLight("📄", "Certificates", "openCertificatesBtn", "#5B1F55", "#FFFFFF")}
+      ${hrTileLight("🌴", "Leave", "openHrLeaveListBtn", "#7A2E10", "#FFFFFF")}
+      ${hrTileLight("🧾", "Expenses", "openHrPurchasesBtn", "#7A2E10", "#FFFFFF")}
+      ${hrTileLight("🧾", "My<br>Purchase", "openPurchaseFormBtn", "#7A2E10", "#FFFFFF")}
+      ${hrTileLight("🔔", "Renewals", "openRenewalsBtn", "#7A1F1F", "#FFFFFF")}
+      ${hrTileLight("👤", "Directory", "openEmployeeDirectoryBtn", "#7A1F1F", "#FFFFFF")}
+      ${hrTileLight("🚗", "Vehicles", "openVehicleDocumentsBtn", "#7A1F1F", "#FFFFFF")}
+      ${hrTileLight("🌴", "Vacations", "openVacationManagerFromHrBtn", "#7A1F1F", "#FFFFFF")}
+      ${hrTileLight("📨", "To<br>Owner", "toggleHrToOwnerSectionBtn", "#0F6E56", "#FFFFFF", { cls: state.hrToOwnerSectionOpen ? "open" : "", badge: waitTag })}
+      ${hrTileLight("🛡️", "Security", "toggleHrSecuritySectionBtn", "#1B2B44", "#FFFFFF", { cls: state.hrSecuritySectionOpen ? "open" : "" })}
+      ${hrTileLight("📅", "Monthly<br>Sheets", "toggleHrTimesheetsSectionBtn", "#1A237E", "#FFFFFF", { cls: state.hrTimesheetsSectionOpen ? "open" : "" })}
     </div>
 
-    <div class="hr-section-label" style="color:#1B5A96;">💰 Finance</div>
-    <div class="hr-tile-grid">
-      ${hrTileLight("💰", "Financial<br>Report", "openFinancialReportBtn", "#0C3A66", "#A8CCEE")}
-      ${hrTileLight("👁", "View<br>Report", "viewFinancialReportOnlyBtn", "#0C3A66", "#A8CCEE")}
-      ${hrTileLight("📊", "Project<br>Summary", "openProjectSummaryBtn", "#0C3A66", "#A8CCEE")}
-      ${hrTileLight("💵", "Commission<br>Tracker", "openCommissionTrackerBtn", "#0C3A66", "#A8CCEE")}
-      ${hrTileLight("📐", "Project<br>Quote", "openProjectQuoteBtn", "#0C3A66", "#A8CCEE")}
-    </div>
-
-    <div class="hr-section-label" style="color:#6B4FC4;">💰 Payroll & Salary</div>
-    <div class="hr-tile-grid">
-      ${hrTileLight("📊", "Salary Sheet<br>(Excel)", "salarySheetBtn", "#3D2A66", "#C9AEE8")}
-      ${hrTileLight("🏦", "WPS Payroll<br>PI + Saudi", "wpsPiSaudiBtn", "#3D2A66", "#C9AEE8")}
-      ${hrTileLight("🏦", "WPS Payroll<br>Al Falak", "wpsAlFalakBtn", "#3D2A66", "#C9AEE8")}
-    </div>
-
-    <div class="hr-section-label" style="color:#B5238F;">📄 Certificates</div>
-    <div class="hr-tile-grid">
-      ${hrTileLight("📄", "Salary &amp; Employment<br>Certificates", "openCertificatesBtn", "#5B1F55", "#F0B2E3")}
-    </div>
-
-    <div class="hr-section-label" style="color:#D85A30;">✅ Approvals</div>
-    <div class="hr-tile-grid">
-      ${hrTileLight("🌴", "Leave<br>Approvals", "openHrLeaveListBtn", "#7A2E10", "#EFB393")}
-      ${hrTileLight("🧾", "Purchase /<br>Expenses", "openHrPurchasesBtn", "#7A2E10", "#EFB393")}
-      ${hrTileLight("🧾", "Record My<br>Purchase", "openPurchaseFormBtn", "#7A2E10", "#EFB393")}
-    </div>
-
-    <div class="hr-section-label" style="color:#C43B3B;">🔔 Renewals & Directory</div>
-    <div class="hr-tile-grid">
-      ${hrTileLight("🔔", "Renewals &<br>Expiry", "openRenewalsBtn", "#7A1F1F", "#EFA3A3")}
-      ${hrTileLight("👤", "Employee<br>Directory", "openEmployeeDirectoryBtn", "#7A1F1F", "#EFA3A3")}
-      ${hrTileLight("🚗", "Vehicle<br>Documents", "openVehicleDocumentsBtn", "#7A1F1F", "#EFA3A3")}
-      ${hrTileLight("🌴", "Vacation<br>Records", "openVacationManagerFromHrBtn", "#7A1F1F", "#EFA3A3")}
-    </div>
-
-    <div class="hr-section-label" style="color:#0F6E56;">📨 To Owner</div>
-    <div class="card" style="padding:12px 14px;cursor:pointer;position:relative;" id="toggleHrToOwnerSectionBtn">
-      <div class="row-between">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:20px;">📨</span>
-          <div style="font-weight:800;font-size:13.5px;color:#0F6E56;">Messages & To-Do for Owner</div>
-        </div>
-        <span style="color:#0F6E56;font-size:16px;font-weight:800;">${state.hrToOwnerSectionOpen ? "▲" : "▼"}</span>
-      </div>
-      ${hrPendingCeoMessageCount ? `<div style="position:absolute;top:-6px;right:10px;background:#C43B3B;color:#fff;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;">${hrPendingCeoMessageCount} waiting</div>` : ""}
-    </div>
     ${state.hrToOwnerSectionOpen ? `
-    <div class="hr-tile-grid" style="margin-top:8px;">
-      ${hrTileLight("📨", "Messages<br>to Owner", "openCeoInboxBtn", "#054035", "#7FCFAF")}
-      ${hrTileLight("📝", "To-Do for<br>Owner", "openSendHrTodoBtn", "#054035", "#7FCFAF")}
+    <div class="hr-panel">
+      <div class="hr-panel-t">📨 To Owner${hrPendingCeoMessageCount ? ` <span class="hr-badge-inline">${hrPendingCeoMessageCount} waiting</span>` : ""}</div>
+      <div class="hr-all-grid hr-grid-2">
+        ${hrTileLight("📨", "Messages", "openCeoInboxBtn", "#0F6E56", "#FFFFFF", { badge: waitTag })}
+        ${hrTileLight("📝", "To-Do", "openSendHrTodoBtn", "#0F6E56", "#FFFFFF")}
+      </div>
     </div>
     ` : ""}
-
-
-    <div class="hr-section-label" style="color:#C43B3B;">🛡️ Database Security</div>
-    <div class="card" style="padding:12px 14px;cursor:pointer;" id="toggleHrSecuritySectionBtn">
-      <div class="row-between">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:20px;">🛡️</span>
-          <div style="font-weight:800;font-size:13.5px;color:#C43B3B;">Database Security (Phase 1)</div>
-        </div>
-        <span style="color:#C43B3B;font-size:16px;font-weight:800;">${state.hrSecuritySectionOpen ? "▲" : "▼"}</span>
-      </div>
-    </div>
     ${state.hrSecuritySectionOpen ? `
-    <div class="card" style="margin-top:8px;border:2px solid #C43B3B;">
+    <div class="card hr-panel" style="margin-top:8px;border:2px solid #C43B3B;">
       <div class="meta">Creates a real login account for every employee, laying the groundwork for locking down who can access what in the database. Safe to run — nothing changes about how anyone logs in yet, and this can be re-run if some accounts fail the first time.</div>
       <button class="btn btn-outline btn-sm" id="runAuthMigrationBtn" style="width:100%;margin-top:8px;color:#C43B3B;border-color:#C43B3B;" ${state.loading && state.authMigrationProgress ? "disabled" : ""}>🛡️ Create Login Accounts for All Employees</button>
       ${state.authMigrationProgress ? `<div class="field-note" style="margin-top:8px;"><span class="spinner" style="margin-right:6px;"></span>${state.authMigrationProgress}</div>` : ""}
@@ -12768,19 +12750,8 @@ function renderHrView(){
       </div>` : ""}
     </div>
     ` : ""}
-
-    <div class="hr-section-label" style="color:var(--blue);">📅 Monthly Timesheets</div>
-    <div class="card" style="padding:12px 14px;cursor:pointer;" id="toggleHrTimesheetsSectionBtn">
-      <div class="row-between">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:20px;">📅</span>
-          <div style="font-weight:800;font-size:13.5px;color:var(--navy);">Monthly Timesheets & Downloads</div>
-        </div>
-        <span style="color:var(--blue);font-size:16px;font-weight:800;">${state.hrTimesheetsSectionOpen ? "▲" : "▼"}</span>
-      </div>
-    </div>
     ${state.hrTimesheetsSectionOpen ? `
-    <div class="card" style="padding:12px 14px;margin-top:8px;">
+    <div class="card hr-panel" style="padding:12px 14px;margin-top:8px;">
       <div class="row-between" style="margin-bottom:10px;">
         <label style="margin:0;">Month</label>
         <button class="link-btn" id="manageProjectsBtn" style="color:var(--blue) !important;">📁 Manage projects</button>
@@ -14560,16 +14531,19 @@ function handleDelegatedClick(e){
   if(el("toggleHrTimesheetsSectionBtn")){
     state.hrTimesheetsSectionOpen = !state.hrTimesheetsSectionOpen;
     render();
+    if(state.hrTimesheetsSectionOpen) hrScrollToPanel();
     return;
   }
   if(el("toggleHrSecuritySectionBtn")){
     state.hrSecuritySectionOpen = !state.hrSecuritySectionOpen;
     render();
+    if(state.hrSecuritySectionOpen) hrScrollToPanel();
     return;
   }
   if(el("toggleHrToOwnerSectionBtn")){
     state.hrToOwnerSectionOpen = !state.hrToOwnerSectionOpen;
     render();
+    if(state.hrToOwnerSectionOpen) hrScrollToPanel();
     return;
   }
   if(el("toggleHrInboxSentSectionBtn")){
