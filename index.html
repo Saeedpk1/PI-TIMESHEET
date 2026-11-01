@@ -1055,6 +1055,63 @@ table.ls-table{font-size:10.5px}
 .ls-pc{font-size:8.5px;font-weight:800;color:#5B4A94;white-space:nowrap;vertical-align:middle}
 .ls-table td{height:28px}
 .ls-table td.ls-p{padding:2px 5px}
+
+/* ============ smaller, neater type: every month and every project name on ONE line ============ */
+/* manpower tables */
+.mp-head>b{font-size:12.5px}
+.mp-add{font-size:10px;padding:5px 10px}
+.mp-acts .ps-ib{width:24px;height:24px;font-size:11px}
+table.mp-table{font-size:10.5px}
+.mp-table th{font-size:8px;letter-spacing:.1px;padding:5px 0}
+.mp-table td{height:24px;padding:0 4px;font-size:10.5px;font-weight:600}
+.mp-table td.mp-m{font-size:9.5px;white-space:nowrap;letter-spacing:-.1px}
+.mp-table tfoot td{height:25px;font-size:10.5px}
+.mp-table .mp-amt{font-size:10.5px;padding:1px 2px}
+.mp-table .ps-pill{font-size:9px;padding:2px 5px}
+.mp-table .ps-ib.ps-add{height:17px;min-width:24px;font-size:12px;padding:0 6px;border-radius:6px}
+.mp-x{font-size:8.5px;padding:3px}
+.mp-table tr.mp-open td.mp-m{font-size:9px}
+.mp-removed{font-size:9px}
+.ps-banner.mp h4,.ps-banner.ls h4{font-size:12px}
+.ps-banner.mp button{font-size:10.5px;padding:5px 11px}
+.ps-note{font-size:9.5px;line-height:1.45}
+.mp-proj .ps-warn{font-size:9px}
+/* Lump Sum: one line per project */
+table.ls-table{font-size:9.5px}
+.ls-table th{font-size:8px;padding:5px 0}
+.ls-table td{height:25px;padding:0 3px;font-size:9.5px}
+.ls-table td.ls-p{padding:0 5px;font-size:9.5px;line-height:1.1}
+.ls-pw{display:flex;align-items:center;gap:4px;min-width:0;white-space:nowrap}
+.ls-pw .ps-name-btn{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9.5px;font-weight:800}
+.ls-pc{flex:none;font-size:8px;font-weight:800;color:#5B4A94}
+.ls-mp{flex:none;font-size:9px;line-height:1}
+.ls-table td.ls-big{font-size:8px;letter-spacing:-.3px}
+.ls-table .ps-pill{font-size:8.5px;padding:2px 4px}
+.ls-table tfoot td{height:25px;font-size:9.5px}
+.ls-full{font-size:11px;font-weight:800;color:#2B1B66;margin-bottom:5px}
+.ls-act{font-size:10px;padding:4px 9px}
+.ls-table tr.ps-expand td{font-size:10px}
+@media (max-width:380px){
+  .ls-table td,.ls-table td.ls-p,.ls-pw .ps-name-btn{font-size:9px}.ls-table td.ls-big{font-size:7.5px}.ls-pc{font-size:7.5px}
+  .mp-table td{font-size:10px}.mp-table td.mp-m{font-size:9px}
+}
+
+/* Lump Sum: the whole cell is the name */
+.ls-pw .ps-name-btn{font-size:9.5px}
+.ls-table td.ls-big{font-size:8px}
+.ls-table .ps-pill{font-size:8px;padding:2px 3px}
+@media (max-width:380px){
+  .ls-table td,.ls-table td.ls-p,.ls-pw .ps-name-btn{font-size:8.5px}.ls-table td.ls-big{font-size:7.5px}.ls-table .ps-pill{font-size:7.5px;padding:2px 2px}
+}
+
+/* Lump Sum margin: coloured text instead of a pill, so it is compact */
+.ls-table .ps-pill{background:transparent !important;border:none !important;box-shadow:none !important;padding:0 !important;font-size:8.5px;font-weight:800}
+.ls-table td.mp-c{padding:0 1px}
+@media (max-width:380px){ .ls-table .ps-pill{font-size:8px !important;padding:0 !important} }
+
+.ls-table .ps-pill{min-width:0 !important}
+
+@media (max-width:380px){ .ls-table th{font-size:6.8px !important;letter-spacing:0} .mp-table th{font-size:7.4px} }
 </style>
 </head>
 <body>
@@ -9079,7 +9136,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "1 Nov 2026 - edit months, compact lump sum table";
+const APP_VERSION = "1 Nov 2026 - smaller neat tables";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -11525,10 +11582,10 @@ function renderProjectSummary(){
     const actions = canEdit ? `<div class="ls-acts">${showingArchived ? `<button class="ls-act" data-restore-project="${p.id}">↩ Bring back</button>` : `<button class="ls-act" data-edit-project-name="${p.id}">🏷️ Rename</button><button class="ls-act" data-edit-project-opening="${p.id}">✎ Opening balances</button>${p.claimValue > 0 ? `<button class="ls-act" data-raise-invoice-claim="${p.id}">📥 Save claim as invoice</button>` : ""}<button class="ls-act" data-archive-project="${p.id}">🗄 Hide</button>`}</div>` : "";
     return `
       <tr class="${open ? "ls-open" : ""}">
-        <td class="ls-p" style="--pct:${pct}%" title="${pct}% of the PO invoiced"><span class="ps-name-btn" data-toggle-project-invoices="${p.id}">${escapeHtml(p.name)} ${open ? "▴" : "▾"}</span> <span class="ls-pc">${pct}%</span>${p.claimValue > 0 ? `<span class="ps-tag">+ manpower</span>` : ""}</td>
+        <td class="ls-p" style="--pct:${pct}%" title="${escapeHtml(p.name)} · ${pct}% of the PO invoiced"><div class="ls-pw"><span class="ps-name-btn" data-toggle-project-invoices="${p.id}">${escapeHtml(p.name)}</span>${p.claimValue > 0 ? `<span class="ls-mp" title="Includes a manpower claim">👷</span>` : ""}</div></td>
         <td${lsBig(p.poValue)}>${mpMoney(p.poValue)}</td><td${lsBig(p.expenses)}>${mpMoney(p.expenses)}</td><td${lsBig(p.invoicesTotal)}>${mpMoney(p.invoicesTotal)}</td>
         <td${lsBig(p.balance)}>${p.balance < 0 ? mpMoney(p.balance) : `<b>${mpMoney(p.balance)}</b>`}</td><td class="mp-c">${psPill(p.margin)}</td>
-      </tr>${open ? `<tr class="ps-expand"><td colspan="6"><div class="ps-xin">${actions}${invoiceList(p)}</div></td></tr>` : ""}`;
+      </tr>${open ? `<tr class="ps-expand"><td colspan="6"><div class="ps-xin"><div class="ls-full">${escapeHtml(p.name)} · ${pct}% of the PO invoiced${p.claimValue > 0 ? " · includes a manpower claim" : ""}</div>${actions}${invoiceList(p)}</div></td></tr>` : ""}`;
   }).join("");
 
   const lumpTotals = (() => {
@@ -11557,7 +11614,7 @@ function renderProjectSummary(){
         <div><h4>📦 Lump Sum Projects<span class="ps-count">${lumpRows.length}</span></h4></div>
       </div>
       ${lumpRows.length ? `<div class="ls-grid"><table class="ls-table">
-        <colgroup><col style="width:24%"><col style="width:16%"><col style="width:14%"><col style="width:15%"><col style="width:15%"><col style="width:16%"></colgroup>
+        <colgroup><col style="width:31%"><col style="width:15%"><col style="width:13%"><col style="width:14%"><col style="width:14%"><col style="width:13%"></colgroup>
         <thead><tr><th>Project</th><th>PO</th><th>Expenses</th><th>Invoiced</th><th>Balance</th><th>Margin</th></tr></thead>
         <tbody>${lumpBody}</tbody>${lumpTotals}
       </table></div>
