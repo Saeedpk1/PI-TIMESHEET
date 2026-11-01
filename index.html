@@ -9136,7 +9136,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "1 Nov 2026 - new salary certificate wording";
+const APP_VERSION = "1 Nov 2026 - salary certificate exactly as the sample";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -10240,13 +10240,18 @@ table.cx-t{width:100%;border-collapse:collapse;font-size:10.8px;margin:3px 0 12p
 .sc-title i{display:block;width:54px;height:1.6px;background:var(--gold)}
 .sc-date{font-size:12.4px;color:#1B2433;margin:0 0 26px}.sc-date b{font-weight:700}
 .sc-to{font-size:12.6px;font-weight:700;color:var(--cd);margin:0 0 16px}
-.sc-p{font-size:12.6px;line-height:2;text-align:justify;margin:0 0 16px;color:#1B2433}.sc-p b{font-weight:700;color:var(--cd)}.sc-p b.nm{color:var(--cm)}
+.sc-p{font-size:12.6px;line-height:2;text-align:justify;margin:0 0 16px;color:#1B2433}.sc-p b{font-weight:700;color:var(--cd)}
 .sc-sign{width:330px;color:#111}.sc-area{position:relative;height:96px}
 .sc-area .cf-sigimg{position:absolute;left:4px;bottom:6px;height:70px;max-width:170px;object-fit:contain}
 .sc-area .cf-stampimg,.sc-area .cf-stamp{position:absolute;right:0;bottom:0}
 .sc-rule{border-top:1.3px solid var(--cd);margin-top:2px}.sc-cap{font-size:10.6px;font-weight:700;color:var(--cd);padding-top:5px;letter-spacing:.2px}
 .cf-lt .sc-to{margin:16px 34px 4px}.cf-lt .cf-mp{margin:8px 34px 0;font-size:11.4px;line-height:1.8;color:#1B2433}.cf-lt .cf-mp b{color:var(--cd);font-weight:700}
 .cf-lt-classic .sc-date{margin:0 0 20px}
+.cf-lt-classic .cf-sec{margin-top:18px}
+.sc-mt{margin:2px 0 14px}.sc-mt .cx-t{margin-bottom:0}
+.cf.cf-s1 .sc-title{margin:4px 0 20px}.cf.cf-s1 .sc-date{margin-bottom:16px}.cf.cf-s1 .sc-to{margin-bottom:10px}.cf.cf-s1 .sc-p,.cf.cf-s1 .cf-lt .cf-mp{font-size:11.4px;line-height:1.7;margin-bottom:10px}.cf.cf-s1 .sc-mt .cx-t th,.cf.cf-s1 .sc-mt .cx-t td{padding:3px 8px}
+.cf.cf-s2 .sc-title{margin:2px 0 12px}.cf.cf-s2 .sc-date{margin-bottom:10px}.cf.cf-s2 .sc-to{margin-bottom:6px}.cf.cf-s2 .sc-p,.cf.cf-s2 .cf-lt .cf-mp{font-size:10.6px;line-height:1.55;margin-bottom:6px}.cf.cf-s2 .sc-mt .cx-t{font-size:9.6px}.cf.cf-s2 .sc-mt .cx-t th,.cf.cf-s2 .sc-mt .cx-t td{padding:2px 8px}.cf.cf-s2 .sc-area{height:80px}
+.cf.cf-s3 .sc-title{margin:0 0 8px}.cf.cf-s3 .sc-date{margin-bottom:6px}.cf.cf-s3 .sc-p,.cf.cf-s3 .cf-lt .cf-mp{font-size:10px;line-height:1.45;margin-bottom:4px}.cf.cf-s3 .sc-area{height:70px}
 </style>`;
 
 function certInitials(name){
@@ -10260,10 +10265,11 @@ function certLogoHtml(lh, size, cls){
 function certFooterText(lh){ return [lh.display_name, lh.address, lh.phone, lh.email, lh.website].map(x => String(x || "").trim()).filter(Boolean).join(" · "); }
 
 // The salary certificate (not the payroll one) is this short letter, in all three designs.
-function certSalaryLetter(c, lh, parts){
+function certSalaryLetter(c, lh, parts, n){
   const name = certEsc(String(c.employee_name || "").toUpperCase()), company = certEsc(lh.display_name), job = certEsc(String(c.job_title || "").trim()), iqama = certEsc(c.iqama_number || "");
   const total = (parts.basic || 0) + (parts.housing || 0) + (parts.other || 0), bankName = certEsc(c.bank_name || "");
   return {
+    title: (c.cert_type === "payroll" || n) ? "PAYROLL CERTIFICATE" : "SALARY CERTIFICATE",
     date: certDateSlash(c.issue_date),
     to: c.addressed_to === "bank" ? `To: The Manager${bankName ? ", " + bankName : ""},` : "To Whom It May Concern,",
     p1: `This is to certify that <b class="nm">${name}</b>, holder of ID/Iqama No. <b>${iqama}</b>, is currently employed by <b>${company}</b>${job ? ` as <b>${job}</b>` : ""}, with a total monthly salary of <b>SAR ${certMoney(total)}</b>.`,
@@ -10276,17 +10282,17 @@ function certLetterSign(c, lh){
   const sig = c.signature_data ? `<img class="cf-sigimg" src="${c.signature_data}" alt="">` : "";
   return `<div class="sc-sign"><div class="sc-area">${sig}${stamp}</div><div class="sc-rule"></div><div class="sc-cap">Authorized Signature &amp; Company Stamp</div></div>`;
 }
-function certSimpleLetterHtml(c, lh, L){
+function certSimpleLetterHtml(c, lh, L, monthsHtml){
   const lhMode = !!lh.page_bg, mt = certMmToPx(lh.margin_top_mm), mb = certMmToPx(lh.margin_bottom_mm);
   const pos = lhMode ? `top:${mt}px;bottom:${mb}px` : "top:40px;bottom:44px";
   const plainHead = lhMode ? "" : `<div class="cx-lh"><b>${certEsc(lh.display_name)}</b>${lh.tagline ? `<span>${certEsc(lh.tagline)}</span>` : ""}</div>`;
   const plainFoot = lhMode ? "" : `<div class="cx-foot">${certEsc(certFooterText(lh))}</div>`;
   return `${lhMode ? `<img class="cf-pagebg" src="${lh.page_bg}" alt="">` : ""}
 <div class="cx-in" style="${pos}"><div class="cf-flow">${plainHead}
-<div class="sc-title"><div class="t"><i></i>SALARY CERTIFICATE<i></i></div></div>
+<div class="sc-title"><div class="t"><i></i>${L.title}<i></i></div></div>
 <div class="sc-date">Date: <b>${L.date}</b></div>
 <div class="sc-to">${L.to}</div>
-<p class="sc-p">${L.p1}</p><p class="sc-p">${L.p2}</p></div>
+<p class="sc-p">${L.p1}</p>${monthsHtml ? `<div class="sc-mt">${monthsHtml}</div>` : ""}<p class="sc-p">${L.p2}</p></div>
 <div class="cx-sign">${certLetterSign(c, lh)}</div></div>${plainFoot}`;
 }
 
@@ -10351,7 +10357,7 @@ function certSignBlock(c, lh, modern){
 
 function certClassicHtml(c, lh, T, months, parts, salary){
   const n = months.length, compact = n >= 5, total = parts.basic + parts.housing + parts.other;
-  const benefits = salary ? certBenefits(c) : [], byCompany = benefits.length > 0;
+  const benefits = (salary && !T.letter) ? certBenefits(c) : [], byCompany = benefits.length > 0;
   const lhMode = !!lh.page_bg, mt = certMmToPx(lh.margin_top_mm), mb = certMmToPx(lh.margin_bottom_mm);
   let salaryTable = "";
   if(salary){
@@ -10383,9 +10389,9 @@ function certClassicHtml(c, lh, T, months, parts, salary){
     return `${decor}
 <div class="cf-in"${lhMode ? ` style="top:${mt}px;bottom:${mb}px"` : ""}><div class="cf-flow cf-lt-classic">
 ${head}
-<div class="sc-title"${lhMode ? ' style="margin-top:0"' : ""}><div class="t"><i></i>SALARY CERTIFICATE<i></i></div></div>
+<div class="sc-title"${lhMode ? ' style="margin-top:0"' : ""}><div class="t"><i></i>${L.title}<i></i></div></div>
 <div class="sc-date" style="padding:0 34px">Date: <b>${L.date}</b></div>
-<div class="cf-lt"><div class="sc-to">${L.to}</div><p class="cf-mp">${L.p1}</p><p class="cf-mp">${L.p2}</p></div>
+<div class="cf-lt"><div class="sc-to">${L.to}</div><p class="cf-mp">${L.p1}</p></div>${monthsTable}<div class="cf-lt"><p class="cf-mp">${L.p2}</p></div>
 </div>
 <div class="cf-sign" style="${lhMode ? "bottom:0;" : ""}padding-left:34px">${certLetterSign(c, lh)}</div>
 ${foot}</div>`;
@@ -10403,7 +10409,7 @@ ${foot}</div>`;
 
 function certModernHtml(c, lh, T, months, parts, salary){
   const n = months.length, total = parts.basic + parts.housing + parts.other, avg = certAverageNet(months);
-  const benefits = salary ? certBenefits(c) : [], byCompany = benefits.length > 0;
+  const benefits = (salary && !T.letter) ? certBenefits(c) : [], byCompany = benefits.length > 0;
   const lhMode = !!lh.page_bg, mt = certMmToPx(lh.margin_top_mm), mb = certMmToPx(lh.margin_bottom_mm);
   const experience = c.cert_type === "experience", leftISO = experience ? (c.leaving_date || "") : "";
   const asOf = c.issue_date || todayLocalISO(), service = certServiceShort(c.joining_date, leftISO || asOf);
@@ -10415,7 +10421,7 @@ function certModernHtml(c, lh, T, months, parts, salary){
     : `<div class="cf-hd"><div class="row">${lh.logo_data ? `<img class="logo" src="${lh.logo_data}" alt="">` : certLogoHtml(lh, 40, "logo")}<div><div style="font-weight:800;font-size:14.5px;white-space:nowrap">${certEsc(lh.display_name)}</div>${lh.tagline ? `<div style="font-size:8.6px;opacity:.85;margin-top:2px">${certEsc(lh.tagline)}</div>` : ""}</div><div class="r"><div class="a">${title}</div><div class="b">Ref ${certEsc(c.ref_no || "—")} · ${certDateShort(c.issue_date)}</div></div></div></div>`;
   const card = `<div class="cf-pc"><div style="display:flex;gap:13px;align-items:center"><div class="cf-av">${certEsc(certInitials(c.employee_name))}</div><div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px;color:var(--cd)">${certEsc(String(c.employee_name || "").toUpperCase())}</div><div style="font-size:9.4px;color:#6A7B8F;margin-top:1px">${certEsc(job || "Employee")}${leftISO ? " · " + certDateShort(c.joining_date) + " to " + certDateShort(leftISO) : (c.joining_date ? " · Joined " + certDateShort(c.joining_date) : "")}${service ? " · " + service : ""}</div></div>${leftISO ? `<div style="background:#EEF1F5;color:#4A5A6E;border-radius:999px;padding:4px 11px;font-size:9.4px;font-weight:800;white-space:nowrap">Former employee</div>` : `<div style="background:#E1F5EA;color:#12713F;border-radius:999px;padding:4px 11px;font-size:9.4px;font-weight:800;white-space:nowrap">● Active</div>`}</div>
 <div class="cf-chips">${bankChip}${c.employee_no ? `<span class="cf-chip">Emp. no. <b>${certEsc(c.employee_no)}</b></span>` : ""}<span class="cf-chip">Iqama <b>${certEsc(c.iqama_number || "")}</b></span>${c.nationality ? `<span class="cf-chip">Nationality <b>${certEsc(c.nationality)}</b></span>` : ""}</div></div>`;
-  let middle = "";
+  let middle = "", hist = "";
   if(salary){
     const third = (c.show_bank_account && c.pay_bank_name)
       ? `<div class="cf-k" style="background:#FFF1D2;color:#8A5A00"><div class="ic" style="background:rgba(138,90,0,.14)">🏦</div><div><div class="l">Paid by transfer</div><div class="v" style="font-size:11px">${certEsc(c.pay_bank_name)}${c.iban_last4 ? " · …" + certEsc(c.iban_last4) : ""}</div></div></div>`
@@ -10436,7 +10442,7 @@ function certModernHtml(c, lh, T, months, parts, salary){
         ? `<div class="cf-box"><div class="cf-bh" style="background:#FFF1D2;color:#8A5A00">PAYMENT</div><div class="cf-ln"><span>Bank</span><b>${certEsc(c.pay_bank_name)}</b></div>${c.iban_last4 ? `<div class="cf-ln"><span>IBAN ending</span><b>…${certEsc(c.iban_last4)}</b></div>` : ""}<div class="cf-ln"><span>Method</span><b>Bank transfer</b></div></div>`
         : `<div class="cf-box"><div class="cf-bh" style="background:var(--cmt2);color:var(--cd)">EMPLOYMENT</div>${c.employee_no ? `<div class="cf-ln"><span>Employee no.</span><b>${certEsc(c.employee_no)}</b></div>` : ""}<div class="cf-ln"><span>Joined</span><b>${certDateShort(c.joining_date) || "–"}</b></div><div class="cf-ln"><span>Service</span><b>${certEsc(certServiceText(c.joining_date, asOf) || "–")}</b></div></div>`;
     }
-    const hist = !n ? "" : `<div class="cf-box cf-hist"><div class="cf-bh" style="background:var(--cmt2);color:var(--cd);display:flex;justify-content:space-between"><span>SALARY PAID IN THE LAST ${n === 1 ? "MONTH" : n + " MONTHS"} (SAR)</span>${n > 1 ? `<span style="color:var(--cs)">Average net ${certMoney(avg)}</span>` : ""}</div>
+    hist = !n ? "" : `<div class="cf-box cf-hist"><div class="cf-bh" style="background:var(--cmt2);color:var(--cd);display:flex;justify-content:space-between"><span>SALARY PAID IN THE LAST ${n === 1 ? "MONTH" : n + " MONTHS"} (SAR)</span>${n > 1 ? `<span style="color:var(--cs)">Average net ${certMoney(avg)}</span>` : ""}</div>
       <table class="cf-mt"><tr><th>Month</th><th class="n">${byCompany ? "Basic" : "Fixed"}</th><th class="n">Overtime</th><th class="n">Deductions</th><th class="n">Net paid</th><th></th></tr>${months.map(m => `<tr><td style="font-weight:700">${certEsc(m.label)}</td><td class="n">${certMoney(m.fixed)}</td><td class="n" style="color:${m.overtime ? "#12713F" : "#9AA8B8"}">${m.overtime ? "+" + certMoney(m.overtime) : "–"}</td><td class="n" style="color:${m.deductions ? "#B3261E" : "#9AA8B8"}">${m.deductions ? "−" + certMoney(m.deductions) : "–"}</td><td class="n" style="font-weight:800;color:var(--cd)">${certMoney(m.net)}</td><td style="width:22%"><div class="cf-mb"><div style="width:${Math.max(4, Math.min(100, m.net / Math.max(total, ...months.map(x => x.net), 1) * 100)).toFixed(1)}%"></div></div></td></tr>`).join("")}</table></div>`;
     const band = n ? "" : `<div class="cf-net"><div><div class="l">${byCompany ? "MONTHLY BASIC SALARY" : "MONTHLY SALARY"}</div><div class="w">${certAmountWords(total)}</div></div><div class="amt">${certMoney(total)}<small>SAR</small></div></div>`;
     middle = `<div class="cf-tiles"><div class="cf-k" style="background:linear-gradient(135deg,var(--cs),var(--cm));color:#fff"><div class="ic">💰</div><div><div class="l">${byCompany ? "Basic salary" : "Monthly salary"}</div><div class="v">SAR ${certMoney(total).replace(/\.00$/, "")}</div></div></div>${second}${third}</div>
@@ -10456,12 +10462,13 @@ function certModernHtml(c, lh, T, months, parts, salary){
     const header2 = lhMode ? header.replace(/<span>[\s\S]*?<\/span>/, `<span>${L.date}</span>`) : header.replace(/<div class="b">[\s\S]*?<\/div>/, `<div class="b">${L.date}</div>`);
     const card2 = `<div class="cf-pc"><div style="display:flex;gap:13px;align-items:center"><div class="cf-av">${certEsc(certInitials(c.employee_name))}</div><div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px;color:var(--cd)">${certEsc(String(c.employee_name || "").toUpperCase())}</div><div style="font-size:9.4px;color:#6A7B8F;margin-top:1px">${certEsc(job || "Employee")}</div></div><div style="background:#E1F5EA;color:#12713F;border-radius:999px;padding:4px 11px;font-size:9.4px;font-weight:800;white-space:nowrap">● Active</div></div>
 <div class="cf-chips">${bankChip}${c.employee_no ? `<span class="cf-chip">Emp. no. <b>${certEsc(c.employee_no)}</b></span>` : ""}<span class="cf-chip">ID/Iqama <b>${certEsc(c.iqama_number || "")}</b></span></div></div>`;
-    const band = `<div class="cf-net"><div><div class="l">TOTAL MONTHLY SALARY</div><div class="w">${certAmountWords(L.total)}</div></div><div class="amt">${certMoney(L.total)}<small>SAR</small></div></div>`;
-    const text = `<div class="cf-lt"><div class="sc-to">${L.to}</div><p class="cf-mp">${L.p1}</p><p class="cf-mp">${L.p2}</p></div>`;
+    const bandL = n ? "" : `<div class="cf-net"><div><div class="l">TOTAL MONTHLY SALARY</div><div class="w">${certAmountWords(L.total)}</div></div><div class="amt">${certMoney(L.total)}<small>SAR</small></div></div>`;
+    const text = n ? `<div class="cf-lt"><div class="sc-to">${L.to}</div><p class="cf-mp">${L.p1}</p></div>${hist}<div class="cf-lt"><p class="cf-mp">${L.p2}</p></div>`
+                   : `<div class="cf-lt"><div class="sc-to">${L.to}</div><p class="cf-mp">${L.p1}</p><p class="cf-mp">${L.p2}</p></div>`;
     const sign2 = `<div class="cf-msign"${lhMode ? ' style="left:30px;right:30px;bottom:0"' : ""}>${certLetterSign(c, lh)}</div>`;
     return lhMode
-      ? `<img class="cf-pagebg" src="${lh.page_bg}" alt=""><div class="cf-lhwrap" style="top:${mt}px;bottom:${mb}px">${header2}${card2}<div class="cf-flow">${text}${band}</div>${sign2}</div>`
-      : `${header2}${card2}<div class="cf-flow">${text}${band}</div>${sign2}\n<div class="cf-ft"><span>${certEsc(certFooterText(lh))}</span><span style="white-space:nowrap">Page 1 of 1</span></div>`;
+      ? `<img class="cf-pagebg" src="${lh.page_bg}" alt=""><div class="cf-lhwrap" style="top:${mt}px;bottom:${mb}px">${header2}${card2}<div class="cf-flow">${text}${bandL}</div>${sign2}</div>`
+      : `${header2}${card2}<div class="cf-flow">${text}${bandL}</div>${sign2}\n<div class="cf-ft"><span>${certEsc(certFooterText(lh))}</span><span style="white-space:nowrap">Page 1 of 1</span></div>`;
   }
   const valid = new Date((c.issue_date || todayLocalISO()) + "T00:00:00"); valid.setDate(valid.getDate() + 30);
   const validISO = `${valid.getFullYear()}-${String(valid.getMonth() + 1).padStart(2, "0")}-${String(valid.getDate()).padStart(2, "0")}`;
@@ -10480,9 +10487,8 @@ function certModernHtml(c, lh, T, months, parts, salary){
 
 
 function certSimpleHtml(c, lh, T, months, parts, salary){
-  if(T.letter) return certSimpleLetterHtml(c, lh, T.letter);
   const n = months.length, compact = n >= 5, total = parts.basic + parts.housing + parts.other;
-  const benefits = salary ? certBenefits(c) : [], byCompany = benefits.length > 0;
+  const benefits = (salary && !T.letter) ? certBenefits(c) : [], byCompany = benefits.length > 0;
   const lhMode = !!lh.page_bg, mt = certMmToPx(lh.margin_top_mm), mb = certMmToPx(lh.margin_bottom_mm);
   const title = salary ? (c.cert_type === "payroll" || n ? "PAYROLL CERTIFICATE" : "SALARY CERTIFICATE") : (c.cert_type === "experience" ? "EXPERIENCE CERTIFICATE" : "EMPLOYMENT CERTIFICATE");
   let salaryTable = "";
@@ -10500,6 +10506,7 @@ function certSimpleHtml(c, lh, T, months, parts, salary){
   }
   const monthsTable = (!salary || !n) ? "" : `<div class="cx-sec">Salary paid in the last ${n === 1 ? "month" : n + " months"}</div>
     <table class="cx-t"><tr><th>Month</th><th class="n">${byCompany ? "Basic salary" : "Fixed salary"}</th><th class="n">Overtime</th><th class="n">Deductions</th><th class="n">Net paid (SAR)</th></tr>${months.map(m => `<tr><td>${certEsc(m.label)}</td><td class="n">${certMoney(m.fixed)}</td><td class="n">${m.overtime ? "+" + certMoney(m.overtime) : "–"}</td><td class="n">${m.deductions ? "−" + certMoney(m.deductions) : "–"}</td><td class="n" style="font-weight:700">${certMoney(m.net)}</td></tr>`).join("")}${n > 1 ? `<tr class="tot"><td colspan="4">Average net salary over ${n} months</td><td class="n">${certMoney(certAverageNet(months))}</td></tr>` : ""}</table>`;
+  if(T.letter) return certSimpleLetterHtml(c, lh, T.letter, monthsTable);
   const sub = T.bank ? `TO: THE MANAGER${T.bankName ? " · " + T.bankName.toUpperCase() : ""}` : "TO WHOM IT MAY CONCERN";
   const salutation = T.bank ? `<p class="cx-p" style="margin-bottom:8px"><b>Dear Sir / Madam,</b></p>` : "";
   const stamp = lh.stamp_data ? `<img class="cf-stampimg" src="${lh.stamp_data}" alt="">` : `<div class="cf-stamp">Company<br>stamp</div>`;
@@ -10524,9 +10531,9 @@ function certificateHtml(c, lh, style){
   const months = salary && Array.isArray(c.months_data) ? c.months_data.slice(0, 6) : [];
   const prose = c.cert_type === "salary" && !months.length && style !== "modern";
   const P = certPalette(lh), T = certTexts(c, lh, salary, prose), modern = style === "modern";
-  if(c.cert_type === "salary" && !months.length) T.letter = certSalaryLetter(c, lh, parts);
+  if(salary) T.letter = certSalaryLetter(c, lh, parts, months.length);
   const vars = `--cd:${P.dark};--cd2:${P.dark2};--cm:${P.main};--cs:${P.second};--cmt:${P.mainTint};--cmt2:${P.mainTint2};--cst:${P.secondTint};--cline:${P.line};--gold:${P.gold};--goldt:${P.goldTint};--goldd:${P.goldDark}`;
-  const limit = lh.page_bg ? 842 - certMmToPx(lh.margin_bottom_mm) - 112 : (style === "simple" ? 842 - 44 - 112 : (modern ? 662 : 655));
+  const limit = lh.page_bg ? 842 - certMmToPx(lh.margin_bottom_mm) - (T.letter ? 128 : 112) : (style === "simple" ? 842 - 44 - 112 : (modern ? 662 : 655));
   return `<div class="cf" data-limit="${limit}" style="${vars}">${CERT_CSS}${style === "simple" ? certSimpleHtml(c, lh, T, months, parts, salary) : (modern ? certModernHtml(c, lh, T, months, parts, salary) : certClassicHtml(c, lh, T, months, parts, salary))}</div>`;
 }
 // If a very long name / bank / purpose pushes the text towards the signature, tighten the page a little (twice at most).
@@ -11107,34 +11114,22 @@ function renderCertificateForm(){
     </div>
 
     ${salary ? `<div class="cr-glass">
-      ${d.cert_type === "salary" ? ((Number(d.housing_allowance) > 0 || Number(d.other_allowance) > 0)
+      ${(Number(d.housing_allowance) > 0 || Number(d.other_allowance) > 0)
         ? `<label class="cr-label">Monthly salary (SAR)</label>
       <div class="cr-three"><div><div class="cr-sub2">Basic</div><input class="cr-in" inputmode="decimal" data-cert-field="basic_salary" value="${certEsc(d.basic_salary)}" placeholder="0"></div>
       <div><div class="cr-sub2">Housing</div><input class="cr-in" inputmode="decimal" data-cert-field="housing_allowance" value="${certEsc(d.housing_allowance)}" placeholder="0"></div>
       <div><div class="cr-sub2">Other</div><input class="cr-in" inputmode="decimal" data-cert-field="other_allowance" value="${certEsc(d.other_allowance)}" placeholder="0"></div></div>
       <div class="cr-sub2" style="margin-top:6px;">The certificate states the total of these.</div>`
         : `<label class="cr-label">Total monthly salary (SAR)</label>
-      <input class="cr-in" inputmode="decimal" data-cert-field="basic_salary" value="${certEsc(d.basic_salary)}" placeholder="0">`) : `      <label class="cr-label">How the salary is shown</label>
-      <div class="cr-seg"><button class="${benefitsMode ? "on" : ""}" data-cert-layout="benefits">Basic + company provides</button><button class="${!benefitsMode ? "on" : ""}" data-cert-layout="itemised">Itemised</button></div>
-      ${benefitsMode ? `<label class="cr-label">Basic salary per month (SAR)</label>
-      <input class="cr-in" inputmode="decimal" data-cert-field="basic_salary" value="${certEsc(d.basic_salary)}" placeholder="0">
-      <label class="cr-label">The company provides and pays for</label>
-      <label class="cr-check"><input type="checkbox" data-cert-field="benefit_accommodation" ${d.benefit_accommodation !== false ? "checked" : ""}><span>Accommodation</span></label>
-      <label class="cr-check"><input type="checkbox" data-cert-field="benefit_transport" ${d.benefit_transport !== false ? "checked" : ""}><span>Transportation</span></label>
-      <label class="cr-check"><input type="checkbox" data-cert-field="benefit_other" ${d.benefit_other !== false ? "checked" : ""}><span>All other expenses</span></label>`
-      : `<label class="cr-label">Monthly salary (SAR)</label>
-      <div class="cr-three"><div><div class="cr-sub2">Basic</div><input class="cr-in" inputmode="decimal" data-cert-field="basic_salary" value="${certEsc(d.basic_salary)}" placeholder="0"></div>
-      <div><div class="cr-sub2">Housing</div><input class="cr-in" inputmode="decimal" data-cert-field="housing_allowance" value="${certEsc(d.housing_allowance)}" placeholder="0"></div>
-      <div><div class="cr-sub2">Other</div><input class="cr-in" inputmode="decimal" data-cert-field="other_allowance" value="${certEsc(d.other_allowance)}" placeholder="0"></div></div>`}`}
+      <input class="cr-in" inputmode="decimal" data-cert-field="basic_salary" value="${certEsc(d.basic_salary)}" placeholder="0">`}
       <div class="cr-total"><span id="certTotalText">SAR ${certMoney(total)}</span><span id="certWordsText" style="font-size:10.5px;font-weight:600;text-align:right;">${total > 0 ? certAmountWords(total) : ""}</span></div>
-      ${(d.pay_bank_name && d.cert_type !== "salary") ? `<label class="cr-check"><input type="checkbox" data-cert-field="show_bank_account" ${d.show_bank_account ? "checked" : ""}><span>Say that the salary is paid by bank transfer to his <b>${certEsc(d.pay_bank_name)}</b> account${d.iban_last4 ? " (last 4 digits …" + certEsc(d.iban_last4) + ")" : ""}</span></label>` : ""}
       ${isPayroll ? `<label class="cr-label">Months of salary to show</label>
       <div class="cr-mo">${[1, 2, 3, 4, 5, 6].map(m => `<button class="${Number(d.months_count) === m ? "on" : ""}" data-cert-months="${m}">${m}</button>`).join("")}</div>` : `<div class="cr-sub2" style="margin-top:10px;">A salary certificate shows the salary only. To show the months paid, choose a Payroll certificate.</div>`}
       ${Number(d.months_count) > 0 && d.employee_id ? `<div class="cr-info"><b>Will show:</b> ${d.months_data && d.months_data.length ? d.months_data.map(m => certEsc(m.label) + " (" + certMoney(m.net) + ")").join(", ") + `. Average ${certMoney(certAverageNet(d.months_data))}.` : "no months yet."} Months from his timesheets are worked out the same way as the Salary Sheet; months you type in are used as typed.</div>` : ""}
       ${Number(d.months_count) > 0 && !d.employee_id ? `<div class="cr-info">Choose the employee to see which months are available.</div>` : ""}
       ${isPayroll && Number(d.months_count) > 0 && (certManualCap(d) > 0 || (d.manual_months || []).length) ? `<label class="cr-label">Months you type in</label>
         ${(d.manual_months || []).map((m, i) => `<div class="cr-manrow"><input class="cr-in" type="month" data-man-idx="${i}" data-man-field="key" value="${certEsc(m.key)}">
-          <div class="cr-three" style="margin-top:8px;"><div><div class="cr-sub2">Basic salary</div><input class="cr-in" inputmode="decimal" data-man-idx="${i}" data-man-field="fixed" value="${certEsc(m.fixed)}" placeholder="0"></div>
+          <div class="cr-three" style="margin-top:8px;"><div><div class="cr-sub2">Fixed salary</div><input class="cr-in" inputmode="decimal" data-man-idx="${i}" data-man-field="fixed" value="${certEsc(m.fixed)}" placeholder="0"></div>
           <div><div class="cr-sub2">Overtime</div><input class="cr-in" inputmode="decimal" data-man-idx="${i}" data-man-field="overtime" value="${certEsc(m.overtime)}" placeholder="0"></div>
           <div><div class="cr-sub2">Deductions</div><input class="cr-in" inputmode="decimal" data-man-idx="${i}" data-man-field="deductions" value="${certEsc(m.deductions)}" placeholder="0"></div></div>
           <div class="cr-row" style="margin-top:8px;align-items:center;"><span class="cr-sub2">Net paid: <b id="manNet-${i}">${certMoney(certNum(m.fixed) + certNum(m.overtime) - certNum(m.deductions))}</b></span><button class="cr-btn sm cr-glassbtn" style="margin:0;" data-man-del="${i}">Remove</button></div></div>`).join("")}
