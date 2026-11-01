@@ -952,34 +952,49 @@ body select#certEmpSelect.cr-in{font-size:16px;padding:14px 14px}
 .ps-expand td>.ps-xin{position:sticky;left:0;box-sizing:border-box;width:min(100%,calc(100vw - 76px));max-width:380px}
 .ps-ib.ps-add{width:auto;min-width:32px;padding:0 9px}
 
-/* ---- manpower projects: one framed table per project, with clear grid lines ---- */
-.mp-proj{padding:12px 0 14px;border-top:1px solid #D6E0EA}
+/* ---- manpower projects: one compact framed table per project, with clear grid lines ---- */
+.ps-banner.mp{padding:7px 12px}
+.ps-banner.mp h4{font-size:13.5px}
+.mp-proj{padding:5px 0 7px;border-top:1px solid #D6E0EA}
 .mp-proj:first-of-type{border-top:none}
-.mp-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 12px 9px}
-.mp-head>b{font-size:15px;color:#0B2E4A;min-width:0;border-left:4px solid #0E7C86;padding-left:9px;line-height:1.2}
-.mp-acts{display:flex;align-items:center;gap:6px;flex:none}
-.mp-add{border:none;border-radius:999px;padding:8px 13px;font-size:12px;font-weight:800;color:#fff;background:linear-gradient(160deg,#4BE0A6,#0B8F62);box-shadow:0 4px 10px rgba(11,143,98,.35);cursor:pointer;white-space:nowrap}
-.mp-grid{margin:0 10px;border:1.5px solid #6F8FAB;border-radius:10px;overflow-x:auto;overflow-y:hidden;background:#fff;box-shadow:0 3px 10px rgba(15,53,86,.10)}
-table.mp-table{width:100%;min-width:330px;border-collapse:collapse;table-layout:fixed;margin:0;font-size:11.5px;font-variant-numeric:tabular-nums;color:#16324A}
-.mp-table th{background:linear-gradient(180deg,#167A93,#0E5A78);color:#fff;font-size:9.2px;letter-spacing:.25px;text-transform:uppercase;font-weight:800;padding:10px 2px;text-align:center;border:1px solid rgba(255,255,255,.30)}
-.mp-table td{border:1px solid #C3D1DE;padding:0 6px;height:42px;text-align:right;background:#fff;vertical-align:middle;overflow:hidden;white-space:nowrap;font-weight:600}
+.mp-head{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 10px 4px}
+.mp-head>b{font-size:13.5px;color:#0B2E4A;min-width:0;border-left:4px solid #0E7C86;padding-left:8px;line-height:1.15}
+.mp-acts{display:flex;align-items:center;gap:5px;flex:none}
+.mp-acts .ps-ib{width:26px;height:26px;font-size:12px}
+.mp-add{border:none;border-radius:999px;padding:6px 11px;font-size:11px;font-weight:800;color:#fff;background:linear-gradient(160deg,#4BE0A6,#0B8F62);box-shadow:0 3px 8px rgba(11,143,98,.32);cursor:pointer;white-space:nowrap}
+.mp-grid{margin:0 8px;border:1.5px solid #6F8FAB;border-radius:9px;overflow-x:auto;overflow-y:hidden;background:#fff;box-shadow:0 2px 8px rgba(15,53,86,.10)}
+table.mp-table{width:100%;min-width:0;border-collapse:collapse;table-layout:fixed;margin:0;font-size:11.5px;font-variant-numeric:tabular-nums;color:#16324A}
+.mp-table th{background:linear-gradient(180deg,#167A93,#0E5A78);color:#fff;font-size:9px;letter-spacing:.2px;text-transform:uppercase;font-weight:800;padding:5px 1px;text-align:center;border:1px solid rgba(255,255,255,.30)}
+.mp-table td{border:1px solid #C3D1DE;padding:0 4px;height:25px;text-align:right;background:#fff;vertical-align:middle;overflow:hidden;white-space:nowrap;font-weight:600;line-height:1.1}
 .mp-table tbody tr:nth-child(even) td{background:#F4F8FB}
-.mp-table td.mp-m{text-align:left;font-weight:800;color:#0B2E4A;background:#E9F0F6 !important;white-space:normal;line-height:1.2;font-size:11.5px}
-.mp-table tr.ps-hl td.mp-m{box-shadow:inset 4px 0 0 #E8A33D}
+.mp-table td.mp-m{text-align:left;font-weight:800;color:#0B2E4A;background:#E9F0F6 !important;white-space:normal;font-size:11px}
+.mp-table tr.ps-hl td.mp-m{box-shadow:inset 3px 0 0 #E8A33D}
 .mp-table td.mp-i{text-align:center}
-.mp-table td.mp-c{text-align:center;padding:0 3px}
+.mp-table td.mp-c{text-align:center;padding:0 2px}
 .mp-table tr>*:first-child{border-left:none}
 .mp-table tr>*:last-child{border-right:none}
 .mp-table thead tr>*{border-top:none}
-.mp-table tfoot td{background:#D9E8F2 !important;font-weight:800;color:#0A2A44;border-top:3px double #0E5A78;border-bottom:none;height:44px}
+.mp-table tfoot td{background:#D9E8F2 !important;font-weight:800;color:#0A2A44;border-top:3px double #0E5A78;border-bottom:none;height:27px}
 .mp-table tr.mp-open td{font-style:italic;color:#5B6B7C}
 .mp-table .ps-pos{color:#0A6B45;font-weight:800}
 .mp-table .ps-neg{color:#B3261E;font-weight:800}
 .mp-table .ps-na{color:#9AA7BA;font-weight:700}
-.mp-table .ps-pill{padding:3px 6px;font-size:10.5px}
-.mp-amt{border:none;background:transparent;font-weight:800;font-size:11.5px;color:#0B5E5A;cursor:pointer;padding:6px 4px;border-bottom:1.5px dotted #0E7C86;font-variant-numeric:tabular-nums;display:inline-block}
+.mp-table .ps-pill{padding:2px 5px;font-size:10px}
+.mp-table .ps-ib.ps-add{width:auto;min-width:26px;height:19px;padding:0 8px;font-size:14px;line-height:1;border-radius:7px}
+.mp-amt{border:none;background:transparent;font-weight:800;font-size:11.5px;color:#0B5E5A;cursor:pointer;padding:2px 3px;border-bottom:1.5px dotted #0E7C86;font-variant-numeric:tabular-nums;display:inline-block}
 .mp-amt:active{background:#E3F4F2}
-.mp-foot{font-size:10.5px;color:#6B5A2E;padding:7px 12px 0;font-style:italic}
+.mp-foot{font-size:10px;color:#6B5A2E;padding:4px 10px 0;font-style:italic}
+.mp-proj .ps-warn{margin:5px 10px 0;padding:5px 8px;font-size:10px}
+.mpdlg-note{font-size:11.5px;color:#5B6B7C;margin:2px 0 4px}
+.mpdlg-hint{font-size:11px;color:#6B5A2E;margin-top:6px;line-height:1.4}
+
+/* the top of the Project Summary: Back, the title and History on one slim bar */
+.ps-top{display:flex;align-items:center;gap:8px;background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:12px;padding:6px 8px;margin-bottom:7px;box-shadow:0 3px 10px rgba(15,53,86,.22)}
+.ps-top .link-btn{color:#fff !important;font-weight:800;font-size:12.5px;margin:0 !important;padding:5px 8px;flex:none;white-space:nowrap}
+.ps-top-t{flex:1;min-width:0;text-align:center;color:#fff;font-weight:800;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ps-top #toggleProjectSummaryArchiveBtn{width:auto !important;margin:0 !important;flex:none;padding:6px 10px !important;font-size:11.5px !important;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff;border:none;font-weight:800;border-radius:9px;white-space:nowrap}
+.ps-banner.mp{padding:5px 10px}
+.ps-banner.mp h4{font-size:13px}
 </style>
 </head>
 <body>
@@ -7971,19 +7986,21 @@ function monthKeyFromText(text, fallbackISO){
 
 async function loadProjectSummary(showArchived){
   state.loading = true; state.projectSummaryShowArchived = !!showArchived; render();
-  let projects, units, reports, invoices;
+  let projects, units, reports, invoices, orphans = [];
   try{
     // reports and invoices are read page by page: the database returns at most 1,000 rows per request,
     // so one request would silently cut the totals short once there are more
-    const [projRes, unitRes, reportRows, invoiceRows] = await Promise.all([
+    const [projRes, unitRes, reportRows, invoiceRows, orphanRows] = await Promise.all([
       sb.from("ts_projects").select("*").eq("active", true).eq("hide_from_summary", !!showArchived).order("name"),
       sb.from("ts_project_units").select("*").eq("active", true),
       fetchAllPages((a, b) => sb.from("ts_daily_reports").select("project_id, unit_id, team_member_ids, report_date")
         .order("report_date", { ascending: true }).order("id", { ascending: true }).range(a, b)),
       fetchAllPages((a, b) => sb.from("ts_financial_invoices").select("*").not("project_id", "is", null)
+        .order("created_at", { ascending: true }).order("id", { ascending: true }).range(a, b)),
+      fetchAllPages((a, b) => sb.from("ts_financial_invoices").select("*").is("project_id", null)
         .order("created_at", { ascending: true }).order("id", { ascending: true }).range(a, b))
     ]);
-    projects = projRes.data; units = unitRes.data; reports = reportRows; invoices = invoiceRows;
+    projects = projRes.data; units = unitRes.data; reports = reportRows; invoices = invoiceRows; orphans = orphanRows;
   }catch(e){
     console.error("Project summary load error:", e);
     state.loading = false;
@@ -8056,6 +8073,21 @@ async function loadProjectSummary(showArchived){
   });
 
   const thisMonth = todayLocalISO().slice(0, 7);
+  const isManpowerOnly = (p) => (manpowerUnitCount[p.id] || 0) > 0 && !(fixedUnitCount[p.id] || 0) && !Number(p.opening_po_value || 0);
+  // an invoice with no project picked is matched to a manpower project when its description contains exactly one project's name
+  const normName = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, "");
+  const linkedNos = new Set((invoices || []).map(v => String(v.invoice_no || "").trim().toLowerCase()).filter(Boolean));
+  const mpProjects = (projects || []).filter(isManpowerOnly), orphanByKey = {};
+  (orphans || []).forEach(v => {
+    const no = String(v.invoice_no || "").trim().toLowerCase();
+    if(no && linkedNos.has(no)) return;                                  // the same invoice is already linked to a project
+    const key = no || `no-number-${v.id}`;
+    if(!orphanByKey[key] || (v.report_date || "") >= (orphanByKey[key].report_date || "")) orphanByKey[key] = v;
+  });
+  Object.values(orphanByKey).forEach(v => {
+    const hay = normName(v.description), hits = mpProjects.filter(p => { const n = normName(p.name); return n.length >= 4 && hay.includes(n); });
+    if(hits.length === 1){ v._byName = true; (invoicesByProject[hits[0].id] = invoicesByProject[hits[0].id] || []).push(v); }
+  });
   state.projectSummaryRows = (projects || []).map(p => {
     const projectInvoices = invoicesByProject[p.id] || [];
     const invoicesSum = projectInvoices.reduce((s,v)=>s+Number(v.amount_no_vat||0),0);
@@ -8080,8 +8112,9 @@ async function loadProjectSummary(showArchived){
     // A project billed only by manpower claim (like Qiddiya) is shown for ONE month: the month of its latest invoice,
     // so the next month's invoice moves it on. With no invoice yet, the current month. Everything since the start
     // stays available (row.since). Projects with a fixed PO keep their whole-project figures.
-    const manpowerOnly = (manpowerUnitCount[p.id] || 0) > 0 && !(fixedUnitCount[p.id] || 0) && !Number(p.opening_po_value || 0);
+    const manpowerOnly = isManpowerOnly(p);
     if(manpowerOnly){
+      projectInvoices.forEach(v => { v._issue = String(v.report_date || v.created_at || "").slice(0, 10); v._month = mpInvoiceMonth(v, p.name) || v._month; });
       const invoiceMonths = projectInvoices.map(v => v._month).filter(Boolean).sort();
       const latestInvoiceMonthKey = invoiceMonths.length ? invoiceMonths[invoiceMonths.length - 1] : null;
       const monthKey = latestInvoiceMonthKey || thisMonth;
@@ -8975,7 +9008,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "31 Oct 2026 - professional manpower tables";
+const APP_VERSION = "1 Nov 2026 - invoices by month, compact tables";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -11187,10 +11220,25 @@ function psPill(m){
 // A manpower project over every month, plus anything entered from before the app.
 function psDash(v){ return (v === null || v === undefined) ? `<span class="ps-na">–</span>` : psMoney(v); }
 function mpMoney(n, tone){
-  const v = Number(n || 0), s = Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return v < 0 ? `<span class="ps-neg">(${s})</span>` : (tone && v > 0 ? `<span class="ps-pos">${s}</span>` : s);
+  const r = Math.round(Number(n || 0));                                   // whole numbers only
+  if(r === 0) return "0";
+  const s = Math.abs(r).toLocaleString("en-US", { maximumFractionDigits: 0 });
+  return r < 0 ? `<span class="ps-neg">(${s})</span>` : (tone ? `<span class="ps-pos">${s}</span>` : s);
 }
 function mpDash(v, tone){ return (v === null || v === undefined) ? `<span class="ps-na">–</span>` : mpMoney(v, tone); }
+// Invoices are made the month AFTER the work (an invoice entered in October is for September), except for the projects listed here,
+// which are invoiced in their own month. Add a project's name (lower case, or just a part of it) to this list to treat it like Qiddiya.
+const MP_SAME_MONTH_PROJECTS = ["qiddiya"];
+function mpSameMonthProject(name){ const n = String(name || "").toLowerCase(); return MP_SAME_MONTH_PROJECTS.some(x => n.includes(x)); }
+function prevMonthKey(k){ const [y, mo] = String(k).split("-").map(Number); return mo === 1 ? `${y - 1}-12` : `${y}-${String(mo - 1).padStart(2, "0")}`; }
+// The month an invoice is FOR. A month typed on the invoice that differs from the month it was entered is honoured.
+// Otherwise: the month before it was entered (Qiddiya: the month typed on it, or the month it was entered).
+function mpInvoiceMonth(v, projectName){
+  const issue = String(v.report_date || v.created_at || "").slice(0, 7), typed = monthKeyFromText(v.invoice_month, v.report_date);
+  if(mpSameMonthProject(projectName)) return typed || issue || "";
+  if(typed && typed !== issue) return typed;
+  return issue ? prevMonthKey(issue) : (typed || "");
+}
 function mpRound2(x){ return Math.round(Number(x || 0) * 100) / 100; }
 function mpParseAmount(v){ const n = Number(String(v || "").replace(/[,\s]/g, "")); return isFinite(n) ? n : 0; }
 
@@ -11207,7 +11255,12 @@ function manpowerTotals(p){
 }
 
 // ---- adding, editing and deleting an actual invoice (HR only): month, amount without VAT, optional invoice number ----
-function mpInvoiceMonthDefault(p){ return p.latestInvoiceMonthKey ? nextMonthKey(p.latestInvoiceMonthKey) : todayLocalISO().slice(0, 7); }
+// the month to suggest: the oldest month that has expenses but no invoice yet (never later than the newest month this project can be invoiced for)
+function mpInvoiceMonthLimit(p, issueKey){ const k = issueKey || todayLocalISO().slice(0, 7); return mpSameMonthProject(p.name) ? k : prevMonthKey(k); }
+function mpInvoiceMonthDefault(p){
+  const limit = mpInvoiceMonthLimit(p), waiting = (p.months || []).filter(x => !x.hasInvoice && x.expenses > 0 && x.key <= limit).map(x => x.key).sort();
+  return waiting.length ? waiting[0] : limit;
+}
 function closeMpInvoiceDialog(){ const d = document.getElementById("mpInvDlg"); if(d) d.remove(); }
 function openMpInvoiceDialog(projectId, monthKey, invoiceId){
   if(state.user.role !== "hr") return;
@@ -11220,13 +11273,15 @@ function openMpInvoiceDialog(projectId, monthKey, invoiceId){
   dlg.innerHTML = `<div class="mpdlg" role="dialog" aria-modal="true">
     <div class="mpdlg-h">${editing ? "✎ Edit invoice" : "＋ Add invoice"}</div>
     <div class="mpdlg-sub">${escapeHtml(p.name)}</div>
-    <label for="mpInvMonth">Invoice month</label>
+    ${editing ? `<div class="mpdlg-note">${editing._issue ? "Entered on " + escapeHtml(editing._issue) + ". " : ""}${editing._byName ? "Matched to this project by its name; saving links it to the project." : ""}</div>` : ""}
+    <label for="mpInvMonth">Invoice is for the month</label>
     <input id="mpInvMonth" type="month" value="${key || ""}" placeholder="2026-09">
     <label for="mpInvAmount">Invoice amount, without VAT (SAR)</label>
     <input id="mpInvAmount" inputmode="decimal" placeholder="0.00" value="${editing ? mpRound2(editing.amount_no_vat) : ""}">
     <div class="mpdlg-vat" id="mpInvVat"></div>
     <label for="mpInvNo">Invoice no. (optional)</label>
     <input id="mpInvNo" type="text" value="${editing ? escapeHtml(editing.invoice_no || "") : ""}" placeholder="For example: 1245">
+    <div class="mpdlg-hint">${mpSameMonthProject(p.name) ? "" : `Invoices for this project are made the month after the work (an invoice made in October is for September).`}</div>
     <div class="mpdlg-err" id="mpInvErr"></div>
     <div class="mpdlg-btns">${editing ? `<button type="button" class="mpdlg-del" id="mpInvDelete">Delete</button>` : ""}<button type="button" class="mpdlg-cancel" id="mpInvCancel">Cancel</button><button type="button" class="mpdlg-save" id="mpInvSave">Save</button></div>
   </div>`;
@@ -11249,6 +11304,9 @@ async function saveMpInvoice(projectId, invoiceId){
   const invNo = String((document.getElementById("mpInvNo") || {}).value || "").trim();
   if(!key){ err("Choose the invoice month."); return; }
   if(!(amount > 0)){ err("Enter the invoice amount, without VAT."); return; }
+  const prior = invoiceId ? (p.invoices || []).find(v => String(v.id) === String(invoiceId)) : null;
+  const issueKey = prior && prior._issue ? String(prior._issue).slice(0, 7) : todayLocalISO().slice(0, 7), limit = mpInvoiceMonthLimit(p, issueKey);
+  if(key > limit){ err(`This invoice is made in ${monthLabelFromKey(issueKey)}, so it is for ${monthLabelFromKey(limit)} or earlier.${mpSameMonthProject(p.name) ? "" : " (Invoices are made the month after the work.)"}`); return; }
   if(invNo){
     const same = state.projectSummaryRows.flatMap(r => (r.invoices || []).map(v => ({ v, r }))).find(o => String(o.v.invoice_no || "").trim().toLowerCase() === invNo.toLowerCase() && String(o.v.id) !== String(invoiceId || ""));
     if(same){ err(`Invoice no. ${invNo} is already used (${same.r.name}${same.v.invoice_month ? ", " + same.v.invoice_month : ""}). Use a different number.`); return; }
@@ -11256,7 +11314,7 @@ async function saveMpInvoice(projectId, invoiceId){
   const money = { amount_no_vat: mpRound2(amount), amount_with_vat: mpRound2(amount * (1 + VAT_RATE)) };
   const btn = document.getElementById("mpInvSave"); if(btn){ btn.disabled = true; btn.textContent = "Saving…"; }
   const res = invoiceId
-    ? await sb.from("ts_financial_invoices").update({ ...money, invoice_no: invNo, invoice_month: monthLabelFromKey(key) }).eq("id", invoiceId)
+    ? await sb.from("ts_financial_invoices").update({ ...money, invoice_no: invNo, invoice_month: monthLabelFromKey(key), ...(prior && prior._byName ? { project_id: projectId } : {}) }).eq("id", invoiceId)
     : await sb.from("ts_financial_invoices").insert({ ...money, description: p.name, invoice_no: invNo, invoice_month: monthLabelFromKey(key), project_id: projectId, report_date: todayLocalISO() });
   if(res && res.error){ if(btn){ btn.disabled = false; btn.textContent = "Save"; } err("Could not save the invoice. " + (res.error.message || "")); return; }
   closeMpInvoiceDialog();
@@ -11320,7 +11378,6 @@ function renderProjectSummary(){
           <tbody>${rows}${opening}</tbody>
           <tfoot><tr><td class="mp-m">TOTAL</td><td>${mpMoney(t.invoiced)}</td><td>${mpMoney(t.expenses)}</td><td>${mpMoney(t.difference, true)}</td><td class="mp-c">${psPill(t.margin)}</td></tr></tfoot>
         </table></div>` : `<div class="ps-empty">No daily reports or invoices yet.</div>`}
-        ${t.uninvoicedMonths.length ? `<div class="mp-foot">Difference and margin count only the months that have an invoice.</div>` : ""}
         ${p.missingRates.length ? `<div class="ps-warn">⚠️ No daily expense rate for ${p.missingRates.map(escapeHtml).join(", ")}: their days count as 0 in the expenses.</div>` : ""}
       </div>`;
   };
@@ -11349,11 +11406,11 @@ function renderProjectSummary(){
   const manpowerSection = `
     <div class="ps-wrap mp">
       <div class="ps-banner mp">
-        <div><h4>👷 Manpower Projects<span class="ps-count">${manpowerRows.length}</span></h4><div class="ps-sub">Every month: the invoice, the expenses from the daily reports, the difference and the margin.</div></div>
+        <div><h4>👷 Manpower Projects<span class="ps-count">${manpowerRows.length}</span></h4></div>
         ${(canExport && manpowerRows.length) ? `<button id="exportManpowerSheetBtn">📊 Excel</button>` : ""}
       </div>
       ${manpowerRows.length ? `${manpowerRows.map(mpCard).join("")}
-      <div class="ps-note">Expenses come from the daily reports.${canEdit ? " At the end of each month tap ＋ and enter the invoice, without VAT." : ""} Difference = Invoice − Expenses. Margin = Difference ÷ Invoice.</div>`
+      <div class="ps-note">Expenses: from the daily reports. Invoices (without VAT): taken from the Financial Report by project, so an invoice made in October counts for September (Qiddiya: its own month).${canEdit ? " Tap ＋ only for an invoice that is missing." : ""} Difference = Invoice − Expenses. Margin = Difference ÷ Invoice. The TOTAL difference and margin count only the months that have an invoice.</div>`
       : `<div class="ps-empty">${showingArchived ? "No manpower projects in History." : "No manpower projects."}</div>`}
     </div>`;
 
@@ -11368,13 +11425,11 @@ function renderProjectSummary(){
     </div>`;
 
   return `
-    <button class="link-btn" id="${backBtnId}" style="margin-bottom:12px;">‹ Back</button>
-    <div style="background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:16px;padding:16px 18px;margin-bottom:14px;box-shadow:0 4px 14px rgba(15,53,86,0.25);position:relative;overflow:hidden;">
-      <div style="position:absolute;top:-10px;right:-8px;font-size:56px;opacity:0.12;">📊</div>
-      <h3 style="color:#fff;font-size:16px;margin:0;position:relative;">📊 Project Summary${showingArchived ? " — History" : ""}</h3>
-      <div class="meta" style="color:#BFDCF5;position:relative;">Invoices (w/o VAT) · Expenses · Difference · Margin</div>
+    <div class="ps-top">
+      <button class="link-btn" id="${backBtnId}">‹ Back</button>
+      <div class="ps-top-t">📊 Project Summary${showingArchived ? " — History" : ""}</div>
+      <button class="btn btn-sm" id="toggleProjectSummaryArchiveBtn">${showingArchived ? "📋 Current" : "🗄 History"}</button>
     </div>
-    <button class="btn btn-sm" id="toggleProjectSummaryArchiveBtn" style="width:100%;margin-bottom:12px;background:linear-gradient(135deg,var(--ksa-gold),#B8912A);color:#fff;border:none;font-weight:800;">${showingArchived ? "📋 View Current Projects" : "🗄 View History (hidden projects)"}</button>
     ${state.projectSummaryRows.length ? manpowerSection + lumpSection : `<div class="empty-state"><div class="ic">📊</div>${showingArchived ? "No projects in History." : "No active projects found."}</div>`}
   `;
 }
@@ -11440,7 +11495,7 @@ function buildManpowerMonthlyWorkbook(projects){
   const BOX = { top: THIN, left: THIN, bottom: THIN, right: THIN };
   const HEAD = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0B7A75" } };
   const TOTAL = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F4F2" } };
-  const MONEY = "#,##0.00;[Red]-#,##0.00";
+  const MONEY = "#,##0;[Red]-#,##0";
   const overview = projects.length > 1 ? wb.addWorksheet(worklogSheetName("Overview", taken), { views: [{ state: "frozen", ySplit: 2 }] }) : null;
   const refs = [];
 
