@@ -1242,6 +1242,21 @@ input.ex-search{width:100%;box-sizing:border-box;margin-top:12px;padding:12px 14
 
 .ex-open .ex-ot{display:flex;flex-direction:column;min-width:0}
 .ex-open .ex-ot b,.ex-open .ex-ot i{display:block}
+
+/* ---- My Profile: real fill-in fields (coloured boxes with an icon and a label above) ---- */
+.pf-sub{font-size:12px;font-weight:600;color:#56667F;margin:-4px 0 2px 2px}
+.pf-fld{margin-top:14px;min-width:0}
+.pf-fl{display:flex;align-items:center;gap:8px;margin:0 0 7px 1px}
+.pf-fl label{margin:0 !important;padding:0 !important;flex:1;min-width:0;font-size:11.5px !important;font-weight:800;letter-spacing:.4px !important;text-transform:uppercase;color:#2B3F7A !important}
+.pf-ic{flex:none;width:27px;height:27px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-style:normal;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 3px 8px rgba(0,0,0,.2)}
+.pf-ic-pink{background:linear-gradient(160deg,#FF8CC8,#D6338F)}.pf-ic-teal{background:linear-gradient(160deg,#4DDDD0,#0E9C96)}.pf-ic-violet{background:linear-gradient(160deg,#B592FF,#6C3DE0)}.pf-ic-amber{background:linear-gradient(160deg,#FFC24D,#EE8A00)}.pf-ic-orange{background:linear-gradient(160deg,#FF9A6B,#E8501E)}.pf-ic-sky{background:linear-gradient(160deg,#6AB0FF,#2E5BC4)}
+.pf-reqtag{font-style:normal;font-size:9.5px;font-weight:800;color:#fff;background:linear-gradient(160deg,#FF5C7C,#D91E4A);border-radius:999px;padding:3px 9px;box-shadow:0 3px 7px rgba(217,30,74,.35)}
+.pf-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+body.cr-form .pf-two input.pf-in:not([type=radio]):not([type=checkbox]):not([type=file]){padding:13px 10px;font-size:14px}
+.pf-photo{display:flex !important;align-items:center;gap:10px;padding:10px 12px;border:2px dashed #E08BC0;border-radius:16px;background:linear-gradient(135deg,#FFEAF6,#F4E6FF);margin:0 !important;cursor:pointer;box-shadow:0 5px 12px rgba(214,51,143,.14)}
+.pf-pv{flex:none;width:48px;height:48px;border-radius:50%;object-fit:cover;background:linear-gradient(160deg,#B592FF,#6C3DE0);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;border:2.5px solid #fff;box-shadow:0 4px 10px rgba(0,0,0,.22)}
+.pf-photo .pf-fb{padding:9px 14px;font-size:12.5px}
+.pf-req .pf-hint{margin-top:7px}
 </style>
 </head>
 <body>
@@ -9283,7 +9298,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "2 Nov 2026 - simple-table profile PDF and landscape employee export";
+const APP_VERSION = "2 Nov 2026 - colourful fill-in profile fields";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -10160,14 +10175,39 @@ function renderMyProfile(){
 
     <div class="pf-card pf-form" id="pfForm">
       <div class="pf-ch pf-ch-violet"><span>✎</span> Update your info</div>
-      <table class="pf-ft">
-        <tr><th>Photo</th><td><label class="pf-file"><input type="file" id="myProfilePhotoInput" accept="image/*"><span class="pf-fb">Choose</span><span class="pf-fn">${d.photo_data ? "Photo selected" : "No photo yet"}</span></label></td></tr>
-        <tr><th><label for="myProfileMobile">Mobile no.</label></th><td><input class="pf-in" type="text" inputmode="tel" id="myProfileMobile" value="${esc(d.mobile_number)}" placeholder="05XXXXXXXX"></td></tr>
-        <tr class="pf-req"><th><label for="myProfileEmail">Email <i class="pf-star">*</i></label></th><td><input class="pf-in${hint.tone === "bad" ? " pf-in-bad" : ""}" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="120" required id="myProfileEmail" value="${esc(d.email)}" placeholder="name@example.com"><div class="pf-hint pf-hint-${hint.tone}" id="myProfileEmailHint">${hint.html}</div></td></tr>
-        <tr><th><label for="myProfilePassportNo">Passport no.</label></th><td><input class="pf-in" type="text" id="myProfilePassportNo" value="${esc(d.passport_no)}"></td></tr>
-        <tr><th><label for="myProfilePassportExpiry">Passport expiry</label></th><td><input class="pf-in" type="date" id="myProfilePassportExpiry" value="${esc(d.passport_expiry)}"></td></tr>
-        <tr><th><label for="myProfileBankName">Bank name</label></th><td><input class="pf-in" type="text" id="myProfileBankName" value="${esc(d.bank_name)}"></td></tr>
-      </table>
+      <div class="pf-sub">Fill in the boxes, then tap Save.</div>
+
+      <div class="pf-fld">
+        <div class="pf-fl"><b class="pf-ic pf-ic-pink">📷</b><label>Photo</label></div>
+        <label class="pf-file pf-photo"><input type="file" id="myProfilePhotoInput" accept="image/*">${d.photo_data ? `<img class="pf-pv" src="${d.photo_data}" alt="">` : `<span class="pf-pv">${esc(profileInitials(p.name))}</span>`}<span class="pf-fb">Choose a photo</span><span class="pf-fn">${d.photo_data ? "Photo selected" : "No photo yet"}</span></label>
+      </div>
+
+      <div class="pf-fld">
+        <div class="pf-fl"><b class="pf-ic pf-ic-teal">📱</b><label for="myProfileMobile">Mobile number</label></div>
+        <input class="pf-in pf-teal" type="text" inputmode="tel" id="myProfileMobile" value="${esc(d.mobile_number)}" placeholder="05XXXXXXXX">
+      </div>
+
+      <div class="pf-fld pf-req">
+        <div class="pf-fl"><b class="pf-ic pf-ic-violet">✉️</b><label for="myProfileEmail">Email address <i class="pf-star">*</i></label><em class="pf-reqtag">Required</em></div>
+        <input class="pf-in pf-violet${hint.tone === "bad" ? " pf-in-bad" : ""}" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="120" required id="myProfileEmail" value="${esc(d.email)}" placeholder="name@example.com">
+        <div class="pf-hint pf-hint-${hint.tone}" id="myProfileEmailHint">${hint.html}</div>
+      </div>
+
+      <div class="pf-two">
+        <div class="pf-fld">
+          <div class="pf-fl"><b class="pf-ic pf-ic-amber">🛂</b><label for="myProfilePassportNo">Passport no.</label></div>
+          <input class="pf-in pf-amber" type="text" id="myProfilePassportNo" value="${esc(d.passport_no)}" placeholder="Passport number">
+        </div>
+        <div class="pf-fld">
+          <div class="pf-fl"><b class="pf-ic pf-ic-orange">📅</b><label for="myProfilePassportExpiry">Passport expiry</label></div>
+          <input class="pf-in pf-orange" type="date" id="myProfilePassportExpiry" value="${esc(d.passport_expiry)}">
+        </div>
+      </div>
+
+      <div class="pf-fld">
+        <div class="pf-fl"><b class="pf-ic pf-ic-sky">🏦</b><label for="myProfileBankName">Bank name</label></div>
+        <input class="pf-in pf-sky" type="text" id="myProfileBankName" value="${esc(d.bank_name)}" placeholder="e.g. Al Rajhi Bank">
+      </div>
       <div class="pf-reqnote"><i class="pf-star">*</i> Required. Your Iqama expiry date is kept by HR, so there is nothing to enter for it.</div>
 
       <button class="pf-save" id="saveMyProfileBtn">💾 Save changes</button>
