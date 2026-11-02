@@ -1177,6 +1177,71 @@ body.cr-form input.pf-in.pf-in-bad{--f1:#FFE6EA;--f2:#FFC4CF;--fb:#EF4D6A;--ft:#
 .pf-fix{border:none;background:#FFE29A;color:#5C3D00;font-weight:800;border-radius:9px;padding:3px 9px;cursor:pointer;font-size:11.5px}
 .pf-save{width:100%;margin-top:16px;border:none;border-radius:20px;padding:15px;font-size:15.5px;font-weight:800;color:#fff;background:linear-gradient(160deg,#4BE0A6,#0B8F62);box-shadow:0 12px 24px rgba(11,143,98,.40),inset 0 1px 0 rgba(255,255,255,.5);cursor:pointer;text-shadow:0 1px 2px rgba(0,0,0,.2)}
 .pf-save:active{transform:translateY(1px)}
+
+.pf-ro{display:flex;align-items:center;gap:8px;margin-top:8px;padding:12px 14px;border-radius:15px;background:linear-gradient(135deg,#FFF3EA,#FFE0CC);border:2px dashed #F2A777;color:#5C2305}
+.pf-ro span{font-size:10.3px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;flex:1}
+.pf-ro b{font-size:15px;font-weight:800}
+.pf-ro i{font-style:normal;font-size:10px;font-weight:800;background:#fff;color:#B24A10;border-radius:999px;padding:3px 9px;border:1px solid #F2A777}
+
+/* ---- My Profile: the entry fields as one simple table ---- */
+.pf-ft{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;border:1.5px solid #B7C3EC;border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 6px 16px rgba(80,90,200,.12)}
+.pf-ft th{width:35%;text-align:left;vertical-align:middle;padding:0 10px;font-size:10.3px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#3A4C8E;background:linear-gradient(135deg,#F0F2FF,#E2E7FF);border-bottom:1px solid #D4DAF5;border-right:1px solid #D4DAF5}
+.pf-ft th label{display:block;margin:0 !important;padding:12px 0;font-size:10.3px !important;font-weight:800;letter-spacing:.4px !important;text-transform:uppercase;color:inherit !important}
+.pf-ft td{padding:0 4px;vertical-align:middle;border-bottom:1px solid #D4DAF5;background:#fff}
+.pf-ft tr:last-child th,.pf-ft tr:last-child td{border-bottom:none}
+body.cr-form .pf-ft input.pf-in:not([type=radio]):not([type=checkbox]):not([type=file]){background:transparent !important;border:none !important;border-radius:10px !important;box-shadow:none !important;padding:12px 8px;font-size:14px;font-weight:700;color:#12233F;width:100%;box-sizing:border-box;min-width:0}
+body.cr-form .pf-ft input.pf-in:focus{background:#F2EEFF !important;box-shadow:inset 0 0 0 2px #7A45F0 !important;outline:none}
+body.cr-form .pf-ft input.pf-in.pf-in-bad{background:#FFE6EA !important;box-shadow:inset 0 0 0 2px #EF4D6A !important}
+.pf-ft tr.pf-req th{background:linear-gradient(135deg,#EDE6FF,#D9CCFF);color:#4C2FB0}
+.pf-ft tr.pf-req td{background:#FCFAFF}
+.pf-ft .pf-hint{margin:0 8px 8px;min-height:0}
+.pf-ft .pf-file{display:flex !important;align-items:center;gap:8px;padding:8px 6px;margin:0 !important}
+.pf-ft .pf-fb{padding:7px 14px;font-size:12px;border-radius:11px}
+.pf-star{color:#D91E4A;font-style:normal;font-weight:800}
+.pf-reqnote{font-size:10.8px;color:#56667F;font-weight:600;margin-top:9px;line-height:1.5}
+.pf-homebanner{display:flex;align-items:center;gap:10px;width:100%;margin-bottom:12px;padding:10px 12px;border-radius:14px;border:2px solid #F5C451;background:linear-gradient(135deg,#FFF1C9,#FFDD9C);color:#5A3A00;font-weight:800;font-size:13px;text-align:left;cursor:pointer;box-shadow:0 6px 14px rgba(245,166,35,.25)}
+.pf-homebanner i{font-style:normal;font-size:20px}
+.pf-homebanner span{flex:1;line-height:1.35}
+.pf-homebanner b{flex:none;background:linear-gradient(160deg,#B592FF,#6C3DE0);color:#fff;border-radius:999px;padding:6px 14px;font-size:12px}
+
+/* ===== Export employee details: the selection screen ===== */
+.ex-open{display:flex;align-items:center;gap:10px;width:100%;margin:12px 0 4px;padding:12px 14px;border-radius:16px;border:none;cursor:pointer;text-align:left;color:#fff;background:linear-gradient(135deg,#7A45F0,#2E7BFF);box-shadow:0 10px 22px rgba(80,90,240,.35),inset 0 1px 0 rgba(255,255,255,.4)}
+.ex-open span{flex:none;width:36px;height:36px;border-radius:12px;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:19px}
+.ex-open b{font-size:14px;font-weight:800}.ex-open i{display:block;font-style:normal;font-size:11px;font-weight:600;opacity:.9;margin-top:2px}
+.ex-open>*:nth-child(n+2){display:block}
+.ex-hero{display:flex;gap:12px;align-items:center;padding:14px;border-radius:20px;color:#fff;background:linear-gradient(135deg,#1B5A96,#7A45F0 60%,#D6338F);box-shadow:0 10px 24px rgba(90,70,200,.32)}
+.ex-hi{flex:none;width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:23px}
+.ex-ht{font-size:16px;font-weight:800}.ex-hs{font-size:11.5px;font-weight:600;opacity:.95;margin-top:2px;line-height:1.35}
+input.ex-search{width:100%;box-sizing:border-box;margin-top:12px;padding:12px 14px;font-size:14px;font-weight:600;border-radius:14px;border:2px solid #B7C3EC;background:#fff}
+.ex-chips{display:flex;gap:7px;margin-top:10px}
+.ex-chip{flex:1;border:2px solid #C9D3F0;background:#fff;color:#2B3F7A;border-radius:12px;padding:8px 6px;font-size:12.5px;font-weight:800;cursor:pointer}
+.ex-chip.on{background:linear-gradient(135deg,#7A45F0,#2E7BFF);border-color:transparent;color:#fff;box-shadow:0 5px 12px rgba(80,90,240,.35)}
+.ex-former{display:flex;align-items:center;gap:8px;margin:10px 0 0;text-transform:none;font-weight:700;font-size:12.5px;cursor:pointer}
+.ex-former input{width:18px;height:18px}
+.ex-tools{display:flex;gap:8px;margin-top:10px}
+.ex-tool{flex:1;border:none;border-radius:12px;padding:10px 8px;font-size:12.5px;font-weight:800;cursor:pointer;color:#0A5E36;background:linear-gradient(135deg,#DFF7EA,#BDEBD4)}
+.ex-tool:last-child{flex:0 0 auto;color:#9A2B2B;background:linear-gradient(135deg,#FDE8E8,#FAC9C9)}
+.ex-list{margin-top:12px;display:flex;flex-direction:column;gap:7px}
+.ex-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:16px;background:#fff;border:2px solid #E1E7F5;cursor:pointer;box-shadow:0 3px 8px rgba(60,70,150,.07)}
+.ex-row.on{border-color:#7A45F0;background:linear-gradient(135deg,#F4EEFF,#E6EEFF);box-shadow:0 6px 14px rgba(110,70,220,.22)}
+.ex-cb{flex:none;width:24px;height:24px;border-radius:8px;border:2px solid #AAB6DC;background:#fff;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:14px}
+.ex-row.on .ex-cb{background:linear-gradient(160deg,#9B6BFF,#6C3DE0);border-color:#6C3DE0}
+.ex-av{flex:none;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:12.5px}
+.ex-av-pi{background:linear-gradient(160deg,#4C8BE0,#1B5A96)}.ex-av-af{background:linear-gradient(160deg,#C2A468,#8E7239)}
+.ex-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.ex-main b{font-size:13px;color:#12233F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ex-main span{font-size:10.8px;color:#5B6B7C;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ex-tags{flex:none;display:flex;flex-direction:column;gap:3px;align-items:flex-end}
+.ex-flag{font-size:9px;font-weight:800;padding:2px 7px;border-radius:999px;color:#fff}
+.ex-flag.red{background:#D83A3A}.ex-flag.amber{background:#E8A33D;color:#3D2600}.ex-flag.gray{background:#8E9BB0}.ex-flag.violet{background:#8B5CF6}
+.ex-bar{position:sticky;bottom:0;margin:14px -4px 0;padding:10px 12px;display:flex;align-items:center;gap:12px;border-radius:18px;background:linear-gradient(135deg,#17306B,#2B1B66);box-shadow:0 -4px 18px rgba(20,20,70,.3)}
+.ex-count{flex:1;color:#fff;font-size:13px;font-weight:700}.ex-count b{font-size:20px;color:#FFD36B}
+.ex-go{flex:none;border:none;border-radius:14px;padding:12px 20px;font-size:14.5px;font-weight:800;color:#fff;background:linear-gradient(160deg,#4BE0A6,#0B8F62);box-shadow:0 8px 18px rgba(11,143,98,.45);cursor:pointer}
+.ex-go:disabled{opacity:.45;box-shadow:none;cursor:not-allowed}
+.ex-note{font-size:10.8px;color:#56667F;font-weight:600;margin:10px 4px 20px;line-height:1.5;text-align:center}
+
+.ex-open .ex-ot{display:flex;flex-direction:column;min-width:0}
+.ex-open .ex-ot b,.ex-open .ex-ot i{display:block}
 </style>
 </head>
 <body>
@@ -1369,6 +1434,7 @@ let state = {
   employeeDirectory: [],
   directoryShowFormer: false,
   directoryVacations: [],
+  exportSelected: {}, exportSearch: "", exportCompany: "all", exportShowFormer: false,
   selectedDirectoryEmployeeId: null,
   myProfile: null,
   myProfileDraft: { mobile_number: "", email: "", passport_no: "", passport_expiry: "", iqama_expiry_date: "", medical_insurance_expiry: "", bank_name: "", photo_data: "" },
@@ -5568,7 +5634,7 @@ async function loadEmployeeDirectory(){
   if(!canSeeFormer) employeeQuery = employeeQuery.eq("active", true);
   const [{ data }, { data: vacations }] = await Promise.all([
     employeeQuery,
-    sb.from("ts_vacations").select("*").order("start_date", { ascending: false })
+    canSeeFormer ? sb.from("ts_vacations").select("*").order("start_date", { ascending: false }) : Promise.resolve({ data: [] })     // vacation details only for HR and the Owner
   ]);
   state.employeeDirectory = data || [];
   state.directoryVacations = vacations || [];
@@ -5810,63 +5876,32 @@ async function resetEmployeePassword(employeeId){
   render();
 }
 
+// ---- the employee profile PDF: branded header, photo and status, completeness, colour-coded documents, vacations, footer ----
+function pdfLatin(v){ const t = String(v == null ? "" : v).trim(); return /^[\x20-\x7E\u00A0-\u00FF]*$/.test(t) ? t : ""; }
+function pdfRgb(hex){ const h = String(hex || "#000000").replace("#", ""); return [parseInt(h.slice(0, 2), 16) || 0, parseInt(h.slice(2, 4), 16) || 0, parseInt(h.slice(4, 6), 16) || 0]; }
+function pdfMix(a, b, t){ const x = pdfRgb(a), y = pdfRgb(b); return "#" + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join(""); }
+function pdfDate(iso){ const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || "")); return m ? `${m[3]}/${m[2]}/${m[1]}` : ""; }
+function pdfImgFormat(src){ const m = /^data:image\/(png|jpe?g)/i.exec(String(src || "")); return m ? (m[1].toLowerCase() === "png" ? "PNG" : "JPEG") : ""; }
+function pdfDocStatus(iso){
+  const n = daysUntil(iso);
+  if(n === null) return { text: "Not on file", tone: "gray" };
+  if(n < 0) return { text: `Expired ${-n} day${-n === 1 ? "" : "s"} ago`, tone: "red" };
+  if(n <= 30) return { text: `Expires in ${n} day${n === 1 ? "" : "s"}`, tone: "amber" };
+  return { text: `${n} days left`, tone: "green" };
+}
+function pdfCompleteness(emp){
+  const items = [["Nationality", emp.nationality], ["Date of birth", emp.date_of_birth], ["Joining date", emp.joining_date], ["Mobile", emp.mobile_number], ["Email", emp.email], ["Iqama no.", emp.iqama_number], ["Iqama expiry", emp.iqama_expiry_date],
+    ["Passport no.", emp.passport_no], ["Passport expiry", emp.passport_expiry], ["Medical insurance", emp.medical_insurance_expiry], ["Bank", emp.bank_name], ["Photo", emp.photo_data]];
+  const missing = items.filter(([, v]) => !String(v || "").trim()).map(([k]) => k);
+  return { done: items.length - missing.length, total: items.length, missing };
+}
 async function generateEmployeeProfilePdf(){
-  const emp = state.employeeDirectory.find(e=>e.id===state.selectedDirectoryEmployeeId);
+  const emp = state.employeeDirectory.find(e => e.id === state.selectedDirectoryEmployeeId);
   if(!emp){ toast("Select an employee first."); return; }
   state.loading = true; render();
   try{
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    const PAGE_W = 595.28, MARGIN = 42, CONTENT_W = PAGE_W - MARGIN*2;
-
-    doc.setFillColor(15,53,86);
-    doc.rect(0, 0, PAGE_W, 90, "F");
-    try{ doc.addImage(LOGO_DATA_URI, "PNG", MARGIN, 22, 44, 44); }catch(e){}
-    doc.setFont("helvetica","bold"); doc.setFontSize(16); doc.setTextColor(255,255,255);
-    doc.text(COMPANY_NAME, MARGIN + 54, 42);
-    doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(200,220,240);
-    doc.text("Employee Profile", MARGIN + 54, 60);
-
-    let y = 130;
-    if(emp.photo_data){
-      try{
-        const pr = 34, pcx = PAGE_W/2, pcy = y;
-        doc.addImage(emp.photo_data, "PNG", pcx - pr, pcy - pr, pr*2, pr*2);
-        doc.setDrawColor(201,162,39); doc.setLineWidth(1.5);
-        doc.circle(pcx, pcy, pr, "S");
-      }catch(e){}
-      y += 50;
-    }
-    doc.setFont("helvetica","bold"); doc.setFontSize(16); doc.setTextColor(15,53,86);
-    doc.text(emp.name || "-", PAGE_W/2, y, { align: "center" });
-    y += 16;
-    doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(91,107,124);
-    doc.text(`${emp.employee_no || ""}${emp.project_site ? "  •  " + emp.project_site : ""}`, PAGE_W/2, y, { align: "center" });
-    y += 26;
-
-    const fields = [
-      ["Nationality", emp.nationality], ["Date of Birth", emp.date_of_birth],
-      ["Joining Date", emp.joining_date], ["Mobile Number", emp.mobile_number], ["Email", emp.email],
-      ["Iqama No", emp.iqama_number], ["Iqama Expiry", emp.iqama_expiry_date],
-      ["Passport No", emp.passport_no], ["Passport Expiry", emp.passport_expiry],
-      ["Medical Insurance Expiry", emp.medical_insurance_expiry],
-      ["Bank Name", emp.bank_name]
-    ];
-    doc.setDrawColor(220,229,238); doc.setLineWidth(0.7);
-    doc.setFontSize(10);
-    fields.forEach(([label, val]) => {
-      doc.setFont("helvetica","normal"); doc.setTextColor(91,107,124);
-      doc.text(label, MARGIN + 10, y);
-      doc.setFont("helvetica","bold"); doc.setTextColor(21,36,54);
-      doc.text(String(val || "-"), PAGE_W - MARGIN - 10, y, { align: "right" });
-      y += 20;
-      doc.line(MARGIN, y - 14, PAGE_W - MARGIN, y - 14);
-    });
-
-    doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(150,150,150);
-    doc.text(`Generated ${new Date().toLocaleDateString()}`, PAGE_W/2, 800, { align: "center" });
-
-    doc.save(`Profile_${(emp.name||"employee").replace(/\s+/g,"_")}.pdf`);
+    const doc = buildEmployeeProfilePdf(emp);
+    doc.save(`Profile_${(pdfLatin(emp.name) || "employee").replace(/\s+/g, "_")}.pdf`);
     toast("Profile PDF downloaded.");
   }catch(e){
     console.error("Profile PDF error:", e);
@@ -5887,16 +5922,16 @@ function profileEmailTypoFix(v){
   const e = profileEmailClean(v), at = e.lastIndexOf("@"); if(at < 1) return "";
   const fix = PROFILE_EMAIL_TYPOS[e.slice(at + 1)]; return fix ? e.slice(0, at + 1) + fix : "";
 }
-function profileEmailHint(v){
+function profileEmailHint(v, force){
   const e = profileEmailClean(v);
-  if(!e) return { tone: "idle", html: "Optional. The company uses it to contact you." };
+  if(!e) return force ? { tone: "bad", html: "Email is required. Please enter your email address." } : { tone: "idle", html: "Required. The company uses it to contact you." };
   if(!profileEmailValid(e)) return { tone: "bad", html: "Check the address. It should look like name@example.com" };
   const fix = profileEmailTypoFix(e);
   if(fix) return { tone: "warn", html: `Did you mean <button type="button" class="pf-fix" data-email-fix="${escapeHtml(fix)}">${escapeHtml(fix)}</button> ?` };
   return { tone: "ok", html: "✓ Looks good" };
 }
-function profileEmailRefreshHint(){
-  const h = profileEmailHint((state.myProfileDraft || {}).email), box = document.getElementById("myProfileEmailHint"), inp = document.getElementById("myProfileEmail");
+function profileEmailRefreshHint(force){
+  const h = profileEmailHint((state.myProfileDraft || {}).email, force), box = document.getElementById("myProfileEmailHint"), inp = document.getElementById("myProfileEmail");
   if(box){ box.className = "pf-hint pf-hint-" + h.tone; box.innerHTML = h.html; }
   if(inp) inp.classList.toggle("pf-in-bad", h.tone === "bad");
 }
@@ -5926,9 +5961,15 @@ async function loadMyProfile(){
 
 async function saveMyProfile(){
   const d = state.myProfileDraft, email = profileEmailClean(d.email);
-  if(!profileEmailValid(email)){                                   // nothing is saved until the email is shaped right
+  const focusEmail = () => { const i = document.getElementById("myProfileEmail"); if(i){ try{ i.focus(); }catch(e){} } };
+  if(!email){                                                      // the email is required: nothing is saved without it
+    toast("Email is required. Please enter your email address.");
+    profileEmailRefreshHint(true); focusEmail();
+    return;
+  }
+  if(!profileEmailValid(email)){                                   // and it must be shaped right
     toast("Please enter a valid email address, for example name@example.com.");
-    profileEmailRefreshHint(); const i = document.getElementById("myProfileEmail"); if(i){ try{ i.focus(); }catch(e){} }
+    profileEmailRefreshHint(); focusEmail();
     return;
   }
   d.email = email;
@@ -5937,12 +5978,11 @@ async function saveMyProfile(){
     mobile_number: d.mobile_number || null,
     passport_no: d.passport_no || null,
     passport_expiry: d.passport_expiry || null,
-    iqama_expiry_date: d.iqama_expiry_date || null,
     medical_insurance_expiry: d.medical_insurance_expiry || null,
     bank_name: d.bank_name || null,
     photo_data: d.photo_data || null
   };
-  let { error } = await sb.from("ts_employees").update({ ...base, email: email || null }).eq("id", state.user.id);
+  let { error } = await sb.from("ts_employees").update({ ...base, email }).eq("id", state.user.id);
   let emailSkipped = false;
   if(error && /email/i.test(String(error.message || "")) && /column|schema cache|does not exist/i.test(String(error.message || ""))){
     // the one-time database setup for the email has not been done yet: keep everything else he typed
@@ -5950,7 +5990,10 @@ async function saveMyProfile(){
   }
   state.loading = false;
   toast(error ? "Could not save. Try again." : (emailSkipped ? "Saved, but your email could not be saved yet. HR needs to finish a one-time setup." : "Profile updated."));
-  if(!error) await loadMyProfile();
+  if(!error){
+    if(!emailSkipped){ state.user = { ...state.user, email }; try{ cacheLoggedInUser(state.user); }catch(e){} }     // the reminder on the home screen goes away
+    await loadMyProfile();
+  }
   render();
 }
 
@@ -9240,7 +9283,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "1 Nov 2026 - employee email and a colourful profile page";
+const APP_VERSION = "2 Nov 2026 - simple-table profile PDF and landscape employee export";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -9293,6 +9336,7 @@ function render(){
   else if(state.view === "send-announcement") body = renderSendAnnouncement();
   else if(state.view === "send-hr-todo") body = renderSendHrTodo();
   else if(state.view === "employee-directory") body = renderEmployeeDirectory();
+  else if(state.view === "employee-export") body = renderEmployeeExport();
   else if(state.view === "my-profile") body = renderMyProfile();
   else if(state.view === "combined-reports") body = renderCombinedReports();
   else if(state.view === "unit-financial-report") body = renderUnitFinancialReport();
@@ -9500,6 +9544,7 @@ function renderEmployeeView(){
       <div class="summary-item s-absent"><div class="n">${totals.absent}</div><div class="l">${ar ? "غائب" : "Absent"}</div></div>
       <div class="summary-item s-total"><div class="n">${totals.totalHours.toFixed(1)}</div><div class="l">${ar ? "إجمالي الساعات" : "Total Hrs"}</div></div>
     </div>
+    ${(state.user && "email" in state.user && !String(state.user.email || "").trim()) ? `<button type="button" class="pf-homebanner" data-open-profile-email="1"><i>✉️</i><span>${ar ? "يرجى إضافة بريدك الإلكتروني (مطلوب)" : "Please add your email address. It is required."}</span><b>${ar ? "إضافة" : "Add"}</b></button>` : ""}
     <button id="downloadMyPdfBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;font-weight:800;font-size:14px;cursor:pointer;">${ar ? "⬇ تحميل PDF" : "⬇ Download PDF"}</button>
     <button id="openLeaveFormBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:2px solid #E8A33D;background:#FFF3D9;color:#966109;font-weight:800;font-size:14px;cursor:pointer;">🌴 ${ar ? "طلب إجازة سنوية" : "Apply for Annual Leave"}</button>
     ${state.user.iqama_number !== "2357537808" ? `<button id="openCeoContactBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:2px solid var(--ksa-gold);background:var(--ksa-cream);color:var(--blue);font-weight:800;font-size:14px;cursor:pointer;">📞 ${ar ? "تواصل مباشر مع الرئيس التنفيذي" : "Direct Contact with CEO"}${(() => { const n = state.myLetters.filter(l => !l.employee_viewed_at).length; return n ? ` <span style="background:#C43B3B;color:#fff;border-radius:999px;padding:1px 8px;font-size:11px;margin-inline-start:6px;">${n} new letter${n === 1 ? "" : "s"}</span>` : ""; })()}</button>` : ""}
@@ -9690,6 +9735,247 @@ function renderCeoContactForm(){
   `;
 }
 
+// ---- small drawing helpers shared by the profile PDF and the landscape employee table ----
+function pdfKit(doc, P){
+  const F = (h) => doc.setFillColor(...pdfRgb(h)), S = (h) => doc.setDrawColor(...pdfRgb(h)), T = (h) => doc.setTextColor(...pdfRgb(h));
+  const font = (style, size) => { doc.setFont("helvetica", style); doc.setFontSize(size); };
+  const rr = (x, y, w, h, r, mode) => doc.roundedRect(x, y, w, h, r, r, mode);
+  const spaced = (txt, x, y, sp, opt) => { try{ doc.setCharSpace(sp); }catch(e){} doc.text(txt, x, y, opt); try{ doc.setCharSpace(0); }catch(e){} };
+  const fitText = (txt, maxW, size, min) => {
+    let s = size; doc.setFontSize(s);
+    while(s > (min || 6) && doc.getTextWidth(txt) > maxW){ s -= 0.4; doc.setFontSize(s); }
+    let out = txt; while(out.length > 1 && doc.getTextWidth(out) > maxW) out = out.slice(0, -1);
+    return out === txt ? txt : out.trimEnd() + "...";
+  };
+  const wrapLines = (txt, maxW, maxLines) => {
+    let lines = doc.splitTextToSize(String(txt), maxW);
+    if(lines.length > maxLines){ lines = lines.slice(0, maxLines); let last = lines[maxLines - 1]; while(last.length > 1 && doc.getTextWidth(last + "...") > maxW) last = last.slice(0, -1); lines[maxLines - 1] = last.trimEnd() + "..."; }
+    return lines;
+  };
+  const SOLID = { green: ["#12A150", "#FFFFFF"], amber: ["#E8A33D", "#3D2600"], red: ["#D83A3A", "#FFFFFF"], gray: ["#8E9BB0", "#FFFFFF"], main: [P.main, "#FFFFFF"], soft: ["#E3F4F2", "#0B5E5A"] };
+  const chipW = (text, size) => { font("bold", size || 8); return doc.getTextWidth(text) + 14; };
+  const chip = (x, y, text, tone, h, size) => { const w = chipW(text, size), hh = h || 16, [bg, fg] = SOLID[tone] || SOLID.gray; F(bg); rr(x, y, w, hh, hh / 2, "F"); T(fg); doc.text(text, x + w / 2, y + hh / 2 + (size || 8) * 0.36, { align: "center" }); return w; };
+  const photo = (src, cx, cy, r) => {                                // a round photo that is cropped, never stretched
+    const fmt = pdfImgFormat(src); if(!fmt) return false;
+    try{
+      const ip = doc.getImageProperties(src), k = Math.max((r * 2) / ip.width, (r * 2) / ip.height), iw = ip.width * k, ih = ip.height * k;
+      doc.saveGraphicsState(); doc.circle(cx, cy, r, null); doc.clip(); doc.discardPath(); doc.addImage(src, fmt, cx - iw / 2, cy - ih / 2, iw, ih); doc.restoreGraphicsState(); return true;
+    }catch(e){ try{ doc.restoreGraphicsState(); }catch(_){} return false; }
+  };
+  return { F, S, T, font, rr, spaced, fitText, wrapLines, chip, chipW, photo };
+}
+function pdfGradientBand(doc, kit, x, y, w, h, c1, c2){ const n = Math.max(12, Math.round(h / 2)); for(let i = 0; i < n; i++){ kit.F(pdfMix(c1, c2, i / (n - 1))); doc.rect(x, y + i * h / n, w, h / n + 0.7, "F"); } }
+
+// ---- one employee: a compact header, then ONE simple table with colour-banded sections ----
+function buildEmployeeProfilePdf(emp){
+  const { jsPDF } = window.jspdf, doc = new jsPDF({ unit: "pt", format: "a4" });
+  const W = 595.28, H = 841.89, M = 36, cw = W - 2 * M, today = todayLocalISO();
+  const company = emp.salary_group === "Al falak" ? "Al falak" : "PI", lh = certLetterhead(company), P = certPalette(lh), cname = pdfLatin(lh.display_name) || COMPANY_NAME;
+  const K = pdfKit(doc, P), { F, S, T, font, rr, spaced, fitText, wrapLines, chip, chipW } = K, INK = "#152436", MUTE = "#5B6B7C", LINE = "#D5DDEA";
+  // ---- header band ----
+  const HB = 100; pdfGradientBand(doc, K, 0, 0, W, HB, P.dark, P.main); F(P.gold); doc.rect(0, HB, W, 3.2, "F");
+  F("#FFFFFF"); rr(M, 26, 52, 52, 10, "F"); let logoOk = false; const lf = pdfImgFormat(LOGO_DATA_URI);
+  if(company === "PI" && lf){ try{ doc.addImage(LOGO_DATA_URI, lf, M + 5, 31, 42, 42); logoOk = true; }catch(e){} }
+  if(!logoOk){ font("bold", 19); T(P.main); doc.text(company === "PI" ? "PI" : "AF", M + 26, 59, { align: "center" }); }
+  font("bold", 16); T("#FFFFFF"); doc.text(K.fitText(cname, 330, 16, 11), M + 66, 48); font("bold", 8.6); T(P.gold); spaced("EMPLOYEE PROFILE", M + 66, 65, 2.2);
+  S("#FFFFFF"); doc.setLineWidth(0.8); rr(W - M - 94, 30, 94, 19, 9.5, "S"); font("bold", 7.4); T("#FFFFFF"); spaced("CONFIDENTIAL", W - M - 47, 42.6, 1.2, { align: "center" });
+  font("normal", 8.5); T(pdfMix(P.mainTint2, "#FFFFFF", 0.2)); doc.text(`Generated ${pdfDate(today)}`, W - M, 68, { align: "right" });
+  // ---- who he is: photo, name, status and how complete the file is ----
+  const comp = pdfCompleteness(emp), pct = Math.round(comp.done / comp.total * 100), y0 = 122, pr = 31, pcx = M + 34, pcy = y0 + 36, nx = pcx + pr + 18, nameMaxW = cw - (nx - M) - 128;
+  F(P.gold); doc.circle(pcx, pcy, pr + 2.8, "F"); if(!K.photo(emp.photo_data, pcx, pcy, pr)){ F(P.main); doc.circle(pcx, pcy, pr, "F"); font("bold", 22); T("#FFFFFF"); doc.text(profileInitials(emp.name), pcx, pcy + 7.8, { align: "center" }); }
+  const fullName = pdfLatin(emp.name) || "-"; let nSize = 18; font("bold", nSize); let nameLines = [fullName];
+  if(doc.getTextWidth(fullName) > nameMaxW){ nSize = 14.5; font("bold", nSize); nameLines = wrapLines(fullName, nameMaxW, 2); }
+  let ty = y0 + 26; T(INK); nameLines.forEach((ln, i) => doc.text(ln, nx, ty + i * 17)); ty += (nameLines.length - 1) * 17 + 17;
+  font("normal", 9.6); T(MUTE); doc.text(fitText([pdfLatin(emp.employee_no), pdfLatin(emp.trade), pdfLatin(emp.project_site)].filter(Boolean).join("   •   ") || "-", nameMaxW, 9.6, 7), nx, ty);
+  const former = emp.active === false; let cx = nx; ty += 10;
+  cx += chip(cx, ty, former ? "LEFT COMPANY" + (emp.left_date ? " " + pdfDate(emp.left_date) : "") : "ACTIVE", former ? "red" : "green", 16) + 6; chip(cx, ty, company === "PI" ? "PI" : "AL FALAK", "soft", 16);
+  const bx = M + cw - 112, tone = pct >= 90 ? "#12A150" : (pct >= 70 ? "#E69A12" : "#D83A3A");
+  font("bold", 7); T(MUTE); spaced("PROFILE COMPLETE", bx, y0 + 20, 0.9); font("bold", 22); T(tone); doc.text(`${pct}%`, bx, y0 + 44);
+  F("#E6EBF3"); rr(bx, y0 + 52, 112, 6.5, 3.2, "F"); F(tone); rr(bx, y0 + 52, Math.max(6.5, 112 * pct / 100), 6.5, 3.2, "F");
+  let y = y0 + 90 + (nameLines.length - 1) * 17;
+  // ---- the table ----
+  const c1 = 176, tx = M, tw = cw, svc = emp.joining_date ? certServiceText(emp.joining_date, today) : "";
+  const dob = emp.date_of_birth ? (() => { const d = new Date(emp.date_of_birth + "T00:00:00"), t = new Date(today + "T00:00:00"); let a = t.getFullYear() - d.getFullYear(); if(t.getMonth() < d.getMonth() || (t.getMonth() === d.getMonth() && t.getDate() < d.getDate())) a--; return `${pdfDate(emp.date_of_birth)}   (${a} yrs)`; })() : "";
+  const SECTIONS = [
+    ["PERSONAL", "#1B5A96", "#EAF1FB", [["Nationality", pdfLatin(certNationalityEnglish(emp.nationality))], ["Date of birth", dob], ["Joining date", pdfDate(emp.joining_date)], ["With the company", svc]]],
+    ["CONTACT", "#0E8F86", "#E4F6F4", [["Mobile number", pdfLatin(emp.mobile_number)], ["Email address", pdfLatin(emp.email), "req"]]],
+    ["EMPLOYMENT", "#7A45F0", "#F0EAFF", [["Employee no.", pdfLatin(emp.employee_no)], ["Trade", pdfLatin(emp.trade)], ["Project site", pdfLatin(emp.project_site)], ["Company", cname], ["Status", former ? "Left the company" + (emp.left_date ? " on " + pdfDate(emp.left_date) : "") : "Active"]]],
+    ["IDENTITY & DOCUMENTS", "#D9822B", "#FFF1DE", [["Iqama number", pdfLatin(emp.iqama_number)], ["Iqama expiry", emp.iqama_expiry_date ? pdfDate(emp.iqama_expiry_date) : "", "date", emp.iqama_expiry_date], ["Passport number", pdfLatin(emp.passport_no)], ["Passport expiry", emp.passport_expiry ? pdfDate(emp.passport_expiry) : "", "date", emp.passport_expiry], ["Medical insurance expiry", emp.medical_insurance_expiry ? pdfDate(emp.medical_insurance_expiry) : "", "date", emp.medical_insurance_expiry]]],
+    ["BANK", "#12A150", "#E3F7EC", [["Bank name", pdfLatin(emp.bank_name)]]]
+  ];
+  const ty0 = y; let first = true;
+  SECTIONS.forEach(([title, accent, tint, rows]) => {
+    F(accent); doc.rect(tx, y, tw, 21, "F"); font("bold", 8.6); T("#FFFFFF"); spaced(title, tx + 12, y + 14, 1.4); y += 21;
+    rows.forEach(([label, value, kind, iso], i) => {
+      const st = kind === "date" ? pdfDocStatus(iso) : null, cwid = st ? chipW(st.text, 7.8) : 0, maxW = tw - c1 - 24 - cwid - (st ? 8 : 0), has = String(value || "").trim();
+      let lines = null, size = 10; if(has){ font("bold", 10); if(doc.getTextWidth(has) <= maxW) lines = [has]; else { font("bold", 9); size = 9; lines = wrapLines(has, maxW, 3); } }
+      const rh = lines && lines.length > 1 ? 12 + lines.length * 11.5 : 25;
+      F(i % 2 ? "#FFFFFF" : tint); doc.rect(tx, y, tw, rh, "F"); S("#E3E9F3"); doc.setLineWidth(0.5); doc.line(tx, y + rh, tx + tw, y + rh);
+      font("normal", 9.2); T(MUTE); doc.text(label, tx + 12, y + 16.2);
+      if(lines){ font("bold", size); T(INK); lines.forEach((ln, k) => doc.text(ln, tx + c1 + 12, y + 16.2 + k * 11.5)); }
+      else { font("bold", 9.4); T(kind === "req" ? "#C62828" : "#9AA7BA"); doc.text(kind === "req" ? "Not provided (required)" : "-", tx + c1 + 12, y + 16.2); }
+      if(st) chip(tx + tw - 12 - cwid, y + (rh - 16) / 2, st.text, st.tone, 16, 7.8);
+      S("#C9D3E4"); doc.setLineWidth(0.6); doc.line(tx + c1, y, tx + c1, y + rh);      // the divider only on the data rows, never across a coloured band
+      y += rh;
+    });
+  });
+  S(P.main); doc.setLineWidth(0.9); doc.rect(tx, ty0, tw, y - ty0, "S");
+  // what is still missing, in one line (the email is required)
+  if(comp.missing.length && y + 40 < H - 50){ y += 12; F("#FFF4D9"); S("#F2C75C"); doc.setLineWidth(0.7); rr(M, y, cw, 22, 7, "FD"); font("bold", 8.6); T("#7A4B00"); doc.text("Still missing:", M + 10, y + 14.2); const lw = doc.getTextWidth("Still missing:  "); font("normal", 8.6); doc.text(fitText(comp.missing.join(", "), cw - 20 - lw, 8.6, 6.5), M + 10 + lw, y + 14.2); }
+  // ---- footer ----
+  S(LINE); doc.setLineWidth(0.8); doc.line(M, H - 40, W - M, H - 40); F(P.gold); doc.rect(M, H - 41, 46, 2.2, "F");
+  font("normal", 7.8); T(MUTE); doc.text(`${cname}   •   Employee profile   •   Confidential, for HR use only`, M, H - 26); doc.text(`Generated ${pdfDate(today)}`, W - M, H - 26, { align: "right" });
+  return doc;
+}
+
+// ---- many employees: one landscape A4 table with every detail, in colour-coded column groups ----
+function buildEmployeesTablePdf(emps){
+  const { jsPDF } = window.jspdf, doc = new jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
+  const W = 841.89, H = 595.28, M = 24, cw = W - 2 * M, today = todayLocalISO();
+  const cos = new Set(emps.map(e => e.salary_group === "Al falak" ? "Al falak" : "PI")), company = cos.size === 1 ? [...cos][0] : "PI", lh = certLetterhead(company), P = certPalette(lh);
+  const cname = cos.size === 1 ? (pdfLatin(lh.display_name) || COMPANY_NAME) : `${pdfLatin(certLetterhead("PI").display_name)}  &  ${pdfLatin(certLetterhead("Al falak").display_name)}`;
+  const K = pdfKit(doc, P), { F, S, T, font, rr, spaced, fitText, wrapLines, chip, chipW } = K, INK = "#152436", MUTE = "#5B6B7C";
+  const GROUPS = [["EMPLOYEE", "#1B5A96", "#E6EFFA"], ["PERSONAL", "#7A45F0", "#EFE9FF"], ["CONTACT", "#0E8F86", "#E1F5F3"], ["DOCUMENTS", "#D9822B", "#FFF0DC"], ["BANK", "#12A150", "#E1F6EA"]];
+  const COLS = [
+    { k: "no", label: "NO.", w: 20, g: 0 }, { k: "emp", label: "EMPLOYEE", w: 92, g: 0 }, { k: "job", label: "TRADE & PROJECT", w: 70, g: 0 },
+    { k: "nat", label: "NATIONALITY", w: 46, g: 1 }, { k: "dob", label: "DATE OF BIRTH", w: 46, g: 1 }, { k: "join", label: "JOINED", w: 54, g: 1 },
+    { k: "mob", label: "MOBILE", w: 56, g: 2 }, { k: "mail", label: "EMAIL", w: 96, g: 2 },
+    { k: "iqn", label: "IQAMA NO.", w: 52, g: 3 }, { k: "iqe", label: "IQAMA EXPIRY", w: 50, g: 3, exp: true }, { k: "ppn", label: "PASSPORT NO.", w: 52, g: 3 }, { k: "ppe", label: "PASSPORT EXPIRY", w: 50, g: 3, exp: true }, { k: "med", label: "MEDICAL EXPIRY", w: 50, g: 3, exp: true },
+    { k: "bank", label: "BANK", w: 60, g: 4 }
+  ];
+  let acc = M; COLS.forEach(c => { c.x = acc; acc += c.w; });
+  // a quick count of documents that need attention, for the header
+  let expired = 0, soon = 0; emps.forEach(e => [e.iqama_expiry_date, e.passport_expiry, e.medical_insurance_expiry].forEach(d => { const n = daysUntil(d); if(n !== null){ if(n < 0) expired++; else if(n <= 30) soon++; } }));
+  const pageTop = (first) => {
+    if(first){
+      pdfGradientBand(doc, K, 0, 0, W, 60, P.dark, P.main); F(P.gold); doc.rect(0, 60, W, 2.6, "F");
+      F("#FFFFFF"); rr(M, 12, 38, 38, 8, "F"); let ok = false; const lf = pdfImgFormat(LOGO_DATA_URI); if(company === "PI" && cos.size === 1 && lf){ try{ doc.addImage(LOGO_DATA_URI, lf, M + 3, 15, 32, 32); ok = true; }catch(e){} }
+      if(!ok){ font("bold", 14); T(P.main); doc.text(cos.size > 1 ? "PI" : (company === "PI" ? "PI" : "AF"), M + 19, 36, { align: "center" }); }
+      font("bold", 16); T("#FFFFFF"); doc.text("Employee Details", M + 50, 29); font("normal", 8.4); T(pdfMix(P.mainTint2, "#FFFFFF", 0.15)); doc.text(fitText(`${cname}   •   ${emps.length} employee${emps.length === 1 ? "" : "s"}   •   Generated ${pdfDate(today)}`, 470, 8.4, 6.5), M + 50, 44);
+      let rx = W - M; font("bold", 7); S("#FFFFFF"); doc.setLineWidth(0.7); rr(rx - 86, 14, 86, 16, 8, "S"); T("#FFFFFF"); spaced("CONFIDENTIAL", rx - 43, 24.6, 1, { align: "center" });
+      let cxp = rx; if(soon){ const t = `${soon} expiring within 30 days`, w = chipW(t, 7.2); cxp -= w; chip(cxp, 36, t, "amber", 15, 7.2); cxp -= 6; } if(expired){ const t = `${expired} expired`, w = chipW(t, 7.2); cxp -= w; chip(cxp, 36, t, "red", 15, 7.2); }
+      return 72;
+    }
+    F(P.dark); doc.rect(0, 0, W, 24, "F"); F(P.gold); doc.rect(0, 24, W, 2, "F"); font("bold", 9.5); T("#FFFFFF"); doc.text("Employee Details", M, 16); font("normal", 8); T(pdfMix(P.mainTint2, "#FFFFFF", 0.15)); doc.text(cname, W - M, 16, { align: "right" });
+    return 34;
+  };
+  const tableHead = (y) => {
+    GROUPS.forEach(([name, col], gi) => { const cs = COLS.filter(c => c.g === gi); const x0 = cs[0].x, w = cs.reduce((t, c) => t + c.w, 0); F(col); doc.rect(x0, y, w, 15, "F"); font("bold", 6.8); T("#FFFFFF"); spaced(name, x0 + w / 2, y + 10.3, 1.2, { align: "center" }); });
+    COLS.forEach(c => { const g = GROUPS[c.g]; F(g[2]); doc.rect(c.x, y + 15, c.w, 22, "F"); S("#FFFFFF"); doc.setLineWidth(0.6); doc.line(c.x, y + 15, c.x, y + 37); font("bold", 5.8); T(pdfMix(g[1], "#000000", 0.25)); const ls = wrapLines(c.label, c.w - 5, 2); ls.forEach((ln, i) => doc.text(ln, c.x + c.w / 2, y + 25 + (ls.length === 1 ? 2.5 : 0) + i * 7, { align: "center" })); });
+    return y + 37;
+  };
+  const initials = profileInitials;
+  const cellData = (e, idx) => {
+    const co = e.salary_group === "Al falak" ? "Al falak" : "PI", former = e.active === false, svcM = e.joining_date ? certServiceMonths(e.joining_date, today) : null;
+    const exp = (iso) => {                                                // compact wording, so it fits the narrow expiry columns
+      if(!iso) return { text: "-", sub: "Not on file", tone: "gray" };
+      const n = daysUntil(iso), tone = n < 0 ? "red" : (n <= 30 ? "amber" : "green");
+      return { text: pdfDate(iso), sub: n < 0 ? `Expired ${-n}d ago` : (n <= 30 ? `Expires in ${n}d` : `${n} days left`), tone };
+    };
+    return {
+      no: String(idx + 1), name: pdfLatin(e.name) || "-", empNo: pdfLatin(e.employee_no), former, photo: e.photo_data, co,
+      trade: pdfLatin(e.trade), site: pdfLatin(e.project_site), nat: pdfLatin(certNationalityEnglish(e.nationality)),
+      dob: e.date_of_birth ? pdfDate(e.date_of_birth) : "", join: e.joining_date ? pdfDate(e.joining_date) : "", svc: svcM === null ? "" : `${Math.floor(svcM / 12)}y ${svcM % 12}m`,
+      mob: pdfLatin(e.mobile_number), mail: pdfLatin(e.email), iqn: pdfLatin(e.iqama_number), ppn: pdfLatin(e.passport_no), bank: pdfLatin(e.bank_name),
+      iqe: exp(e.iqama_expiry_date), ppe: exp(e.passport_expiry), med: exp(e.medical_insurance_expiry)
+    };
+  };
+  const TONE_BG = { red: "#FDE3E3", amber: "#FFF0D0" }, TONE_FG = { red: "#B3261E", amber: "#8A5200", green: "#0E7A48", gray: "#8E9BB0" };
+  const drawRow = (d, y, zebra) => {
+    const byk = {}; COLS.forEach(c => { byk[c.k] = c; });
+    // wrap the text cells first, so the row is as tall as its tallest cell
+    font("bold", 7.2); const nameL = wrapLines(d.name, byk.emp.w - 30, 4); font("bold", 6.6); const tradeL = d.trade ? wrapLines(d.trade, byk.job.w - 6, 5) : []; font("normal", 6.3); const siteL = d.site ? wrapLines(d.site, byk.job.w - 6, 4) : [];
+    font("normal", 6.4); const mailL = d.mail ? wrapLines(d.mail, byk.mail.w - 6, 6) : [], bankL = d.bank ? wrapLines(d.bank, byk.bank.w - 6, 6) : [], natL = d.nat ? wrapLines(d.nat, byk.nat.w - 5, 3) : [];
+    const lines = Math.max(nameL.length + 1, tradeL.length + siteL.length, mailL.length, bankL.length, natL.length, 2), rh = Math.max(27, 9 + lines * 7.4);
+    F(zebra ? "#F6F8FC" : "#FFFFFF"); doc.rect(M, y, cw, rh, "F");
+    COLS.filter(c => c.exp).forEach(c => { const x = d[c.k]; if(TONE_BG[x.tone]){ F(TONE_BG[x.tone]); doc.rect(c.x, y, c.w, rh, "F"); } });
+    S("#E1E7F0"); doc.setLineWidth(0.4); COLS.forEach(c => doc.line(c.x, y, c.x, y + rh)); doc.line(M + cw, y, M + cw, y + rh); doc.line(M, y + rh, M + cw, y + rh);
+    const cy = y + rh / 2, mid = (n) => y + rh / 2 - (n * 7.4) / 2 + 5.6;
+    font("normal", 7); T(MUTE); doc.text(d.no, byk.no.x + byk.no.w / 2, cy + 2.4, { align: "center" });
+    const ex = byk.emp.x, pr = 8.6; F(P.gold); doc.circle(ex + 14, cy, pr + 1.3, "F"); if(!K.photo(d.photo, ex + 14, cy, pr)){ F(d.co === "PI" ? P.main : "#997F49"); doc.circle(ex + 14, cy, pr, "F"); font("bold", 6.8); T("#FFFFFF"); doc.text(initials(d.name), ex + 14, cy + 2.4, { align: "center" }); }
+    font("bold", 7.2); T(INK); nameL.forEach((ln, i) => doc.text(ln, ex + 26, mid(nameL.length + 1) + i * 7.4)); font("normal", 6.2); T(MUTE); const noY = mid(nameL.length + 1) + nameL.length * 7.4; doc.text(d.empNo || "", ex + 26, noY);
+    if(d.former){ const nw = d.empNo ? doc.getTextWidth(d.empNo) + 4 : 0; chip(ex + 26 + nw, noY - 6.6, "LEFT", "red", 8.4, 5.4); }          // next to the number, never over the name
+    let jy = mid(tradeL.length + siteL.length); font("bold", 6.6); T(INK); tradeL.forEach((ln, i) => doc.text(ln, byk.job.x + 3, jy + i * 7.4)); font("normal", 6.3); T(MUTE); siteL.forEach((ln, i) => doc.text(ln, byk.job.x + 3, jy + (tradeL.length + i) * 7.4));
+    const plain = (c, ls, bold, color) => { font(bold ? "bold" : "normal", 6.4); T(color || INK); if(!ls.length){ T("#9AA7BA"); doc.text("-", c.x + 3, cy + 2.2); return; } ls.forEach((ln, i) => doc.text(ln, c.x + 3, mid(ls.length) + i * 7.4)); };
+    plain(byk.nat, natL, true);
+    [["dob", d.dob, null], ["join", d.join, d.svc]].forEach(([k, v, sub]) => { const c = byk[k]; if(!v){ font("normal", 6.4); T("#9AA7BA"); doc.text("-", c.x + 3, cy + 2.2); return; } font("bold", 6.8); T(INK); doc.text(v, c.x + 3, sub ? cy - 0.6 : cy + 2.3); if(sub){ font("normal", 6); T(MUTE); doc.text(sub, c.x + 3, cy + 6.6); } });
+    font("normal", 6.6); T(INK); if(d.mob) doc.text(fitText(d.mob, byk.mob.w - 5, 6.6, 5.4), byk.mob.x + 3, cy + 2.3); else { T("#9AA7BA"); doc.text("-", byk.mob.x + 3, cy + 2.3); }
+    if(mailL.length) plain(byk.mail, mailL, false); else { font("bold", 6.2); T("#C62828"); doc.text("Not provided", byk.mail.x + 3, cy - 1); doc.text("(required)", byk.mail.x + 3, cy + 6); }
+    [["iqn", d.iqn], ["ppn", d.ppn]].forEach(([k, v]) => { const c = byk[k]; font("normal", 6.6); if(v){ T(INK); doc.text(fitText(v, c.w - 5, 6.6, 5.4), c.x + 3, cy + 2.3); } else { T("#9AA7BA"); doc.text("-", c.x + 3, cy + 2.3); } });
+    COLS.filter(c => c.exp).forEach(c => { const x = d[c.k]; font("bold", 6.8); T(x.tone === "gray" ? "#9AA7BA" : INK); doc.text(x.text, c.x + 3, cy - 0.6); font("bold", 5.9); T(TONE_FG[x.tone]); doc.text(fitText(x.sub, c.w - 5, 5.9, 4.8), c.x + 3, cy + 6.6); });
+    plain(byk.bank, bankL, false);
+    return rh;
+  };
+  let y = tableHead(pageTop(true)); const bottom = H - 34;
+  emps.forEach((e, i) => {
+    const d = cellData(e, i);
+    const need = 66;                                                     // room for a tall row (a long name or email wraps onto several lines, and the row grows to fit)
+    if(y + need > bottom){ doc.addPage(); y = tableHead(pageTop(false)); }
+    y += drawRow(d, y, i % 2 === 1);
+  });
+  S(P.main); doc.setLineWidth(0.9); doc.line(M, y, M + cw, y);
+  // footers: page numbers are written last, when the number of pages is known
+  const n = doc.getNumberOfPages();
+  for(let p = 1; p <= n; p++){ doc.setPage(p); S("#D5DDEA"); doc.setLineWidth(0.7); doc.line(M, H - 24, W - M, H - 24); F(P.gold); doc.rect(M, H - 25, 40, 2, "F"); font("normal", 7.2); T(MUTE); doc.text(`${cname}   •   Employee details   •   Confidential, for HR use only`, M, H - 12); doc.text(`Page ${p} of ${n}`, W - M, H - 12, { align: "right" }); }
+  return doc;
+}
+async function exportEmployeesTablePdf(){
+  if(!state.user || !["hr", "ceo"].includes(state.user.role)){ toast("Only HR and the Owner can export this table."); return; }
+  const chosen = (state.employeeDirectory || []).filter(e => state.exportSelected && state.exportSelected[e.id]);
+  if(!chosen.length){ toast("Select at least one employee."); return; }
+  state.loading = true; render();
+  try{
+    const doc = buildEmployeesTablePdf(chosen);
+    doc.save(`Employee_Details_${todayLocalISO()}.pdf`);
+    toast(`Exported ${chosen.length} employee${chosen.length === 1 ? "" : "s"}.`);
+  }catch(e){
+    console.error("Employee table PDF error:", e);
+    toast("PDF error: " + (e && e.message ? e.message : "unknown"));
+  }
+  state.loading = false;
+  render();
+}
+
+// ---- the selection screen for the landscape table (HR and the Owner) ----
+function exportBase(){ return (state.employeeDirectory || []).filter(e => e.supervisor_id !== state.hrmSupervisorId && (state.exportShowFormer || e.active !== false)); }
+function exportCompanyOf(e){ return e.salary_group === "Al falak" ? "Al falak" : "PI"; }
+function exportList(){
+  const q = String(state.exportSearch || "").trim().toLowerCase(), co = state.exportCompany || "all";
+  return exportBase().filter(e => co === "all" || exportCompanyOf(e) === co)
+    .filter(e => !q || [e.name, e.employee_no, e.iqama_number, e.trade, e.project_site, e.nationality, e.email, e.mobile_number].some(v => String(v || "").toLowerCase().includes(q)));
+}
+function exportSelectedCount(){ const ids = new Set((state.employeeDirectory || []).map(e => e.id)); const sel = state.exportSelected || {}; return Object.keys(sel).filter(id => sel[id] && ids.has(id)).length; }
+function exportRefresh(){                                          // ticks and the counter change in place, so the list does not jump while he is picking
+  const sel = state.exportSelected || {};
+  document.querySelectorAll("[data-export-toggle]").forEach(r => { const on = !!sel[r.getAttribute("data-export-toggle")]; r.classList.toggle("on", on); const cb = r.querySelector(".ex-cb"); if(cb) cb.textContent = on ? "✓" : ""; });
+  const n = exportSelectedCount(), c = document.getElementById("exportCount"), b = document.getElementById("exportPdfBtn");
+  if(c) c.innerHTML = `<b>${n}</b> selected`; if(b) b.disabled = n === 0;
+}
+function exportToggle(id){ state.exportSelected = state.exportSelected || {}; state.exportSelected[id] = !state.exportSelected[id]; exportRefresh(); }
+function exportSelectShown(){ state.exportSelected = state.exportSelected || {}; exportList().forEach(e => { state.exportSelected[e.id] = true; }); exportRefresh(); }
+function exportClear(){ state.exportSelected = {}; exportRefresh(); }
+function openEmployeeExport(){
+  if(!state.user || !["hr", "ceo"].includes(state.user.role)){ toast("Only HR and the Owner can export this table."); return; }
+  state.view = "employee-export"; state.exportSearch = ""; state.exportCompany = "all"; render();
+}
+function renderEmployeeExport(){
+  const list = exportList(), esc = escapeHtml, sel = state.exportSelected || {}, n = exportSelectedCount();
+  const formerCount = (state.employeeDirectory || []).filter(e => e.supervisor_id !== state.hrmSupervisorId && e.active === false).length;
+  const chipBtn = (v, label) => `<button type="button" class="ex-chip${(state.exportCompany || "all") === v ? " on" : ""}" data-export-company="${v}">${label}</button>`;
+  const docFlag = (e) => { const ns = [e.iqama_expiry_date, e.passport_expiry, e.medical_insurance_expiry].map(daysUntil).filter(x => x !== null), m = ns.length ? Math.min(...ns) : null; return m === null ? "" : (m < 0 ? `<span class="ex-flag red">Expired</span>` : (m <= 30 ? `<span class="ex-flag amber">Expiring</span>` : "")); };
+  const rows = list.map(e => `<div class="ex-row${sel[e.id] ? " on" : ""}" data-export-toggle="${e.id}"><span class="ex-cb">${sel[e.id] ? "✓" : ""}</span><span class="ex-av ex-av-${exportCompanyOf(e) === "PI" ? "pi" : "af"}">${esc(profileInitials(e.name))}</span><span class="ex-main"><b>${esc(e.name)}</b><span>${esc([e.employee_no, e.trade, e.project_site].filter(Boolean).join(" • ") || "-")}</span></span><span class="ex-tags">${e.active === false ? `<span class="ex-flag gray">Left</span>` : ""}${!String(e.email || "").trim() ? `<span class="ex-flag violet">No email</span>` : ""}${docFlag(e)}</span></div>`).join("");
+  return `
+    <button class="link-btn" id="exportBackBtn" style="margin-bottom:12px;">‹ Directory</button>
+    <div class="ex-hero"><div class="ex-hi">📊</div><div><div class="ex-ht">Export employee details</div><div class="ex-hs">Pick the employees, then export one landscape A4 table with all their details.</div></div></div>
+    <input type="text" id="exportSearchInput" class="ex-search" value="${esc(state.exportSearch || "")}" placeholder="Search name, number, trade, project, Iqama…" autocomplete="off">
+    <div class="ex-chips">${chipBtn("all", "All")}${chipBtn("PI", "PI")}${chipBtn("Al falak", "Al Falak")}</div>
+    ${formerCount ? `<label class="ex-former"><input type="checkbox" id="exportFormerInput" ${state.exportShowFormer ? "checked" : ""}> Show former employees (${formerCount})</label>` : ""}
+    <div class="ex-tools"><button type="button" class="ex-tool" id="exportSelectAllBtn">☑ Select all shown (${list.length})</button><button type="button" class="ex-tool" id="exportClearBtn">✕ Clear</button></div>
+    <div class="ex-list">${rows || `<div class="empty-state"><div class="ic">👥</div>No employees match.</div>`}</div>
+    <div class="ex-bar"><div id="exportCount" class="ex-count"><b>${n}</b> selected</div><button type="button" class="ex-go" id="exportPdfBtn" ${n ? "" : "disabled"}>📄 Export PDF</button></div>
+    <div class="ex-note">One landscape A4 table: a row per employee, colour-coded column groups, with expired and expiring documents highlighted.</div>`;
+}
+
 function renderEmployeeDirectory(){
   if(state.loading && !state.employeeDirectory.length){
     const backId = state.user.role === "ceo" ? "backToCeoHomeBtn" : (state.user.role === "hr" ? "backToHrBtn" : (state.user.role === "manager" ? "backToManagerHomeBtn" : "backToSupervisorHomeBtn"));
@@ -9765,7 +10051,7 @@ function renderEmployeeDirectory(){
       row("🩺", "Medical insurance expiry", emp.medical_insurance_expiry, emp.medical_insurance_expiry)
     )}
 
-    ${(() => {
+    ${(isHrUser || isCeoUser) ? (() => {
       const empVacations = state.directoryVacations.filter(v => v.employee_id === emp.id);
       let vacationRows;
       if(empVacations.length){
@@ -9791,7 +10077,7 @@ function renderEmployeeDirectory(){
         vacationRows = `<div style="padding:8px 0;font-size:12px;opacity:0.7;">No vacation on record.</div>`;
       }
       return section("🌴 VACATION HISTORY", "#6B4FC4", "#F3EAFB", vacationRows);
-    })()}
+    })() : ""}
 
     ${section("🏦 BANK DETAILS", "#125C4F", "#EAF6F3",
       row("🏦", "Bank name", emp.bank_name)
@@ -9815,6 +10101,7 @@ function renderEmployeeDirectory(){
       <h3>👤 Employee Directory</h3>
       <div class="meta">Pick a name to view their full profile.</div>
     </div>
+    ${(isHrUser || isCeoUser) ? `<button type="button" class="ex-open" id="openEmployeeExportBtn"><span>📊</span><div class="ex-ot"><b>Export details table</b><i>Landscape A4 PDF: pick the employees</i></div></button>` : ""}
     ${(isHrUser || isCeoUser) ? `
     <label style="display:flex;align-items:center;gap:8px;margin:10px 0 0;text-transform:none;font-weight:600;font-size:12.5px;cursor:pointer;">
       <input type="checkbox" id="directoryShowFormerInput" ${state.directoryShowFormer ? "checked" : ""} style="width:18px;height:18px;">
@@ -9847,7 +10134,7 @@ function renderMyProfile(){
       ${(savedMobile || savedEmail) ? `<div class="pf-contact">${savedMobile ? `<span class="pf-cchip">📱 ${esc(savedMobile)}</span>` : ""}${savedEmail ? `<span class="pf-cchip">✉️ ${esc(savedEmail)}</span>` : ""}</div>` : ""}
     </div>
 
-    ${savedEmail ? "" : `<div class="pf-nudge"><div class="pf-ni">✉️</div><div class="pf-nt"><b>Add your email address</b><span>So the company can reach you.</span></div><button type="button" class="pf-nb" data-pf-goto-email="1">Add</button></div>`}
+    ${savedEmail ? "" : `<div class="pf-nudge"><div class="pf-ni">✉️</div><div class="pf-nt"><b>Add your email address <i class="pf-star">*</i></b><span>Required, so the company can reach you.</span></div><button type="button" class="pf-nb" data-pf-goto-email="1">Add</button></div>`}
 
     ${profileExpiryWarning(p, d)}
 
@@ -9873,40 +10160,15 @@ function renderMyProfile(){
 
     <div class="pf-card pf-form" id="pfForm">
       <div class="pf-ch pf-ch-violet"><span>✎</span> Update your info</div>
-
-      <div class="pf-sec pf-sec-photo">
-        <div class="pf-st">📷 Photo</div>
-        <label class="pf-file"><input type="file" id="myProfilePhotoInput" accept="image/*"><span class="pf-fb">Choose a photo</span><span class="pf-fn">${d.photo_data ? "Photo selected" : "No photo yet"}</span></label>
-      </div>
-
-      <div class="pf-sec pf-sec-contact">
-        <div class="pf-st">📞 Contact</div>
-        <label for="myProfileMobile">Mobile number</label>
-        <input class="pf-in pf-teal" type="text" inputmode="tel" id="myProfileMobile" value="${esc(d.mobile_number)}" placeholder="05XXXXXXXX">
-        <label for="myProfileEmail">Email address</label>
-        <input class="pf-in pf-violet${hint.tone === "bad" ? " pf-in-bad" : ""}" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="120" id="myProfileEmail" value="${esc(d.email)}" placeholder="name@example.com">
-        <div class="pf-hint pf-hint-${hint.tone}" id="myProfileEmailHint">${hint.html}</div>
-      </div>
-
-      <div class="pf-sec pf-sec-passport">
-        <div class="pf-st">🛂 Passport</div>
-        <label for="myProfilePassportNo">Passport No</label>
-        <input class="pf-in pf-amber" type="text" id="myProfilePassportNo" value="${esc(d.passport_no)}">
-        <label for="myProfilePassportExpiry">Passport expiry</label>
-        <input class="pf-in pf-amber" type="date" id="myProfilePassportExpiry" value="${esc(d.passport_expiry)}">
-      </div>
-
-      <div class="pf-sec pf-sec-iqama">
-        <div class="pf-st">🪪 Iqama</div>
-        <label for="myProfileIqamaExpiry">Iqama expiry</label>
-        <input class="pf-in pf-orange" type="date" id="myProfileIqamaExpiry" value="${esc(d.iqama_expiry_date)}">
-      </div>
-
-      <div class="pf-sec pf-sec-bank">
-        <div class="pf-st">🏦 Bank</div>
-        <label for="myProfileBankName">Bank name</label>
-        <input class="pf-in pf-sky" type="text" id="myProfileBankName" value="${esc(d.bank_name)}">
-      </div>
+      <table class="pf-ft">
+        <tr><th>Photo</th><td><label class="pf-file"><input type="file" id="myProfilePhotoInput" accept="image/*"><span class="pf-fb">Choose</span><span class="pf-fn">${d.photo_data ? "Photo selected" : "No photo yet"}</span></label></td></tr>
+        <tr><th><label for="myProfileMobile">Mobile no.</label></th><td><input class="pf-in" type="text" inputmode="tel" id="myProfileMobile" value="${esc(d.mobile_number)}" placeholder="05XXXXXXXX"></td></tr>
+        <tr class="pf-req"><th><label for="myProfileEmail">Email <i class="pf-star">*</i></label></th><td><input class="pf-in${hint.tone === "bad" ? " pf-in-bad" : ""}" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="120" required id="myProfileEmail" value="${esc(d.email)}" placeholder="name@example.com"><div class="pf-hint pf-hint-${hint.tone}" id="myProfileEmailHint">${hint.html}</div></td></tr>
+        <tr><th><label for="myProfilePassportNo">Passport no.</label></th><td><input class="pf-in" type="text" id="myProfilePassportNo" value="${esc(d.passport_no)}"></td></tr>
+        <tr><th><label for="myProfilePassportExpiry">Passport expiry</label></th><td><input class="pf-in" type="date" id="myProfilePassportExpiry" value="${esc(d.passport_expiry)}"></td></tr>
+        <tr><th><label for="myProfileBankName">Bank name</label></th><td><input class="pf-in" type="text" id="myProfileBankName" value="${esc(d.bank_name)}"></td></tr>
+      </table>
+      <div class="pf-reqnote"><i class="pf-star">*</i> Required. Your Iqama expiry date is kept by HR, so there is nothing to enter for it.</div>
 
       <button class="pf-save" id="saveMyProfileBtn">💾 Save changes</button>
     </div>
@@ -11529,7 +11791,7 @@ function profileExpiryWarning(p, d){
   const bad = Object.keys(x).map(k => ({ k, n: profileDaysLeft(x[k]) })).filter(o => o.n !== null && o.n <= 30).sort((a, b) => a.n - b.n);
   if(!bad.length) return "";
   const o = bad[0];
-  return `<div class="status-banner status-rejected" style="margin-top:14px;">⚠️ ${names[o.k]} ${o.n < 0 ? `expired ${-o.n} day${-o.n === 1 ? "" : "s"} ago` : `expires in ${o.n} day${o.n === 1 ? "" : "s"}`}${bad.length > 1 ? ` (and ${bad.length - 1} more document${bad.length > 2 ? "s" : ""} need attention)` : ""}. Please tell HR, and update the date below once it is renewed.</div>`;
+  return `<div class="status-banner status-rejected" style="margin-top:14px;">⚠️ ${names[o.k]} ${o.n < 0 ? `expired ${-o.n} day${-o.n === 1 ? "" : "s"} ago` : `expires in ${o.n} day${o.n === 1 ? "" : "s"}`}${bad.length > 1 ? ` (and ${bad.length - 1} more document${bad.length > 2 ? "s" : ""} need attention)` : ""}. Please tell HR so they can update it once it is renewed.</div>`;
 }
 function profileServiceLine(p){
   const t = p.joining_date ? certServiceText(p.joining_date, todayLocalISO()) : "";
@@ -15423,11 +15685,21 @@ function handleDelegatedClick(e){
     render();
     return;
   }
+  if(e.target.closest("[data-open-profile-email]")){ state.view = "my-profile"; loadMyProfile(); return; }
   if(el("openMyProfileBtn")){
     state.view = "my-profile";
     loadMyProfile();
     return;
   }
+  const exToggleEl = e.target.closest("[data-export-toggle]");
+  if(exToggleEl){ exportToggle(exToggleEl.getAttribute("data-export-toggle")); return; }
+  const exCoEl = e.target.closest("[data-export-company]");
+  if(exCoEl){ state.exportCompany = exCoEl.getAttribute("data-export-company"); render(); return; }
+  if(el("exportSelectAllBtn")){ exportSelectShown(); return; }
+  if(el("exportClearBtn")){ exportClear(); return; }
+  if(el("exportPdfBtn")){ exportEmployeesTablePdf(); return; }
+  if(el("openEmployeeExportBtn")){ openEmployeeExport(); return; }
+  if(el("exportBackBtn")){ state.view = "employee-directory"; render(); return; }
   const emailFixEl = e.target.closest("[data-email-fix]");
   if(emailFixEl){ const fix = emailFixEl.getAttribute("data-email-fix"); state.myProfileDraft.email = fix; const inp = document.getElementById("myProfileEmail"); if(inp) inp.value = fix; profileEmailRefreshHint(); return; }
   if(e.target.closest("[data-pf-goto-email]")){ const f = document.getElementById("myProfileEmail"); if(f){ f.scrollIntoView({ behavior: "smooth", block: "center" }); setTimeout(() => { try{ f.focus(); }catch(err){} }, 350); } return; }
@@ -15566,6 +15838,7 @@ function handleDelegatedChange(e){
     return;
   }
   if(e.target.id === "directoryShowFormerInput"){ state.directoryShowFormer = !!e.target.checked; render(); return; }
+  if(e.target.id === "exportFormerInput"){ state.exportShowFormer = !!e.target.checked; render(); return; }
   if(e.target.id === "directoryEmployeeSelect"){
     state.selectedDirectoryEmployeeId = e.target.value || null;
     render();
@@ -15816,6 +16089,7 @@ function handleDelegatedInput(e){
     const freshInput = document.getElementById("hrTodoMessageInput");
     if(freshInput){ freshInput.focus(); freshInput.setSelectionRange(cursorPos, cursorPos); }
   }
+  if(e.target.id === "exportSearchInput"){ state.exportSearch = e.target.value; const pos = e.target.selectionStart; render(); const f = document.getElementById("exportSearchInput"); if(f){ f.focus(); try{ f.setSelectionRange(pos, pos); }catch(_){} } return; }
   if(e.target.id === "myProfileMobile"){ state.myProfileDraft.mobile_number = e.target.value; }
   if(e.target.id === "myProfileEmail"){ state.myProfileDraft.email = e.target.value; profileEmailRefreshHint(); }
   if(e.target.id === "myProfilePassportNo"){ state.myProfileDraft.passport_no = e.target.value; }
