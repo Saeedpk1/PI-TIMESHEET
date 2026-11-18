@@ -7125,12 +7125,14 @@ async function downloadMyTimesheetPdf(){
     const body = [];
     const empProjectDays = {};
     const fridayRows = new Set();
+    const otPdfMap = otByDate(otParseRemarks((state.submission && (state.submission.status === "submitted" || state.submission.status === "approved")) ? state.submission.remarks : otCompose(state.otList, state.remarksOther)).ot);
     for(let day=1; day<=nd; day++){
       const dstr = fmtDate(y,m,day);
       const v = state.entries[dstr] || { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0, project_id: "" };
       const statusLabel = v.status === "Present" ? "P" : v.status;
       if(v.status === "Friday") fridayRows.add(body.length);
       body.push([ String(day).padStart(2,"0"), dayNameFull(y,m,day), statusLabel, v.status==="Present" ? "8.0" : "0.0", projectName(v.project_id) || "-" ]);
+      if(otPdfMap[dstr]) body.push([{ content: otUnderDayText(otPdfMap[dstr], true), colSpan: 5, styles: { fillColor: [221,251,239], textColor: [6,122,85], fontStyle: "bold" } }]);
       if(v.status === "Present" && v.project_id){
         const pname = projectName(v.project_id) || "Unassigned";
         empProjectDays[pname] = (empProjectDays[pname] || 0) + 1;
@@ -7162,10 +7164,10 @@ async function downloadMyTimesheetPdf(){
     });
 
     const totals = computeTotals(state.entries);
-    const approvedOt = Number(state.submission?.approved_ot_hours) || 0;
+    const approvedOt = otTotal(otParseRemarks((state.submission && (state.submission.status === "submitted" || state.submission.status === "approved")) ? state.submission.remarks : otCompose(state.otList, state.remarksOther)).ot) || (Number(state.submission?.approved_ot_hours) || 0);
     let y2 = doc.lastAutoTable.finalY + 16;
     doc.setFontSize(9); doc.setTextColor(40,40,40);
-    doc.text(`Present: ${totals.present}   Absent: ${totals.absent}   Sick: ${totals.sick}   Leave: ${totals.leave}   Approved OT hrs: ${approvedOt.toFixed(1)}   Total hrs: ${(totals.regularHours + approvedOt).toFixed(1)}`, 40, y2);
+    doc.text(`Present: ${totals.present}   Absent: ${totals.absent}   Sick: ${totals.sick}   Leave: ${totals.leave}   Overtime hrs: ${approvedOt.toFixed(1)}   Total hrs: ${(totals.regularHours + approvedOt).toFixed(1)}`, 40, y2);
 
     const projectEntries = Object.entries(empProjectDays);
     if(projectEntries.length){
@@ -7207,7 +7209,7 @@ async function downloadMyTimesheetPdf(){
       const remText = lockedNow ? (sub.remarks || "") : otCompose(state.otList, state.remarksOther);
       if(remText){
         let y3 = y2 + ((sub && sub.status === "approved" && sub.signature_data) ? 55 : 16);
-        const blk = otPdfBlock(doc, y3, remText); y3 = blk.y;
+        const blk = otPdfBlock(doc, y3, remText, false); y3 = blk.y;
         if(blk.other){
           doc.setFontSize(9); doc.setTextColor(90,90,90); doc.setFont("helvetica", "bold");
           doc.text("Remarks:", 40, y3);
@@ -8122,14 +8124,14 @@ async function exportAttendanceByProjectExcel(){
       sb.from("ts_projects").select("id, name"),
       // Same source the salary sheet uses for OT — set directly by HR
       // once received, not summed from daily entries.
-      sb.from("ts_timesheet_submissions").select("employee_id, approved_ot_hours").eq("month", monthStr)
+      sb.from("ts_timesheet_submissions").select("employee_id, approved_ot_hours, remarks").eq("month", monthStr)
     ]);
 
     const projectNameById = {};
     (projects || []).forEach(p => { projectNameById[p.id] = p.name; });
 
     const otHoursByEmp = {};
-    (otSubs || []).forEach(s => { otHoursByEmp[s.employee_id] = Number(s.approved_ot_hours) || 0; });
+    (otSubs || []).forEach(s => { otHoursByEmp[s.employee_id] = otEffective(s); });
 
     // date|employeeId -> project name (an employee can't be double-booked on the same day)
     const dayProjectMap = {};
@@ -8629,10 +8631,10 @@ async function generateWpsPayroll(payrollGroup){
       }else{
         const { data: entryRows } = await sb.from("ts_timesheet_entries").select("*")
           .eq("employee_id", emp.id).gte("entry_date", start).lte("entry_date", end);
-        const { data: subRow } = await sb.from("ts_timesheet_submissions").select("approved_ot_hours")
+        const { data: subRow } = await sb.from("ts_timesheet_submissions").select("approved_ot_hours, remarks")
           .eq("employee_id", emp.id).eq("month", state.hrMonth).maybeSingle();
         let present = 0, absent = 0;
-        const ot = Number(subRow?.approved_ot_hours) || 0; // set directly by HR once received
+        const ot = otEffective(subRow); // the overtime the employee entered
         (entryRows || []).forEach(r => {
           if(r.status === "Present"){ present++; }
           else if(r.status === "Absent"){ absent++; }
@@ -8736,11 +8738,11 @@ async function generateSalarySheet(){
     if(empErr) throw empErr;
 
     const { data: approvedSubs, error: subErr } = await sb.from("ts_timesheet_submissions")
-      .select("employee_id, status, approved_ot_hours").eq("month", monthStr);
+      .select("employee_id, status, approved_ot_hours, remarks").eq("month", monthStr);
     if(subErr) throw subErr;
     const approvedIds = new Set((approvedSubs || []).filter(s => s.status === "approved").map(s => s.employee_id));
     const otMap = {};
-    (approvedSubs || []).forEach(s => { otMap[s.employee_id] = Number(s.approved_ot_hours) || 0; });
+    (approvedSubs || []).forEach(s => { otMap[s.employee_id] = otEffective(s); });
 
     if(!state.hrmSupervisorId){
       const { data: mohammedId } = await sb.rpc("get_hrm_supervisor_id");
@@ -9059,6 +9061,7 @@ async function generateSaudiArabicPdf(){
           <td style="padding:3px 6px;border:1px solid #C9D6E3;text-align:center;">${v.status==="Present" ? "8.0" : "0.0"}</td>
           <td style="padding:3px 6px;border:1px solid #C9D6E3;text-align:center;">${projectName(v.project_id) || "-"}</td>
         </tr>`;
+        { const ol = otByDate(otParseRemarks(sub.remarks).ot)[dstr]; if(ol) rowsHtml += `<tr><td colspan="5" style="padding:3px 6px;border:1px solid #C9D6E3;background:#DDFBEF;color:#067A55;font-weight:700;direction:ltr;text-align:left;">${escapeHtml(otUnderDayText(ol))}</td></tr>`; }
       }
 
       const projRowsHtml = Object.entries(empProjectDays).map(([pname, days]) =>
@@ -9071,7 +9074,7 @@ async function generateSaudiArabicPdf(){
         : "معتمد وموقع من قبل المشرف";
       const approvedDate = sub.approved_at ? new Date(sub.approved_at).toLocaleString("ar-SA") : "-";
       const displayName = emp?.name_ar || emp?.name || "";
-      const approvedOt = Number(sub.approved_ot_hours) || 0;
+      const approvedOt = otEffective(sub);
 
       stage.innerHTML = `
         <div dir="rtl" lang="ar" style="font-family:Tahoma,Arial,sans-serif;padding:20px;font-size:12px;color:#222;">
@@ -9098,7 +9101,7 @@ async function generateSaudiArabicPdf(){
           </table>
           <div style="margin-top:12px;font-size:11px;">
             أيام الحضور: ${totals.present}&nbsp;&nbsp;&nbsp;أيام الغياب: ${totals.absent}&nbsp;&nbsp;&nbsp;أيام الإجازة: ${totals.leave}&nbsp;&nbsp;&nbsp;
-            الساعات الإضافية المعتمدة: ${approvedOt.toFixed(1)}&nbsp;&nbsp;&nbsp;إجمالي الساعات: ${(totals.regularHours + approvedOt).toFixed(1)}
+            الساعات الإضافية: ${approvedOt.toFixed(1)}&nbsp;&nbsp;&nbsp;إجمالي الساعات: ${(totals.regularHours + approvedOt).toFixed(1)}
           </div>
           ${projRowsHtml ? `
           <div style="margin-top:12px;font-size:12px;font-weight:700;color:#0F3556;">أيام العمل حسب المشروع</div>
@@ -9112,7 +9115,7 @@ async function generateSaudiArabicPdf(){
           <div style="margin-top:16px;font-size:11px;color:#666;">${approvedText}</div>
           ${(!selfSubmitted && sub.signature_data) ? `<img src="${sub.signature_data}" style="width:110px;height:auto;margin-top:6px;">` : ""}
           <div style="font-size:10px;color:#888;margin-top:4px;">تاريخ الاعتماد: ${approvedDate}</div>
-          ${(() => { const pr = otParseRemarks(sub.remarks); return (pr.ot.length ? `<div style="margin-top:10px;font-size:11px;"><b>الوقت الإضافي:</b>${otTableHtml(pr.ot)}</div>` : "") + (pr.other ? `<div style="margin-top:10px;font-size:11px;"><b>ملاحظات:</b> <span style="direction:ltr;unicode-bidi:embed;">${escapeHtml(pr.other)}</span></div>` : ""); })()}
+          ${(() => { const pr = otParseRemarks(sub.remarks); return (pr.other ? `<div style="margin-top:10px;font-size:11px;"><b>ملاحظات:</b> <span style="direction:ltr;unicode-bidi:embed;">${escapeHtml(pr.other)}</span></div>` : ""); })()}
         </div>`;
       doc.addPage();
       await renderStageToPdfPage();
@@ -9182,7 +9185,7 @@ async function buildCombinedPdf(included, titleText, filename){
   doc.text(`Generated ${new Date().toLocaleString()}  •  ${included.length} approved employee(s)`, 40, 96);
 
   const rosterRows = employeeData.map(({ sub, emp, totals }) => {
-    const ot = Number(sub.approved_ot_hours) || 0;
+    const ot = otEffective(sub);
     return [
       emp?.name || "Employee",
       fmtHours(totals.regularHours),
@@ -9223,12 +9226,14 @@ async function buildCombinedPdf(included, titleText, filename){
 
     const body = [];
     const fridayRows = new Set();
+    const otPdfMap2 = otByDate(otParseRemarks(sub.remarks).ot);
     for(let day=1; day<=nd; day++){
       const dstr = fmtDate(y, m-1, day);
       const v = entries[dstr];
       const statusLabel = v.status === "Present" ? "P" : v.status;
       if(v.status === "Friday") fridayRows.add(body.length);
       body.push([ String(day).padStart(2,"0"), dayNameFull(y,m-1,day), statusLabel, v.status==="Present" ? "8.0" : "0.0", projectName(v.project_id) || "-" ]);
+      if(otPdfMap2[dstr]) body.push([{ content: otUnderDayText(otPdfMap2[dstr], true), colSpan: 5, styles: { fillColor: [221,251,239], textColor: [6,122,85], fontStyle: "bold" } }]);
     }
     doc.autoTable({
       startY: 92,
@@ -9260,7 +9265,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
     let y2 = doc.lastAutoTable.finalY + 16;
     doc.setFontSize(9); doc.setTextColor(40,40,40);
-    doc.text(`Present: ${totals.present}   Absent: ${totals.absent}   Sick: ${totals.sick}   Leave: ${totals.leave}   Approved OT hrs: ${(Number(sub.approved_ot_hours)||0).toFixed(1)}   Total hrs: ${(totals.regularHours + (Number(sub.approved_ot_hours)||0)).toFixed(1)}`, 40, y2);
+    doc.text(`Present: ${totals.present}   Absent: ${totals.absent}   Sick: ${totals.sick}   Leave: ${totals.leave}   Overtime hrs: ${otEffective(sub).toFixed(1)}   Total hrs: ${(totals.regularHours + (Number(sub.approved_ot_hours)||0)).toFixed(1)}`, 40, y2);
 
     const projectEntries = Object.entries(empProjectDays);
     if(projectEntries.length){
@@ -9293,7 +9298,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
     if(sub.remarks){
       let y3 = y2 + 55;
-      const blk = otPdfBlock(doc, y3, sub.remarks); y3 = blk.y;
+      const blk = otPdfBlock(doc, y3, sub.remarks, false); y3 = blk.y;
       if(blk.other){
         doc.setFontSize(9); doc.setTextColor(90,90,90); doc.setFont("helvetica", "bold");
         doc.text("Remarks:", 40, y3);
@@ -9319,7 +9324,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "18 Nov 2026 - overtime in remarks, PDF and review";
+const APP_VERSION = "18 Nov 2026 - overtime under the day, no HR approval";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -9522,6 +9527,10 @@ function otCompose(ot, other){
 function otTotal(ot){ return (ot || []).reduce((a, o) => a + (Number(o.hours) || 0), 0); }
 function otDateLabel(d){ const [y, m, dd] = d.split("-"); return `${dd}/${m}/${y}`; }
 function otDayName(d){ const [y, m, dd] = d.split("-").map(Number); return new Date(y, m - 1, dd).toLocaleDateString("en-GB", { weekday: "long" }); }
+function otByDate(ot){ const m = {}; (ot || []).forEach(o => { (m[o.date] = m[o.date] || []).push(o); }); return m; }
+function otUnderDayText(list, plain){ return (plain ? "OVERTIME: " : "⏱ Overtime ") + list.map(o => `${o.hours} h – ${o.project}${o.reason ? " – " + o.reason : ""}`).join("  |  "); }
+// overtime goes straight to the totals: the employee's own lines (older months fall back to what HR had typed in)
+function otEffective(sub){ const pr = otParseRemarks(sub && sub.remarks); return pr.ot.length ? otTotal(pr.ot) : (Number(sub && sub.approved_ot_hours) || 0); }
 // the day rows carry the overtime too, so the tiles and totals add up
 function otSyncEntries(){
   const per = {};
@@ -9570,7 +9579,7 @@ function otTableHtml(ot, opts){
 // read-only block for supervisor / HR screens: OT table + the other remarks
 function otRemarksViewHtml(remarks){
   const pr = otParseRemarks(remarks);
-  return `${pr.ot.length ? `<div style="font-weight:800;font-size:12px;margin:4px 0;color:#067A55;">⏱ Overtime requested</div>${otTableHtml(pr.ot)}` : ""}${pr.other ? `<div style="white-space:pre-wrap;">${escapeHtml(pr.other)}</div>` : ""}`;
+  return `${pr.other ? `<div style="white-space:pre-wrap;">${escapeHtml(pr.other)}</div>` : ""}`;
 }
 // the employee's remarks card (add-overtime button, form, table, other notes)
 function otCardHtml(ar, locked){
@@ -9616,9 +9625,9 @@ function otCardHtml(ar, locked){
     <textarea id="remarksInput" rows="3" placeholder="${ar ? "أي ملاحظات إضافية لهذا الشهر..." : "Anything extra you want to note for this month..."}" ${locked ? "disabled" : ""}>${escapeHtml(other)}</textarea>`;
 }
 // PDF: green overtime table, returns the new y
-function otPdfBlock(doc, y, remarksText){
+function otPdfBlock(doc, y, remarksText, withTable){
   const pr = otParseRemarks(remarksText);
-  if(pr.ot.length){
+  if(withTable && pr.ot.length){
     doc.setFontSize(9.5); doc.setTextColor(10,110,80); doc.setFont("helvetica", "bold");
     doc.text("Overtime details", 40, y + 8);
     doc.setFont("helvetica", "normal");
@@ -9670,6 +9679,7 @@ function renderEmployeeView(){
     : "";
 
   let rows = "";
+  const otMap = otByDate(locked ? otParseRemarks(state.submission?.remarks).ot : state.otList);
   for(let day=1; day<=nd; day++){
     const dstr = fmtDate(y,m,day);
     const v = state.entries[dstr] || { status: isFriday(y,m,day) ? "Friday" : "Present", overtime_hours: 0, project_id: generalProjectId };
@@ -9700,6 +9710,7 @@ function renderEmployeeView(){
         </select>
       </td>
     </tr>`;
+    if(otMap[dstr]) rows += `<tr class="ot-sub"><td colspan="3" style="background:#DDFBEF;color:#067A55;font-weight:700;font-size:12px;padding:5px 8px;border-left:4px solid #18B67A;">${escapeHtml(otUnderDayText(otMap[dstr]))}</td></tr>`;
   }
 
   return `
@@ -10642,7 +10653,7 @@ async function certLoadPayHistory(emp, count){
   count = Math.max(0, Math.min(6, Math.floor(Number(count) || 0)));
   if(!count) return { months: [], error: null };
   const thisMonth = todayLocalISO().slice(0, 7);
-  const { data: subs, error } = await sb.from("ts_timesheet_submissions").select("month, status, approved_ot_hours")
+  const { data: subs, error } = await sb.from("ts_timesheet_submissions").select("month, status, approved_ot_hours, remarks")
     .eq("employee_id", emp.id).eq("status", "approved").lt("month", thisMonth).order("month", { ascending: false }).limit(count);
   if(error) return { months: [], error };
   const months = [];
@@ -10653,7 +10664,7 @@ async function certLoadPayHistory(emp, count){
       .eq("employee_id", emp.id).gte("entry_date", `${s.month}-01`).lte("entry_date", `${s.month}-${String(last).padStart(2, "0")}`);
     if(e2) return { months: [], error: e2 };
     const absent = (entries || []).filter(r => r.status === "Absent").length;   // sick days are not deducted, as in the Salary Sheet
-    months.push({ key: s.month, label: certMonthLabel(s.month), ...certMonthPay(emp, Number(s.approved_ot_hours) || 0, absent) });
+    months.push({ key: s.month, label: certMonthLabel(s.month), ...certMonthPay(emp, otEffective(s), absent) });
   }
   return { months, error: null };
 }
@@ -13647,6 +13658,7 @@ function renderSupervisorReview(){
   const st = sub ? sub.status : "draft";
 
   let rows = "";
+  const otMapS = otByDate(otParseRemarks(sub && sub.remarks).ot);
   for(let day=1; day<=nd; day++){
     const dstr = fmtDate(y,m,day);
     const v = state.selectedEmpEntries[dstr] || { status: isFriday(y,m,day) ? "Friday" : "Absent", overtime_hours: 0, project_id: "" };
@@ -13656,7 +13668,9 @@ function renderSupervisorReview(){
       <td>${v.status === "Present" ? "8" : "0"}</td>
       <td style="font-size:11.5px;color:var(--muted);">${projectName(v.project_id) || "—"}</td>
     </tr>`;
+    if(otMapS[dstr]) rows += `<tr><td colspan="4" style="background:#DDFBEF;color:#067A55;font-weight:700;font-size:12px;padding:5px 8px;border-left:4px solid #18B67A;">${escapeHtml(otUnderDayText(otMapS[dstr]))}</td></tr>`;
   }
+  const otEffS = otEffective(sub);
 
   return `
     <button class="back-link-glow" id="backToListBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back to team</button>
@@ -13667,12 +13681,12 @@ function renderSupervisorReview(){
     <div class="summary-grid">
       <div class="summary-item s-present"><div class="n">${totals.present}</div><div class="l">Present</div></div>
       <div class="summary-item s-absent"><div class="n">${totals.absent}</div><div class="l">Absent</div></div>
-      <div class="summary-item s-total"><div class="n">${totals.totalHours.toFixed(1)}</div><div class="l">Total Hrs</div></div>
+      <div class="summary-item s-total"><div class="n">${(totals.regularHours + otEffS).toFixed(1)}</div><div class="l">Total Hrs${otEffS ? ` (OT ${otEffS})` : ""}</div></div>
     </div>
     <div class="card" style="padding:8px 10px 4px;">
       <table class="grid"><thead><tr><th>Date</th><th>Status</th><th>Hrs</th><th>Project</th></tr></thead><tbody>${rows}</tbody></table>
     </div>
-    ${sub && sub.remarks ? `
+    ${sub && otParseRemarks(sub.remarks).other ? `
     <div class="card">
       <h3 style="font-size:13px;">Remarks / Notes</h3>
       <div class="meta" style="color:var(--ink);">${otRemarksViewHtml(sub.remarks)}</div>
@@ -13715,6 +13729,7 @@ function renderHrTimesheetReview(){
   const totals = computeTotals(state.hrTimesheetEntries);
 
   let rows = "";
+  const otMapH = otByDate(otParseRemarks(state.hrTimesheetSubmission?.remarks).ot);
   for(let day=1; day<=nd; day++){
     const dstr = fmtDate(hy, hm-1, day);
     const v = state.hrTimesheetEntries[dstr] || { status: "Present", overtime_hours: 0, project_id: "" };
@@ -13739,9 +13754,10 @@ function renderHrTimesheetReview(){
         </select>
       </td>
     </tr>`;
+    if(otMapH[dstr]) rows += `<tr><td colspan="4" style="background:#DDFBEF;color:#067A55;font-weight:700;font-size:12px;padding:5px 8px;border-left:4px solid #18B67A;">${escapeHtml(otUnderDayText(otMapH[dstr]))}</td></tr>`;
   }
 
-  const approvedOt = Number(state.hrTimesheetSubmission?.approved_ot_hours) || 0;
+  const approvedOt = otEffective(state.hrTimesheetSubmission);
 
   return `
     <button class="back-link-glow" id="backToHrBtn" style="margin-bottom:14px;border:none;cursor:pointer;">‹ Back</button>
@@ -13749,15 +13765,7 @@ function renderHrTimesheetReview(){
       <h3>${emp.name || ""}</h3>
       <div class="meta">${emp.employee_no || ""} ${emp.project_site ? "• " + emp.project_site : ""} • ${monthLabel(new Date(hy, hm-1, 1))}</div>
     </div>
-    <div class="card" style="border:2px solid var(--blue-light);background:#F3F8FD;">
-      <div class="meta" style="font-weight:800;color:var(--navy);margin-bottom:6px;">💰 Approved OT hours (for salary calculation)</div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <input type="number" min="0" step="0.5" id="approvedOtInput" value="${approvedOt}" style="flex:1;padding:9px 10px;border:2px solid var(--line);border-radius:8px;font-size:14px;font-weight:700;">
-        <button class="btn btn-submit btn-sm" id="saveApprovedOtBtn" style="flex-shrink:0;">💾 Save</button>
-      </div>
-      ${(() => { const pr = otParseRemarks(state.hrTimesheetSubmission?.remarks); return pr.ot.length ? `<div style="margin-top:10px;font-weight:800;font-size:12px;color:#067A55;">⏱ Overtime requested by the employee: ${otTotal(pr.ot)} h</div>${otTableHtml(pr.ot)}` : ""; })()}
-      <div class="meta" style="margin-top:6px;font-size:10.5px;">Entered directly by HR once OT is confirmed — saves immediately, no supervisor re-approval needed.</div>
-    </div>
+    ${approvedOt ? `<div class="card" style="border:2px solid #18B67A;background:#EAFBF3;"><div class="meta" style="font-weight:800;color:#067A55;">⏱ Overtime entered by the employee: ${approvedOt} h (counted automatically)</div></div>` : ""}
     <div class="status-banner status-submitted">✎ Editing status/project here sends this timesheet back to the supervisor for re-approval.</div>
     <div class="summary-grid">
       <div class="summary-item s-present"><div class="n">${totals.present}</div><div class="l">Present</div></div>
@@ -15476,7 +15484,6 @@ function handleDelegatedClick(e){
   const reviewHrTsEl = e.target.closest("[data-review-hr-timesheet]");
   if(reviewHrTsEl){ openHrTimesheetReview(reviewHrTsEl.getAttribute("data-review-hr-timesheet")); return; }
   if(el("saveHrTimesheetBtn")){ saveHrTimesheetEdit(); return; }
-  if(el("saveApprovedOtBtn")){ saveApprovedOt(); return; }
   const reviewLeaveEl = e.target.closest("[data-review-leave]");
   if(reviewLeaveEl){
     const reqId = reviewLeaveEl.getAttribute("data-review-leave");
