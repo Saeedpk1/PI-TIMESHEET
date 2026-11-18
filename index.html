@@ -653,6 +653,17 @@ body.cr-emp #openLeaveFormBtn{background:linear-gradient(160deg,#FFB830,#E8590C)
 body.cr-emp #openCeoContactBtn{background:linear-gradient(160deg,#FF92DC,#CE2A9C) !important;--sh:rgba(206,42,156,.42)}
 body.cr-emp #openPurchaseFormBtn{background:linear-gradient(160deg,#62EBB8,#0E9C6C) !important;--sh:rgba(14,156,108,.42)}
 body.cr-emp #openMyProfileBtn{background:linear-gradient(160deg,#62B0FF,#1F5FE0) !important;--sh:rgba(31,95,224,.42)}
+
+/* employee home action buttons: two compact rows */
+.emp-actions{display:grid;grid-template-columns:repeat(var(--cols,2),minmax(0,1fr));gap:7px;margin:0 0 12px}
+.emp-actions .emp-act{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;width:100%;min-height:50px;margin:0;padding:6px 3px;border-radius:14px;border:1px solid transparent;font-weight:800;cursor:pointer;line-height:1.1}
+.emp-actions .emp-act i,.emp-actions .emp-act em{position:relative;z-index:1}
+.emp-actions .emp-act i{font-style:normal;font-size:17px;line-height:1;margin-bottom:3px}
+.emp-actions .emp-act em{font-style:normal;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.emp-actions .emp-act-badge{position:absolute;top:3px;inset-inline-end:5px;background:#C43B3B;color:#fff;border-radius:999px;min-width:16px;padding:1px 5px;font-size:10px;text-align:center;text-shadow:none}
+body.cr-emp .emp-actions .emp-act{padding:6px 3px !important;font-size:11.5px !important;border-radius:14px !important;box-shadow:0 5px 11px var(--sh),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -2px 0 rgba(0,0,0,.14)}
+body.cr-emp .emp-actions .emp-act::before{border-radius:12px 12px 60% 60%/12px 12px 10px 10px !important}
+.emp-actions .pf-homebanner{grid-column:1/-1}
 /* the day-by-day table */
 body.cr-emp .card{background:linear-gradient(135deg,rgba(255,255,255,.88),rgba(255,255,255,.60));border:1px solid rgba(255,255,255,.95);border-radius:26px;box-shadow:0 14px 32px rgba(70,80,170,.20),inset 0 1px 0 #fff;backdrop-filter:blur(14px) saturate(170%);-webkit-backdrop-filter:blur(14px) saturate(170%)}
 body.cr-emp table.grid th{background:linear-gradient(135deg,#7A45F0,#2E7BFF 65%,#19C7D8);border-bottom:none;padding:9px 4px;text-shadow:0 1px 2px rgba(0,0,0,.28);box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
@@ -9298,7 +9309,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "2 Nov 2026 - colourful fill-in profile fields";
+const APP_VERSION = "18 Nov 2026 - timesheet buttons in two rows";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -9560,11 +9571,13 @@ function renderEmployeeView(){
       <div class="summary-item s-total"><div class="n">${totals.totalHours.toFixed(1)}</div><div class="l">${ar ? "إجمالي الساعات" : "Total Hrs"}</div></div>
     </div>
     ${(state.user && "email" in state.user && !String(state.user.email || "").trim()) ? `<button type="button" class="pf-homebanner" data-open-profile-email="1"><i>✉️</i><span>${ar ? "يرجى إضافة بريدك الإلكتروني (مطلوب)" : "Please add your email address. It is required."}</span><b>${ar ? "إضافة" : "Add"}</b></button>` : ""}
-    <button id="downloadMyPdfBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;font-weight:800;font-size:14px;cursor:pointer;">${ar ? "⬇ تحميل PDF" : "⬇ Download PDF"}</button>
-    <button id="openLeaveFormBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:2px solid #E8A33D;background:#FFF3D9;color:#966109;font-weight:800;font-size:14px;cursor:pointer;">🌴 ${ar ? "طلب إجازة سنوية" : "Apply for Annual Leave"}</button>
-    ${state.user.iqama_number !== "2357537808" ? `<button id="openCeoContactBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:2px solid var(--ksa-gold);background:var(--ksa-cream);color:var(--blue);font-weight:800;font-size:14px;cursor:pointer;">📞 ${ar ? "تواصل مباشر مع الرئيس التنفيذي" : "Direct Contact with CEO"}${(() => { const n = state.myLetters.filter(l => !l.employee_viewed_at).length; return n ? ` <span style="background:#C43B3B;color:#fff;border-radius:999px;padding:1px 8px;font-size:11px;margin-inline-start:6px;">${n} new letter${n === 1 ? "" : "s"}</span>` : ""; })()}</button>` : ""}
-    ${state.user.can_record_purchases ? `<button id="openPurchaseFormBtn" style="display:block;width:100%;margin-bottom:10px;padding:11px 16px;border-radius:10px;border:2px solid #1B7A6B;background:#EAF6F3;color:#125C4F;font-weight:800;font-size:14px;cursor:pointer;">🧾 Record Purchase</button>` : ""}
-    <button id="openMyProfileBtn" style="display:block;width:100%;margin-bottom:14px;padding:11px 16px;border-radius:10px;border:2px solid var(--blue-light);background:#EAF1FC;color:var(--blue);font-weight:800;font-size:14px;cursor:pointer;">👤 ${ar ? "ملفي الشخصي" : "My Profile"}</button>
+    <div class="emp-actions" style="--cols:${Math.ceil((1 + 1 + 1 + (state.user.iqama_number !== "2357537808" ? 1 : 0) + (state.user.can_record_purchases ? 1 : 0))/2)}">
+    <button id="downloadMyPdfBtn" class="emp-act"><i>⬇</i><em>${ar ? "تحميل PDF" : "Download PDF"}</em></button>
+    <button id="openLeaveFormBtn" title="Apply for Annual Leave" class="emp-act"><i>🌴</i><em>${ar ? "طلب إجازة" : "Annual Leave"}</em></button>
+    ${state.user.iqama_number !== "2357537808" ? `<button id="openCeoContactBtn" title="Direct Contact with CEO" class="emp-act"><i>📞</i><em>${ar ? "الرئيس التنفيذي" : "Contact CEO"}</em>${(() => { const n = state.myLetters.filter(l => !l.employee_viewed_at).length; return n ? ` <span class="emp-act-badge">${n}</span>` : ""; })()}</button>` : ""}
+    ${state.user.can_record_purchases ? `<button id="openPurchaseFormBtn" title="Record Purchase" class="emp-act"><i>🧾</i><em>Purchase</em></button>` : ""}
+    <button id="openMyProfileBtn" class="emp-act"><i>👤</i><em>${ar ? "ملفي" : "My Profile"}</em></button>
+    </div>
     <div class="card" style="padding:8px 6px 4px;">
       <table class="grid">
         <colgroup><col style="width:18%;"><col style="width:37%;"><col style="width:45%;"></colgroup>
