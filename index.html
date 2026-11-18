@@ -700,6 +700,24 @@ body.cr-emp table.grid.day-flat .status-select.st-Sick{color:#9A6200 !important}
 body.cr-emp table.grid.day-flat .status-select.st-Friday{color:#6B4CC0 !important}
 body.cr-emp table.grid.day-flat .status-select.project-select{color:#17375E !important}
 body.cr-emp table.grid.day-flat tbody tr.ot-sub td{background:#DDFBEF !important}
+/* employee page: classic flat buttons and a smaller remarks box */
+.emp-actions{gap:6px !important}
+body.cr-emp .emp-actions .emp-act{border:1px solid rgba(0,0,0,.18) !important;border-radius:8px !important;box-shadow:none !important;text-shadow:none !important;min-height:42px !important;padding:5px 3px !important}
+body.cr-emp .emp-actions .emp-act::before{display:none !important}
+body.cr-emp .emp-actions .emp-act i{font-size:15px !important;margin-bottom:1px !important}
+body.cr-emp #downloadMyPdfBtn{background:#1B5A96 !important}
+body.cr-emp #openLeaveFormBtn{background:#D9822B !important}
+body.cr-emp #openCeoContactBtn{background:#8E5BA8 !important}
+body.cr-emp #openPurchaseFormBtn{background:#1B7A6B !important}
+body.cr-emp #openMyProfileBtn{background:#2F6DB5 !important}
+body.cr-emp .bottom-bar{background:#fff !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;box-shadow:none !important;border-top:1px solid #d9c48a !important;padding:8px 12px calc(8px + env(safe-area-inset-bottom)) !important}
+body.cr-emp .bottom-bar .btn{border-radius:8px !important;box-shadow:none !important;text-shadow:none !important;padding:11px 6px !important;font-size:13px !important;border:1px solid rgba(0,0,0,.18) !important}
+body.cr-emp .bottom-bar .btn::before{display:none !important}
+body.cr-emp .btn-save-draft{background:#D9822B !important;box-shadow:none !important}
+body.cr-emp .btn-submit{background:#1B7A4B !important;box-shadow:none !important}
+body.cr-emp .remarks-card.remarks-flat{background:#FFFCF3 !important;border:1px solid #d9c48a !important;border-radius:8px !important;box-shadow:none !important;padding:8px 10px !important;margin-top:10px !important;margin-bottom:8px !important;backdrop-filter:none !important}
+body.cr-emp .remarks-card.remarks-flat label{font-size:11px !important;margin-bottom:4px !important}
+body.cr-emp .remarks-card.remarks-flat textarea{border:1px solid #c9b57a !important;border-radius:6px !important;box-shadow:none !important;font-size:12.5px !important;padding:6px 8px !important}
 /* remarks */
 body.cr-emp .remarks-card{border-radius:24px;border:1px solid rgba(255,255,255,.95);background:linear-gradient(135deg,rgba(255,248,224,.94),rgba(255,229,166,.80));box-shadow:0 12px 26px rgba(220,150,40,.22),inset 0 1px 0 #fff}
 body.cr-emp .remarks-card textarea{border:1.5px solid #FFD27A;border-radius:16px;background:rgba(255,255,255,.92);box-shadow:inset 0 2px 5px rgba(180,120,20,.10)}
@@ -1512,7 +1530,7 @@ let state = {
   projects: [],           // {id, name, active}
   newProjectName: "",
   remarksDraft: "",
-  otList: [], otRows: [], remarksOther: "",
+  otList: [], otRows: [], remarksOther: "", showClosedProjects: false,
   loading: false,
   error: "",
   pendingPasswordUser: (cachedNeedsPassword && !startUser) ? cachedUser : null,
@@ -1596,12 +1614,20 @@ async function editProjectName(id){
   await loadProjects();
   render();
 }
+async function reopenProject(id){
+  state.loading = true; render();
+  const { error } = await sb.from("ts_projects").update({ active: true }).eq("id", id);
+  state.loading = false;
+  toast(error ? "Could not reopen project." : "Project reopened.");
+  await loadProjects();
+  render();
+}
 async function deactivateProject(id){
-  if(!confirm("Remove this project from the list? Past timesheet entries that used it are kept.")) return;
+  if(!confirm("Close this project? It disappears from the dropdowns but all old timesheets and reports keep it. You can reopen it later.")) return;
   state.loading = true; render();
   const { error } = await sb.from("ts_projects").update({ active: false }).eq("id", id);
   state.loading = false;
-  toast(error ? "Could not remove project." : "Project removed.");
+  toast(error ? "Could not close project." : "Project closed. You can reopen it under Closed projects.");
   await loadProjects();
   render();
 }
@@ -9341,7 +9367,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "18 Nov 2026 - simple classic day table";
+const APP_VERSION = "18 Nov 2026 - closed projects, classic buttons";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -9618,7 +9644,7 @@ function otCardHtml(ar, locked){
       for(let day = 1; day <= nd; day++){ const ds = fmtDate(y, m, day); if(ds > todayStr) break; d += `<option value="${ds}" ${r.date === ds ? "selected" : ""}>${String(day).padStart(2, "0")}/${String(m + 1).padStart(2, "0")} ${dayName(y, m, day)}</option>`; }
       let h = `<option value="">${ar ? "ساعات" : "Hrs"}</option>`;
       for(let x = 0.5; x <= 12; x += 0.5) h += `<option value="${x}" ${Number(r.hours) === x ? "selected" : ""}>${x}</option>`;
-      let p = `<option value="">${ar ? "المشروع" : "Project"}</option>` + state.projects.filter(q => q.active).map(q => `<option value="${q.id}" ${r.project_id === q.id ? "selected" : ""}>${escapeHtml(q.name)}</option>`).join("");
+      let p = `<option value="">${ar ? "المشروع" : "Project"}</option>` + state.projects.filter(q => q.active || q.id === r.project_id).map(q => `<option value="${q.id}" ${r.project_id === q.id ? "selected" : ""}>${escapeHtml(q.name)}${q.active ? "" : " (closed)"}</option>`).join("");
       if(r.project_id === "__keep") p += `<option value="__keep" selected>${escapeHtml(r.pname)}</option>`;
       const td = "padding:4px;border-top:1px solid #eadfc0;";
       return `<tr><td style="${td}"><select data-ot-row="${i}" data-ot-f="date" style="${sel}">${d}</select></td><td style="${td}"><select data-ot-row="${i}" data-ot-f="hours" style="${sel}">${h}</select></td><td style="${td}"><select data-ot-row="${i}" data-ot-f="project" style="${sel}">${p}</select></td><td style="${td}color:#C43B3B;font-weight:800;text-align:center;width:26px;cursor:pointer;" data-ot="remove" data-i="${i}">✕</td></tr>`;
@@ -9634,7 +9660,7 @@ function otCardHtml(ar, locked){
   return `
     ${tbl}
     <label style="margin-top:6px;color:#966109;font-size:11px;">${ar ? "ملاحظات أخرى" : "Other remarks"}</label>
-    <textarea id="remarksInput" rows="3" placeholder="${ar ? "أي ملاحظات إضافية لهذا الشهر..." : "Anything extra you want to note for this month..."}" ${locked ? "disabled" : ""}>${escapeHtml(other)}</textarea>`;
+    <textarea id="remarksInput" rows="2" placeholder="${ar ? "أي ملاحظات إضافية لهذا الشهر..." : "Anything extra you want to note for this month..."}" ${locked ? "disabled" : ""}>${escapeHtml(other)}</textarea>`;
 }
 // PDF: green overtime table, returns the new y
 function otPdfBlock(doc, y, remarksText, withTable){
@@ -9698,7 +9724,7 @@ function renderEmployeeView(){
     const fri = isFriday(y,m,day);
     const futureLocked = !isDateEditable(dstr);
     const dayLocked = isEntryLockedForUser(v);
-    const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${v.project_id===p.id?"selected":""}>${p.name}</option>`).join("");
+    const projectOptions = state.projects.filter(p=>p.active || p.id===v.project_id).map(p => `<option value="${p.id}" ${v.project_id===p.id?"selected":""}>${p.name}${p.active ? "" : " (closed)"}</option>`).join("");
     const dayLabel = ar ? AR_DAY_SHORT[new Date(y,m,day).getDay()] : dayName(y,m,day);
     rows += `
     <tr class="${fri?'friday-row':''}${futureLocked?' future-locked-row':''}">
@@ -9754,8 +9780,8 @@ function renderEmployeeView(){
         <tbody>${rows}</tbody>
       </table>
     </div>
-    <div class="remarks-card">
-      <label style="margin-top:0;color:#966109;">${ar ? "📝 ملاحظات والوقت الإضافي" : "📝 Remarks &amp; Overtime"}</label>
+    <div class="remarks-card remarks-flat">
+      <label style="margin-top:0;color:#966109;">${ar ? "ملاحظات والوقت الإضافي" : "Remarks &amp; Overtime"}</label>
       ${otCardHtml(ar, locked)}
     </div>
     ${!locked ? `
@@ -13747,7 +13773,7 @@ function renderHrTimesheetReview(){
     const v = state.hrTimesheetEntries[dstr] || { status: "Present", overtime_hours: 0, project_id: "" };
     const fri = isFriday(hy, hm-1, day);
     const futureLocked = !isDateEditable(dstr);
-    const projectOptions = state.projects.filter(p=>p.active).map(p => `<option value="${p.id}" ${v.project_id===p.id?"selected":""}>${p.name}</option>`).join("");
+    const projectOptions = state.projects.filter(p=>p.active || p.id===v.project_id).map(p => `<option value="${p.id}" ${v.project_id===p.id?"selected":""}>${p.name}${p.active ? "" : " (closed)"}</option>`).join("");
     rows += `
     <tr class="${fri?'friday-row':''}${futureLocked?' future-locked-row':''}">
       <td class="date-cell">${String(day).padStart(2,"0")}<small>${dayName(hy,hm-1,day)}</small>${futureLocked ? `<span title="Entry period expired" style="opacity:.55;">🔒</span>` : ""}</td>
@@ -13968,7 +13994,7 @@ function renderProjectsManager(){
     <div style="border-bottom:1px solid var(--line);">
       <div class="emp-list-item" style="border:none;cursor:pointer;" data-toggle-project-units="${p.id}">
         <div class="name">${p.name} <span style="font-weight:400;color:var(--muted);font-size:11px;">${expanded ? "▲" : "▼"} units</span></div>
-        <button class="link-btn" data-deactivate-project="${p.id}" style="color:var(--absent);">Remove</button>
+        <button class="link-btn" data-deactivate-project="${p.id}" style="color:var(--absent);">Close</button>
       </div>
       ${expanded ? `
       <div style="padding:4px 8px 12px 8px;">
@@ -13994,6 +14020,12 @@ function renderProjectsManager(){
     </div>`;
   }).join("") || `<div class="empty-state"><div class="ic">📁</div>No projects added yet.</div>`;
 
+  const closed = state.projects.filter(p => !p.active);
+  const closedHtml = closed.length ? `
+    <div class="card" style="margin-top:14px;padding:8px 12px;">
+      <div class="row-between" style="cursor:pointer;" data-toggle-closed-projects="1"><b style="color:var(--navy);">🗄 Closed projects (${closed.length})</b><span class="meta">${state.showClosedProjects ? "▲ hide" : "▼ show"}</span></div>
+      ${state.showClosedProjects ? closed.map(p => `<div class="emp-list-item" style="border:none;border-top:1px solid var(--line);"><div class="name" style="color:var(--muted);">${escapeHtml(p.name)}</div><button class="link-btn" data-reopen-project="${p.id}" style="color:var(--present);">Reopen</button></div>`).join("") + `<div class="meta" style="padding:6px 0 2px;">Closed projects are hidden from the dropdowns. Old timesheets and reports keep their project name.</div>` : ""}
+    </div>` : "";
   return `
     <button class="link-btn" id="backToHrBtn" style="margin-bottom:12px;">‹ Back</button>
     <div class="card">
@@ -14004,6 +14036,7 @@ function renderProjectsManager(){
     <input type="text" id="newProjectNameInput" placeholder="e.g. Riyadh Site A" value="${state.newProjectName || ""}">
     <button class="btn btn-primary btn-sm" id="addProjectBtn" style="margin-top:10px;">Add project</button>
     <div class="card" style="margin-top:18px;padding:4px 12px;">${rows}</div>
+    ${closedHtml}
   `;
 }
 
@@ -15399,6 +15432,9 @@ function handleDelegatedClick(e){
   if(el("backToManagerHomeBtn")){ state.view = "manager-home"; render(); return; }
   if(el("backToSupervisorHomeBtn")){ state.view = "supervisor"; loadSupervisorList(); return; }
   if(el("addProjectBtn")){ addProject(); return; }
+  const reopenBtn = e.target.closest("[data-reopen-project]");
+  if(reopenBtn){ reopenProject(reopenBtn.getAttribute("data-reopen-project")); return; }
+  if(e.target.closest("[data-toggle-closed-projects]")){ state.showClosedProjects = !state.showClosedProjects; render(); return; }
   const deactivateBtn = e.target.closest("[data-deactivate-project]");
   if(deactivateBtn){ deactivateProject(deactivateBtn.getAttribute("data-deactivate-project")); return; }
   const toggleUnitsBtn = e.target.closest("[data-toggle-project-units]");
