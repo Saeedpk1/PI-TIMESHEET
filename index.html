@@ -9367,7 +9367,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "18 Nov 2026 - closed projects, classic buttons";
+const APP_VERSION = "18 Nov 2026 - overtime in whole hours";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -9643,7 +9643,8 @@ function otCardHtml(ar, locked){
       let d = `<option value="">${ar ? "التاريخ" : "Date"}</option>`;
       for(let day = 1; day <= nd; day++){ const ds = fmtDate(y, m, day); if(ds > todayStr) break; d += `<option value="${ds}" ${r.date === ds ? "selected" : ""}>${String(day).padStart(2, "0")}/${String(m + 1).padStart(2, "0")} ${dayName(y, m, day)}</option>`; }
       let h = `<option value="">${ar ? "ساعات" : "Hrs"}</option>`;
-      for(let x = 0.5; x <= 12; x += 0.5) h += `<option value="${x}" ${Number(r.hours) === x ? "selected" : ""}>${x}</option>`;
+      for(let x = 1; x <= 12; x++) h += `<option value="${x}" ${Number(r.hours) === x ? "selected" : ""}>${x}</option>`;
+      if(r.hours && Number(r.hours) % 1 !== 0) h += `<option value="${r.hours}" selected>${r.hours}</option>`; // an older half-hour entry stays visible
       let p = `<option value="">${ar ? "المشروع" : "Project"}</option>` + state.projects.filter(q => q.active || q.id === r.project_id).map(q => `<option value="${q.id}" ${r.project_id === q.id ? "selected" : ""}>${escapeHtml(q.name)}${q.active ? "" : " (closed)"}</option>`).join("");
       if(r.project_id === "__keep") p += `<option value="__keep" selected>${escapeHtml(r.pname)}</option>`;
       const td = "padding:4px;border-top:1px solid #eadfc0;";
