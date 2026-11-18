@@ -1495,7 +1495,7 @@ let state = {
   projects: [],           // {id, name, active}
   newProjectName: "",
   remarksDraft: "",
-  otList: [], remarksOther: "", otFormOpen: false, otForm: { date: "", project_id: "", hours: 1, reason: "" },
+  otList: [], otRows: [], remarksOther: "",
   loading: false,
   error: "",
   pendingPasswordUser: (cachedNeedsPassword && !startUser) ? cachedUser : null,
@@ -3180,7 +3180,7 @@ async function loadEmployeeMonth(){
   state.autoFilledDays = (entryRows || []).filter(r => r.source === "daily_report").length;
   state.submission = sub || null;
   state.remarksDraft = (sub && sub.remarks) || "";
-  { const pr = otParseRemarks(state.remarksDraft); state.otList = pr.ot; state.remarksOther = pr.other; state.otFormOpen = false; state.otForm = { date: "", project_id: "", hours: 1, reason: "" }; otSyncEntries(); }
+  { const pr = otParseRemarks(state.remarksDraft); state.otList = pr.ot; state.remarksOther = pr.other; otLoadRows(); }
   state.loading = false;
   render();
 }
@@ -9324,7 +9324,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "18 Nov 2026 - overtime under the day, no HR approval";
+const APP_VERSION = "18 Nov 2026 - simple overtime table";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -9537,43 +9537,47 @@ function otSyncEntries(){
   (state.otList || []).forEach(o => { per[o.date] = (per[o.date] || 0) + (Number(o.hours) || 0); });
   Object.keys(state.entries || {}).forEach(d => { state.entries[d].overtime_hours = per[d] || 0; });
 }
+function otLoadRows(){
+  state.otRows = (state.otList || []).map(o => { const p = state.projects.find(x => x.name === o.project); return { date: o.date, hours: String(o.hours), project_id: p ? p.id : "__keep", pname: o.project }; });
+  otRecompute();
+}
+function otRecompute(){
+  const list = [];
+  (state.otRows || []).forEach(r => {
+    const p = state.projects.find(x => x.id === r.project_id);
+    const pname = p ? p.name : (r.project_id === "__keep" ? r.pname : "");
+    if(r.date && Number(r.hours) > 0 && pname) list.push({ date: r.date, project: pname, hours: Number(r.hours), reason: "" });
+  });
+  list.sort((a, b) => a.date.localeCompare(b.date));
+  state.otList = list;
+  otSyncEntries();
+  state.remarksDraft = otCompose(state.otList, state.remarksOther);
+}
 function otHandleClick(e){
   const t = e.target.closest("[data-ot]");
   if(!t) return false;
   const act = t.getAttribute("data-ot");
-  const f = state.otForm;
-  if(act === "open"){ state.otFormOpen = true; render(); return true; }
-  if(act === "cancel"){ state.otFormOpen = false; state.otForm = { date: "", project_id: "", hours: 1, reason: "" }; render(); return true; }
-  if(act === "step"){ f.hours = Math.min(16, Math.max(0.5, (Number(f.hours) || 1) + Number(t.getAttribute("data-step")))); render(); return true; }
-  if(act === "quick"){ f.date = t.getAttribute("data-date"); render(); return true; }
-  if(act === "remove"){ state.otList.splice(Number(t.getAttribute("data-i")), 1); otSyncEntries(); state.remarksDraft = otCompose(state.otList, state.remarksOther); render(); return true; }
-  if(act === "add"){
-    if(!f.date || !f.project_id){ toast("Please choose the date and the project."); return true; }
-    const p = state.projects.find(x => x.id === f.project_id);
-    state.otList.push({ date: f.date, project: p ? p.name : "-", hours: Number(f.hours) || 1, reason: (f.reason || "").trim() });
-    state.otList.sort((a, b) => a.date.localeCompare(b.date));
-    otSyncEntries();
-    state.remarksDraft = otCompose(state.otList, state.remarksOther);
-    state.otFormOpen = false; state.otForm = { date: "", project_id: "", hours: 1, reason: "" };
-    render(); return true;
-  }
+  if(act === "addrow"){ (state.otRows = state.otRows || []).push({ date: "", hours: "", project_id: "", pname: "" }); render(); return true; }
+  if(act === "remove"){ state.otRows.splice(Number(t.getAttribute("data-i")), 1); otRecompute(); render(); return true; }
   return false;
 }
 function otHandleChange(e){
-  if(e.target.id === "otDate"){ state.otForm.date = e.target.value; render(); return true; }
-  if(e.target.id === "otProject"){ state.otForm.project_id = e.target.value; render(); return true; }
-  return false;
+  const t = e.target;
+  if(!t.getAttribute || t.getAttribute("data-ot-row") === null) return false;
+  const r = state.otRows[Number(t.getAttribute("data-ot-row"))]; if(!r) return true;
+  const f = t.getAttribute("data-ot-f");
+  r[f === "project" ? "project_id" : f] = t.value;
+  otRecompute(); render(); return true;
 }
-// simple flat table (also used by the review screens)
-function otTableHtml(ot, opts){
-  opts = opts || {};
+// simple flat table: Date, Hours, Project (read-only view)
+function otTableHtml(ot){
   if(!ot.length) return "";
   const th = "background:#E8B64A;color:#4a3000;text-align:left;padding:5px 6px;font-size:11px;";
   const td = "padding:5px 6px;border-top:1px solid #eadfc0;font-size:12.5px;";
   return `<table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #d9c48a;margin:0 0 10px;">
-    <tr><th style="${th}">Date</th><th style="${th}">Project</th><th style="${th}">Hrs</th><th style="${th}">Reason</th>${opts.edit ? `<th style="${th}"></th>` : ""}</tr>
-    ${ot.map((o, i) => `<tr><td style="${td}">${otDateLabel(o.date).slice(0, 5)}</td><td style="${td}">${escapeHtml(o.project)}</td><td style="${td}">${o.hours}</td><td style="${td}">${escapeHtml(o.reason)}</td>${opts.edit ? `<td style="${td}color:#C43B3B;font-weight:800;text-align:center;cursor:pointer;" data-ot="remove" data-i="${i}">✕</td>` : ""}</tr>`).join("")}
-    <tr><td colspan="2" style="${td}background:#F6FBF8;font-weight:800;color:#067A55;">Total overtime</td><td style="${td}background:#F6FBF8;font-weight:800;color:#067A55;">${otTotal(ot)}</td><td colspan="${opts.edit ? 2 : 1}" style="${td}background:#F6FBF8;"></td></tr>
+    <tr><th style="${th}">Date</th><th style="${th}">Hours</th><th style="${th}">Project</th></tr>
+    ${ot.map(o => `<tr><td style="${td}">${otDateLabel(o.date).slice(0, 5)}</td><td style="${td}">${o.hours}</td><td style="${td}">${escapeHtml(o.project)}</td></tr>`).join("")}
+    <tr><td style="${td}background:#F6FBF8;font-weight:800;color:#067A55;">Total</td><td style="${td}background:#F6FBF8;font-weight:800;color:#067A55;">${otTotal(ot)}</td><td style="${td}background:#F6FBF8;"></td></tr>
   </table>`;
 }
 // read-only block for supervisor / HR screens: OT table + the other remarks
@@ -9581,46 +9585,37 @@ function otRemarksViewHtml(remarks){
   const pr = otParseRemarks(remarks);
   return `${pr.other ? `<div style="white-space:pre-wrap;">${escapeHtml(pr.other)}</div>` : ""}`;
 }
-// the employee's remarks card (add-overtime button, form, table, other notes)
+// the employee's remarks card: one simple Date / Hours / Project table
 function otCardHtml(ar, locked){
-  const ot = locked ? otParseRemarks(state.submission?.remarks).ot : state.otList;
-  const other = locked ? otParseRemarks(state.submission?.remarks).other : state.remarksOther;
-  const f = state.otForm;
-  const y = state.monthDate.getFullYear(), m = state.monthDate.getMonth(), nd = daysInMonth(state.monthDate);
-  const today = new Date(); const todayStr = fmtDate(today.getFullYear(), today.getMonth(), today.getDate());
-  let dayOpts = `<option value="">${ar ? "اختر التاريخ" : "Choose the date"}</option>`;
-  for(let d = 1; d <= nd; d++){ const ds = fmtDate(y, m, d); if(ds > todayStr) break; dayOpts += `<option value="${ds}" ${f.date === ds ? "selected" : ""}>${String(d).padStart(2, "0")}/${String(m + 1).padStart(2, "0")}/${y} - ${dayNameFull(y, m, d)}</option>`; }
-  const projOpts = `<option value="">${ar ? "اختر المشروع" : "Choose the project"}</option>` + state.projects.filter(p => p.active).map(p => `<option value="${p.id}" ${f.project_id === p.id ? "selected" : ""}>${escapeHtml(p.name)}</option>`).join("");
-  const yest = new Date(today.getTime() - 86400000); const yestStr = fmtDate(yest.getFullYear(), yest.getMonth(), yest.getDate());
-  const chip = (label, ds) => (ds.slice(0, 7) === `${y}-${pad(m + 1)}`) ? `<button type="button" data-ot="quick" data-date="${ds}" style="flex:1;border:0;border-radius:8px;padding:6px 0;font-size:12px;font-weight:700;cursor:pointer;background:${f.date === ds ? "#5B3FD6;color:#fff" : "#EDE8FB;color:#3a1fa0"};">${label}</button>` : "";
-  const lab = (c, t) => `<label style="display:block;font-size:11px;font-weight:800;text-transform:uppercase;margin:8px 0 3px;color:${c};">${t}</label>`;
-  const fld = (bg, bd) => `width:100%;box-sizing:border-box;padding:9px 10px;border-radius:10px;border:2px solid ${bd};background:${bg};font-size:14px;font-weight:600;font-family:inherit;`;
-  const ready = f.date && f.project_id;
-  const form = state.otFormOpen && !locked ? `
-    <div style="background:#fff;border:2px solid #18B67A;border-radius:12px;padding:10px 12px;margin-bottom:10px;">
-      <div style="font-weight:800;color:#064F31;font-size:14px;">⏱ ${ar ? "تفاصيل الوقت الإضافي" : "Overtime details"}</div>
-      ${lab("#3a1fa0", "📅 " + (ar ? "التاريخ (مطلوب)" : "Date (required)"))}
-      <select id="otDate" style="${fld("#EFE9FF", "#8B6CF0")}">${dayOpts}</select>
-      <div style="display:flex;gap:6px;margin-top:5px;">${chip(ar ? "اليوم" : "Today", todayStr)}${chip(ar ? "أمس" : "Yesterday", yestStr)}</div>
-      ${lab("#0b4f8f", "🏗 " + (ar ? "المشروع (مطلوب)" : "Project (required)"))}
-      <select id="otProject" style="${fld("#E3F2FF", "#3C9BEA")}">${projOpts}</select>
-      ${lab("#064F31", "⏳ " + (ar ? "ساعات إضافية" : "Overtime hours"))}
-      <div style="display:flex;align-items:center;gap:8px;">
-        <button type="button" data-ot="step" data-step="-0.5" style="width:38px;height:38px;border:0;border-radius:50%;background:#1F5FE0;color:#fff;font-size:20px;cursor:pointer;">−</button>
-        <div style="flex:1;text-align:center;font-size:20px;font-weight:900;color:#064F31;background:#DDFBEF;border:2px solid #18B67A;border-radius:10px;padding:3px;">${f.hours} h</div>
-        <button type="button" data-ot="step" data-step="0.5" style="width:38px;height:38px;border:0;border-radius:50%;background:#1F5FE0;color:#fff;font-size:20px;cursor:pointer;">+</button>
-      </div>
-      ${lab("#7a4b00", "💬 " + (ar ? "السبب (اختياري)" : "Reason (optional)"))}
-      <input id="otReason" type="text" maxlength="80" value="${escapeHtml(f.reason)}" style="${fld("#FFF3D9", "#E8A33D")}" placeholder="${ar ? "مثال: عمل ليلي" : "e.g. Night work"}">
-      <div style="display:flex;gap:8px;margin-top:10px;">
-        <button type="button" data-ot="cancel" style="flex:1;border:0;border-radius:10px;padding:10px;font-weight:800;color:#fff;background:#7d8aa8;cursor:pointer;">${ar ? "إلغاء" : "Cancel"}</button>
-        <button type="button" data-ot="add" style="flex:1;border:0;border-radius:10px;padding:10px;font-weight:800;color:#fff;background:${ready ? "#0A9B70" : "#A9B6C6"};cursor:pointer;">✔ ${ar ? "إضافة" : "Add"}</button>
-      </div>
-    </div>` : "";
+  const pr = otParseRemarks(state.submission?.remarks);
+  const other = locked ? pr.other : state.remarksOther;
+  let tbl = "";
+  if(locked){ tbl = otTableHtml(pr.ot); }
+  else {
+    const y = state.monthDate.getFullYear(), m = state.monthDate.getMonth(), nd = daysInMonth(state.monthDate);
+    const today = new Date(); const todayStr = fmtDate(today.getFullYear(), today.getMonth(), today.getDate());
+    const sel = "width:100%;box-sizing:border-box;padding:6px 3px;border:1.5px solid #c9b57a;border-radius:6px;font-size:12.5px;background:#fff;font-family:inherit;";
+    const th = "background:#E8B64A;color:#4a3000;text-align:left;padding:6px;font-size:11px;";
+    const rows = (state.otRows || []).map((r, i) => {
+      let d = `<option value="">${ar ? "التاريخ" : "Date"}</option>`;
+      for(let day = 1; day <= nd; day++){ const ds = fmtDate(y, m, day); if(ds > todayStr) break; d += `<option value="${ds}" ${r.date === ds ? "selected" : ""}>${String(day).padStart(2, "0")}/${String(m + 1).padStart(2, "0")} ${dayName(y, m, day)}</option>`; }
+      let h = `<option value="">${ar ? "ساعات" : "Hrs"}</option>`;
+      for(let x = 0.5; x <= 12; x += 0.5) h += `<option value="${x}" ${Number(r.hours) === x ? "selected" : ""}>${x}</option>`;
+      let p = `<option value="">${ar ? "المشروع" : "Project"}</option>` + state.projects.filter(q => q.active).map(q => `<option value="${q.id}" ${r.project_id === q.id ? "selected" : ""}>${escapeHtml(q.name)}</option>`).join("");
+      if(r.project_id === "__keep") p += `<option value="__keep" selected>${escapeHtml(r.pname)}</option>`;
+      const td = "padding:4px;border-top:1px solid #eadfc0;";
+      return `<tr><td style="${td}"><select data-ot-row="${i}" data-ot-f="date" style="${sel}">${d}</select></td><td style="${td}"><select data-ot-row="${i}" data-ot-f="hours" style="${sel}">${h}</select></td><td style="${td}"><select data-ot-row="${i}" data-ot-f="project" style="${sel}">${p}</select></td><td style="${td}color:#C43B3B;font-weight:800;text-align:center;width:26px;cursor:pointer;" data-ot="remove" data-i="${i}">✕</td></tr>`;
+    }).join("");
+    const tot = otTotal(state.otList);
+    tbl = `<table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #d9c48a;margin:0 0 8px;">
+      <tr><th style="${th}width:33%">${ar ? "التاريخ" : "Date"}</th><th style="${th}width:21%">${ar ? "ساعات" : "Hours"}</th><th style="${th}">${ar ? "المشروع" : "Project"}</th><th style="${th}"></th></tr>
+      ${rows}
+      <tr><td style="padding:6px;background:#F6FBF8;font-weight:800;color:#067A55;">${ar ? "المجموع" : "Total"}</td><td style="padding:6px;background:#F6FBF8;font-weight:800;color:#067A55;">${tot}</td><td colspan="2" style="background:#F6FBF8;"></td></tr>
+    </table>
+    <button type="button" data-ot="addrow" style="display:block;width:100%;margin:0 0 8px;padding:9px;border:0;border-radius:8px;background:#0A9B70;color:#fff;font-weight:800;font-size:13px;cursor:pointer;">+ ${ar ? "إضافة صف" : "Add row"}</button>`;
+  }
   return `
-    ${(!locked && !state.otFormOpen) ? `<button type="button" data-ot="open" style="display:block;width:100%;margin:0 0 8px;padding:10px;border:0;border-radius:10px;background:#0A9B70;color:#fff;font-weight:800;font-size:14px;cursor:pointer;">⏱ + ${ar ? "إضافة وقت إضافي" : "Add Overtime"}</button>` : ""}
-    ${form}
-    ${otTableHtml(ot, { edit: !locked })}
+    ${tbl}
     <label style="margin-top:6px;color:#966109;font-size:11px;">${ar ? "ملاحظات أخرى" : "Other remarks"}</label>
     <textarea id="remarksInput" rows="3" placeholder="${ar ? "أي ملاحظات إضافية لهذا الشهر..." : "Anything extra you want to note for this month..."}" ${locked ? "disabled" : ""}>${escapeHtml(other)}</textarea>`;
 }
@@ -16243,7 +16238,6 @@ function handleDelegatedInput(e){
   if(e.target.id === "hrDashboardSearchInput"){
     filterHrDashboardTiles(e.target.value);
   }
-  if(e.target.id === "otReason"){ state.otForm.reason = e.target.value; return; }
   if(e.target.id === "remarksInput"){
     state.remarksOther = e.target.value; state.remarksDraft = otCompose(state.otList, state.remarksOther); // no re-render here, so the cursor position isn't lost while typing
   }
