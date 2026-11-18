@@ -700,6 +700,16 @@ body.cr-emp table.grid.day-flat .status-select.st-Sick{color:#9A6200 !important}
 body.cr-emp table.grid.day-flat .status-select.st-Friday{color:#6B4CC0 !important}
 body.cr-emp table.grid.day-flat .status-select.project-select{color:#17375E !important}
 body.cr-emp table.grid.day-flat tbody tr.ot-sub td{background:#DDFBEF !important}
+/* employee page: four small flat stat boxes in one row */
+body.cr-emp .summary-grid.emp-stats{grid-template-columns:repeat(4,minmax(0,1fr)) !important;gap:6px !important;margin-bottom:10px !important}
+body.cr-emp .emp-stats .summary-item{border-radius:8px !important;padding:6px 2px !important;box-shadow:none !important;border:1px solid !important;overflow:visible}
+body.cr-emp .emp-stats .summary-item::before{display:none !important}
+body.cr-emp .emp-stats .summary-item .n{font-size:18px !important;text-shadow:none !important;line-height:1.1}
+body.cr-emp .emp-stats .summary-item .l{font-size:9.5px !important;background:none !important;padding:0 !important;margin-top:1px !important;text-shadow:none !important;white-space:nowrap;letter-spacing:0 !important;font-weight:800}
+body.cr-emp .emp-stats .s-present{background:#E6F7EC !important;border-color:#74C79B !important}body.cr-emp .emp-stats .s-present .n,body.cr-emp .emp-stats .s-present .l{color:#067A55 !important}
+body.cr-emp .emp-stats .s-absent{background:#FDECEC !important;border-color:#E8A0A8 !important}body.cr-emp .emp-stats .s-absent .n,body.cr-emp .emp-stats .s-absent .l{color:#B42828 !important}
+body.cr-emp .emp-stats .s-basic{background:#EEF1FB !important;border-color:#AEB9E6 !important}body.cr-emp .emp-stats .s-basic .n,body.cr-emp .emp-stats .s-basic .l{color:#2F3E8F !important}
+body.cr-emp .emp-stats .s-ot{background:#FFF3D9 !important;border-color:#E8B64A !important}body.cr-emp .emp-stats .s-ot .n,body.cr-emp .emp-stats .s-ot .l{color:#8A5A00 !important}
 /* employee page: classic flat buttons and a smaller remarks box */
 .emp-actions{gap:6px !important}
 body.cr-emp .emp-actions .emp-act{border:1px solid rgba(0,0,0,.18) !important;border-radius:8px !important;box-shadow:none !important;text-shadow:none !important;min-height:42px !important;padding:5px 3px !important}
@@ -9367,7 +9377,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "18 Nov 2026 - overtime in whole hours";
+const APP_VERSION = "18 Nov 2026 - one-row stat boxes";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -9761,10 +9771,11 @@ function renderEmployeeView(){
       ${ar ? "📋 يُصرف راتب الإجازة المرضية فقط عند إرفاق تقرير طبي معتمد من الطبيب." : "📋 Sick leave is paid only when a certified medical report from a doctor is provided."}
     </div>
     <input type="file" accept="image/*" id="medicalReportInput" style="display:none;">
-    <div class="summary-grid">
+    <div class="summary-grid emp-stats">
       <div class="summary-item s-present"><div class="n">${totals.present}</div><div class="l">${ar ? "حاضر" : "Present"}</div></div>
       <div class="summary-item s-absent"><div class="n">${totals.absent}</div><div class="l">${ar ? "غائب" : "Absent"}</div></div>
-      <div class="summary-item s-total"><div class="n">${totals.totalHours.toFixed(1)}</div><div class="l">${ar ? "إجمالي الساعات" : "Total Hrs"}</div></div>
+      <div class="summary-item s-basic"><div class="n">${totals.regularHours}</div><div class="l">${ar ? "ساعات أساسية" : "Basic Hrs"}</div></div>
+      <div class="summary-item s-ot"><div class="n">${totals.ot}</div><div class="l">${ar ? "ساعات إضافية" : "OT Hrs"}</div></div>
     </div>
     ${(state.user && "email" in state.user && !String(state.user.email || "").trim()) ? `<button type="button" class="pf-homebanner" data-open-profile-email="1"><i>✉️</i><span>${ar ? "يرجى إضافة بريدك الإلكتروني (مطلوب)" : "Please add your email address. It is required."}</span><b>${ar ? "إضافة" : "Add"}</b></button>` : ""}
     <div class="emp-actions" style="--cols:${Math.ceil((1 + 1 + 1 + (state.user.iqama_number !== "2357537808" ? 1 : 0) + (state.user.can_record_purchases ? 1 : 0))/2)}">
