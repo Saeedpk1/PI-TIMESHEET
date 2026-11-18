@@ -683,6 +683,23 @@ body.cr-emp .status-select.st-Friday,body.cr-emp .st-Friday{background:linear-gr
 body.cr-emp .status-select.st-Leave,body.cr-emp .status-select.st-Holiday{background:linear-gradient(160deg,#FFECFA,#FFC2EC) !important;color:#9A1E78 !important;border-color:#FF9FDD !important}
 body.cr-emp .status-select.project-select{background:linear-gradient(160deg,#FFFFFF,#E6EEFF) !important;color:#17375E !important;border-color:#B6CCFF !important}
 body.cr-emp .grid .link-btn{background:rgba(255,255,255,.85);border:1px solid currentColor;border-radius:8px;padding:2px 6px !important}
+/* employee day table: simple and classic, same as the overtime table */
+body.cr-emp .day-flat-card{background:#fff !important;border:1px solid #d9c48a !important;border-radius:8px !important;box-shadow:none !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;overflow:hidden}
+body.cr-emp table.grid.day-flat{border-collapse:collapse !important;border-spacing:0 !important;width:100%}
+body.cr-emp table.grid.day-flat th{background:#E8B64A !important;color:#4a3000 !important;text-shadow:none !important;box-shadow:none !important;border-radius:0 !important;border:none !important;padding:7px 6px !important;font-size:11px;text-align:left}
+body.cr-emp table.grid.day-flat td{background:#fff !important;border:none !important;border-top:1px solid #eadfc0 !important;border-radius:0 !important;box-shadow:none !important;padding:4px 5px !important}
+body.cr-emp table.grid.day-flat tbody tr:nth-child(even) td{background:#FFFCF3 !important}
+body.cr-emp table.grid.day-flat td.date-cell{background:#fff !important;color:#1b2a4a !important;text-shadow:none !important;font-weight:800;font-size:13px;text-align:left}
+body.cr-emp table.grid.day-flat td.date-cell small{display:inline;margin-left:4px;color:#7a88a6 !important;font-weight:600;font-size:10.5px}
+body.cr-emp table.grid.day-flat .friday-row td,body.cr-emp table.grid.day-flat .friday-row td.date-cell{background:#FDE8E4 !important}
+body.cr-emp table.grid.day-flat .friday-row td.date-cell{color:#B42828 !important}
+body.cr-emp table.grid.day-flat .status-select,body.cr-emp table.grid.day-flat .status-select.project-select{background:#fff !important;border:1.5px solid #c9b57a !important;border-radius:6px !important;box-shadow:none !important;padding:4px 3px !important;font-size:12px !important;font-weight:700}
+body.cr-emp table.grid.day-flat .status-select.st-Present{color:#067A55 !important}
+body.cr-emp table.grid.day-flat .status-select.st-Absent{color:#B42828 !important}
+body.cr-emp table.grid.day-flat .status-select.st-Sick{color:#9A6200 !important}
+body.cr-emp table.grid.day-flat .status-select.st-Friday{color:#6B4CC0 !important}
+body.cr-emp table.grid.day-flat .status-select.project-select{color:#17375E !important}
+body.cr-emp table.grid.day-flat tbody tr.ot-sub td{background:#DDFBEF !important}
 /* remarks */
 body.cr-emp .remarks-card{border-radius:24px;border:1px solid rgba(255,255,255,.95);background:linear-gradient(135deg,rgba(255,248,224,.94),rgba(255,229,166,.80));box-shadow:0 12px 26px rgba(220,150,40,.22),inset 0 1px 0 #fff}
 body.cr-emp .remarks-card textarea{border:1.5px solid #FFD27A;border-radius:16px;background:rgba(255,255,255,.92);box-shadow:inset 0 2px 5px rgba(180,120,20,.10)}
@@ -9324,7 +9341,7 @@ async function buildCombinedPdf(included, titleText, filename){
 
 /* ---------------- rendering ---------------- */
 // Shown at the bottom of every page, so anyone can tell which copy of the app is loaded.
-const APP_VERSION = "18 Nov 2026 - simple overtime table";
+const APP_VERSION = "18 Nov 2026 - simple classic day table";
 function renderVersionTag(){
   return `<div id="appVersionTag" style="text-align:center;font-size:10px;color:#9AA8B8;padding:14px 0 18px;">Version: ${APP_VERSION}</div>`;
 }
@@ -9730,8 +9747,8 @@ function renderEmployeeView(){
     ${state.user.can_record_purchases ? `<button id="openPurchaseFormBtn" title="Record Purchase" class="emp-act"><i>🧾</i><em>Purchase</em></button>` : ""}
     <button id="openMyProfileBtn" class="emp-act"><i>👤</i><em>${ar ? "ملفي" : "My Profile"}</em></button>
     </div>
-    <div class="card" style="padding:8px 6px 4px;">
-      <table class="grid">
+    <div class="card day-flat-card" style="padding:0;">
+      <table class="grid day-flat">
         <colgroup><col style="width:18%;"><col style="width:37%;"><col style="width:45%;"></colgroup>
         <thead><tr><th>${ar?"التاريخ":"Date"}</th><th>${ar?"الحالة":"Status"}</th><th>${ar?"المشروع":"Project"}</th></tr></thead>
         <tbody>${rows}</tbody>
